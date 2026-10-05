@@ -176,12 +176,12 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
 
         {step === 'estado' && (
           <div className="space-y-3">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">¿En qué estado está tu local?</span>
               <select
                 value={state}
                 onChange={(e) => setState(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
               >
                 <option value="">Selecciona un estado…</option>
                 {VENEZUELA_STATES.map((s) => (
@@ -191,7 +191,7 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
                 ))}
               </select>
             </label>
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               Esto ayuda a ubicar cada zona en el mapa correctamente — nombres como "Zona Norte" se repiten en
               muchas ciudades.
             </p>
@@ -237,7 +237,7 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
                   onChange={(e) => setText(e.target.value)}
                   placeholder={'Zona Norte: 5\nZona Centro - 3.50\nZona Sur    8'}
                   rows={7}
-                  className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm font-mono focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  className="w-full rounded-lg border border-brand-950/15 px-3 py-2 font-mono focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                 />
                 <TextureButton
                   variant="brand"
@@ -253,7 +253,7 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
 
             {source === 'imagen' && (
               <div className="space-y-2">
-                <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-brand-950/20 bg-brand-950/[0.02] px-4 py-8 text-center hover:border-brand-500/40">
+                <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-brand-950/20 bg-brand-950/[0.02] px-4 py-8 text-center hover:border-brand-500/40 text-sm font-medium">
                   <ImageIcon className="h-6 w-6 text-brand-950/40" />
                   <span className="text-sm text-brand-950/60">Toca para elegir una foto de la lista</span>
                   <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
@@ -263,17 +263,17 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
                     <Loader2 className="h-4 w-4 animate-spin" /> Leyendo imagen… {ocrProgress}%
                   </div>
                 )}
-                {ocrError && <p className="text-sm text-red-600">{ocrError}</p>}
+                {ocrError && <p className="text-red-600 text-base">{ocrError}</p>}
               </div>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
           </div>
         )}
 
         {step === 'revision' && (
           <div className="space-y-3">
-            <p className="text-sm text-brand-950/70">
+            <p className="text-brand-950/70 text-base">
               {rows.length} zona{rows.length === 1 ? '' : 's'} detectada{rows.length === 1 ? '' : 's'}. Revisa nombre y
               precio, luego busca su ubicación en {state}.
             </p>
@@ -284,12 +284,12 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
                   <input
                     value={r.name}
                     onChange={(e) => updateRow(i, { name: e.target.value, lat: undefined, status: 'pendiente' })}
-                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   />
                   <input
                     value={r.price}
                     onChange={(e) => updateRow(i, { price: Number(e.target.value.replace(/[^0-9.]/g, '')) || 0 })}
-                    className="w-20 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="w-20 rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   />
                   <span
                     className={`w-24 shrink-0 text-center text-xs font-medium ${
@@ -309,13 +309,13 @@ export function ImportZonesDialog({ open, onOpenChange, onImported }: Props) {
                   </button>
                 </div>
               ))}
-              {rows.length === 0 && <p className="py-4 text-center text-sm font-light text-brand-950/40">Sin zonas.</p>}
+              {rows.length === 0 && <p className="py-4 text-center font-light text-brand-950/40 text-base">Sin zonas.</p>}
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
 
             {rows.some((r) => r.status === 'no encontrada') && (
-              <p className="text-xs font-light text-amber-700">
+              <p className="font-light text-amber-700 text-xs">
                 Algunas zonas no se pudieron ubicar automáticamente — revisa que el nombre sea un lugar real (ej. "Urb.
                 La Trinidad" en vez de "Zona 3") o dibújalas a mano después.
               </p>

@@ -1,3 +1,4 @@
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { useMemo, useState } from 'react';
 import { Plus, Search, Timer, Users } from 'lucide-react';
 import type { Reservation, WaitlistEntry, WaitlistResponse } from '@/types';
@@ -76,14 +77,14 @@ export function SalaSidebar({
 
   return (
     <aside className="flex min-h-0 flex-col gap-3 rounded-2xl border border-brand-950/10 bg-brand-950/[0.02] p-3">
-      <div className="flex shrink-0 rounded-full bg-brand-950/[0.06] p-0.5">
+      <AnimatedTabs tone="light" className="flex shrink-0 rounded-full bg-brand-950/[0.06] p-0.5">
         {(
           [
             ['reservas', 'Reservas', upcoming.length + seated.length],
             ['espera', 'Espera', waiting.length],
           ] as const
         ).map(([id, label, count]) => (
-          <button
+          <AnimatedTab active={tab === id}
             key={id}
             type="button"
             onClick={() => setTab(id)}
@@ -93,9 +94,9 @@ export function SalaSidebar({
           >
             {label}
             {count > 0 && <span className="ml-1 opacity-60">{count}</span>}
-          </button>
+          </AnimatedTab>
         ))}
-      </div>
+      </AnimatedTabs>
 
       <div className="relative shrink-0">
         <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-950/30" />
@@ -103,20 +104,20 @@ export function SalaSidebar({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre o teléfono…"
-          className="w-full rounded-full border border-brand-950/10 bg-white py-1.5 pl-8 pr-3 text-xs focus:border-brand-500 focus:outline-none"
+          className="w-full rounded-full border border-brand-950/10 bg-white py-1.5 pl-8 pr-3 focus:border-brand-500 focus:outline-none text-base"
         />
       </div>
 
       {tab === 'espera' && stats && (
         <div className="grid shrink-0 grid-cols-2 gap-2">
           <div className="rounded-xl border border-brand-950/10 bg-white px-3 py-2">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-950/40">
+            <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-brand-950/40 text-xs">
               <Users className="h-3 w-3" /> Esperando
             </p>
             <p className="text-lg font-bold tabular-nums text-brand-950">{stats.waitingCount}</p>
           </div>
           <div className="rounded-xl border border-brand-950/10 bg-white px-3 py-2">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-950/40">
+            <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-brand-950/40 text-xs">
               <Timer className="h-3 w-3" /> Espera prom.
             </p>
             <p className="text-lg font-bold tabular-nums text-brand-950">
@@ -202,11 +203,11 @@ function Section({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-950/40">
+      <p className="mb-1.5 font-bold uppercase tracking-wider text-brand-950/40 text-xs">
         {title} {count > 0 && <span className="opacity-70">· {count}</span>}
       </p>
       {count === 0 ? (
-        empty && <p className="px-1 text-xs font-light text-brand-950/40">{empty}</p>
+        empty && <p className="px-1 font-light text-brand-950/40 text-xs">{empty}</p>
       ) : (
         <ul className="space-y-1.5">{children}</ul>
       )}

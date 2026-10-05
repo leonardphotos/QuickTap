@@ -109,19 +109,19 @@ export function PaymentClientScreen({
         <p className="text-lg font-bold tracking-tight text-brand-950">{methodLabel}</p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-5 pb-4 sm:flex-row sm:items-center sm:gap-10 sm:px-10">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-5 pb-4 lg:flex-row lg:items-center lg:gap-10 lg:px-10">
         {qrImageUrl && (
           <img
             src={qrImageUrl}
             alt={`QR de ${methodLabel}`}
-            className="aspect-square w-full max-w-[300px] shrink-0 rounded-3xl border border-brand-950/10 object-contain sm:max-w-none sm:w-[min(42vw,440px)]"
+            className="size-[360px] max-w-[calc(100vw-2.5rem)] shrink-0 rounded-3xl border border-brand-950/10 object-contain"
           />
         )}
 
         <div className="w-full max-w-lg space-y-5">
           {detailLines.length > 0 && (
             <div className="rounded-2xl border border-brand-950/12 px-5 py-4">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-brand-950">{detailTitle}</p>
+              <p className="font-bold uppercase tracking-wide text-brand-950 text-base">{detailTitle}</p>
               <ul className="mt-2 space-y-1">
                 {detailLines.map((line, i) => (
                   <li key={i} className="flex gap-2 text-[17px] font-light text-brand-950 sm:text-[19px]">
@@ -175,8 +175,8 @@ export function PaymentClientScreen({
 function MissingDetailsNotice({ methodLabel }: { methodLabel: string }) {
   return (
     <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
-      <p className="text-[15px] font-bold text-amber-900">Sin datos de {methodLabel}</p>
-      <p className="mt-0.5 text-[13px] font-light text-amber-900/80">
+      <p className="font-bold text-amber-900 text-base">Sin datos de {methodLabel}</p>
+      <p className="mt-0.5 font-light text-amber-900/80 text-base">
         Carga el teléfono, la cédula/RIF, el banco o el QR en Ajustes → Métodos de pago y aparecerán acá cada vez que cobres.
       </p>
     </div>

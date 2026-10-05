@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
-import { Check, PartyPopper } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { PLAN_CONTENT } from '@/components/landing/PlanCards';
+import { PLAN_CONTENT } from '@/components/landing/PlanCards.shared';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Check,PartyPopper } from 'lucide-react';
+import { AnimatePresence,motion } from 'motion/react';
+import { useEffect,useState } from 'react';
+import { Navigate,useNavigate } from 'react-router-dom';
 
 /**
  * Pantalla única mostrada justo después de que se activa/cambia un plan
@@ -58,9 +58,9 @@ export default function WelcomePage() {
             className="w-full max-w-md"
           >
             <div className="rounded-2xl bg-white p-7 sm:p-8 shadow-2xl">
-              <p className="text-xs font-medium text-brand-500 uppercase tracking-wide">Tu plan está activo</p>
+              <p className="font-medium text-brand-500 uppercase tracking-wide text-xs">Tu plan está activo</p>
               <h2 className="text-2xl font-semibold text-brand-950 mt-1">{plan?.name ?? restaurant.pendingWelcomePlan}</h2>
-              {plan && <p className="text-sm text-brand-950/60 font-light mt-1">{plan.subtitle}</p>}
+              {plan && <p className="text-brand-950/60 font-light mt-1 text-base">{plan.subtitle}</p>}
 
               <ul className="mt-5 space-y-2.5 text-sm text-brand-950/70 font-light">
                 {plan ? (

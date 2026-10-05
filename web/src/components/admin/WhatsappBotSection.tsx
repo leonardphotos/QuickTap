@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
-import { apiOrigin } from '@/utils/apiOrigin';
-import { MessageCircle } from 'lucide-react';
-import { api, getToken } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { TEAM_MANAGER_ROLES } from '@/utils/roles';
-import type { UserRole } from '@/types';
+import { api,getToken } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { UserRole } from '@/types';
+import { apiOrigin } from '@/utils/apiOrigin';
+import { TEAM_MANAGER_ROLES } from '@/utils/roles';
+import { MessageCircle } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 
 type BotStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
 type OrderMode = 'PAYMENT_VERIFICATION' | 'FULL_ORDER';
@@ -91,7 +91,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [variant]);
 
   async function connect() {
     setBusy(true);
@@ -176,20 +176,20 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
         <TextureCardTitle className="pl-0 flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-emerald-600" /> Chatbot de WhatsApp
         </TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           {variant === 'club'
             ? 'Vincula el WhatsApp del club (como un dispositivo más, igual que WhatsApp Web) para mandarle a tus jugadores el código de verificación al reservar y avisos automáticos, sin salir de QuickTap.'
             : 'Vincula el WhatsApp del restaurante (como un dispositivo más, igual que WhatsApp Web) para mandar avisos automáticos de pedido al cliente sin salir de QuickTap.'}
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         {connected ? (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-emerald-800">Conectado{data.connectedNumber ? ` · ${data.connectedNumber}` : ''}</p>
-              <p className="text-xs text-emerald-700/70 font-light">Los mensajes automáticos salen desde este número.</p>
+              <p className="font-semibold text-emerald-800 text-base">Conectado{data.connectedNumber ? ` · ${data.connectedNumber}` : ''}</p>
+              <p className="text-emerald-700/70 font-light text-xs">Los mensajes automáticos salen desde este número.</p>
             </div>
             {canManage && (
               <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={busy} onClick={disconnect}>
@@ -200,13 +200,13 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
         ) : showingQr ? (
           <div className="flex flex-col items-center gap-2 py-2">
             <img src={data.qrDataUrl!} alt="Código QR de WhatsApp" className="h-52 w-52 rounded-xl border border-brand-950/10" />
-            <p className="text-xs text-brand-950/50 font-light text-center max-w-xs">
+            <p className="text-brand-950/50 font-light text-center max-w-xs text-xs">
               Abre WhatsApp en el celular {variant === 'club' ? 'del club' : 'del restaurante'} → Ajustes → Dispositivos
               vinculados → Vincular un dispositivo, y escanea este código.
             </p>
           </div>
         ) : data.status === 'connecting' ? (
-          <p className="text-sm text-brand-950/50 font-light">Generando código QR…</p>
+          <p className="text-brand-950/50 font-light text-base">Generando código QR…</p>
         ) : (
           canManage && (
             <TextureButton variant="brand" size="default" className="!w-auto" disabled={busy} onClick={connect}>
@@ -217,7 +217,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
 
         {connected && variant === 'club' && (
           <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] px-4 py-3">
-            <p className="text-sm font-semibold text-brand-950">Ya sale automático, sin nada que configurar</p>
+            <p className="font-semibold text-brand-950 text-base">Ya sale automático, sin nada que configurar</p>
             <ul className="mt-1.5 space-y-1 text-xs font-light text-brand-950/60">
               <li>· El código de verificación cuando un jugador reserva por internet</li>
               <li>· El aviso a los inscritos si una clase se libera por falta de cupo</li>
@@ -230,7 +230,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
           <div className="space-y-2 pt-2 border-t border-brand-950/[0.06]">
             {variant === 'restaurant' && (
               <>
-                <label className="flex items-center justify-between gap-3 text-sm">
+                <label className="flex items-center justify-between gap-3 text-sm font-medium">
                   <span className="text-brand-950/80">Avisar "Pedido recibido" al llegar un pedido de delivery/pickup</span>
                   <input
                     type="checkbox"
@@ -239,7 +239,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                     onChange={(e) => toggle('notifyReceived', e.target.checked)}
                   />
                 </label>
-                <label className="flex items-center justify-between gap-3 text-sm">
+                <label className="flex items-center justify-between gap-3 text-sm font-medium">
                   <span className="text-brand-950/80">Avisar "Pedido listo/en camino" al despachar o marcar listo</span>
                   <input
                     type="checkbox"
@@ -250,7 +250,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                 </label>
               </>
             )}
-            <label className="flex items-center justify-between gap-3 text-sm">
+            <label className="flex items-center justify-between gap-3 text-sm font-medium">
               <span className="text-brand-950/80">Responder solo con un mensaje de bienvenida al primer mensaje de cada cliente</span>
               <input
                 type="checkbox"
@@ -262,7 +262,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
 
             {data.whatsappBotWelcomeEnabled && (
               <div className="pt-1 space-y-2">
-                <p className="text-xs text-brand-950/50 font-light">
+                <p className="text-brand-950/50 font-light text-xs">
                   Se envía en cada mensaje que escriba el cliente (sin límite de frecuencia), para responder lo más
                   rápido posible en hora pico. Variables:{' '}
                   <code className="text-[11px]">{'{{restaurant}}'}</code> y <code className="text-[11px]">{'{{link}}'}</code> (enlace a tu{' '}
@@ -273,7 +273,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                   onChange={(e) => setWelcomeDraft(e.target.value)}
                   disabled={!canManage}
                   rows={5}
-                  className="w-full border border-brand-950/15 rounded-lg px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
                 {canManage && (
                   <div className="flex items-center gap-2">
@@ -295,7 +295,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
             {variant === 'club' && (
               <>
                 <div className="pt-2 space-y-2 border-t border-brand-950/[0.06]">
-                  <label className="flex items-center justify-between gap-3 text-sm">
+                  <label className="flex items-center justify-between gap-3 text-sm font-medium">
                     <span className="text-brand-950/80">Recordatorio automático de deudas con cobro por comprobante</span>
                     <input
                       type="checkbox"
@@ -304,7 +304,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                       onChange={(e) => toggle('debtRemindersEnabled', e.target.checked)}
                     />
                   </label>
-                  <p className="text-xs text-brand-950/50 font-light">
+                  <p className="text-brand-950/50 font-light text-xs">
                     A los 3 días de una deuda (reserva, tienda fiada o mensualidad de academia) el chatbot le recuerda
                     al cliente el monto pendiente — con tus datos de Pago Móvil — y lo repite cada 7 días mientras siga
                     sin pagar. El cliente responde con la foto de su comprobante, esta llega al número verificador de
@@ -313,10 +313,10 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                 </div>
 
                 <div className="pt-1 space-y-2">
-                  <label className="text-sm text-brand-950/80">
+                  <label className="text-brand-950/80 text-sm font-medium">
                     Número que verifica los pagos (recibe cada comprobante y responde Aprobado/Rechazado)
                   </label>
-                  <p className="text-xs text-brand-950/50 font-light">
+                  <p className="text-brand-950/50 font-light text-xs">
                     Puede indicar el método al aprobar: <em>"Aprobado zelle"</em>, <em>"Aprobado efectivo"</em>… — sin
                     indicarlo, se registra como Pago Móvil. Sin este número, los comprobantes de deuda no tienen a
                     dónde llegar.
@@ -343,8 +343,8 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
             {variant === 'restaurant' && (
             <>
             <div className="pt-2 space-y-2 border-t border-brand-950/[0.06]">
-              <p className="text-sm text-brand-950/80 font-medium">Modo de pedidos</p>
-              <p className="text-xs text-brand-950/50 font-light">
+              <p className="text-brand-950/80 font-medium text-base">Modo de pedidos</p>
+              <p className="text-brand-950/50 font-light text-xs">
                 Cómo confirmar un pedido de Delivery/Pickup antes de que pase a cocina.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -358,8 +358,8 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                       : 'border-brand-950/10 hover:border-brand-950/20'
                   }`}
                 >
-                  <p className="text-sm font-medium text-brand-950/90">Verificación de pago</p>
-                  <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                  <p className="font-medium text-brand-950/90 text-base">Verificación de pago</p>
+                  <p className="text-brand-950/50 font-light mt-0.5 text-xs">
                     El cliente manda foto del comprobante y ustedes la aprueban por WhatsApp.
                   </p>
                 </button>
@@ -373,8 +373,8 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                       : 'border-brand-950/10 hover:border-brand-950/20'
                   }`}
                 >
-                  <p className="text-sm font-medium text-brand-950/90">Enviar pedido completo</p>
-                  <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                  <p className="font-medium text-brand-950/90 text-base">Enviar pedido completo</p>
+                  <p className="text-brand-950/50 font-light mt-0.5 text-xs">
                     Les llega el pedido completo a este WhatsApp y ustedes confirman a mano antes de que pase a
                     cocina.
                   </p>
@@ -383,12 +383,12 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
             </div>
 
             <div className="pt-1 space-y-2">
-              <label className="text-sm text-brand-950/80">
+              <label className="text-brand-950/80 text-sm font-medium">
                 {data.whatsappOrderMode === 'FULL_ORDER'
                   ? 'Número que recibe los pedidos para confirmar'
                   : 'Número que verifica los pagos (recibe cada comprobante y responde Aprobado/Rechazado)'}
               </label>
-              <p className="text-xs text-brand-950/50 font-light">
+              <p className="text-brand-950/50 font-light text-xs">
                 {data.whatsappOrderMode === 'FULL_ORDER' ? (
                   <>
                     Cada pedido de Delivery/Pickup (sin importar el método de pago) le llega completo a este número.

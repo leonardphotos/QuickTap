@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
+import { PAYMENT_METHOD_LABELS } from '@/components/admin/CashSessionReceipt.shared';
+import { CATEGORY_LABELS } from '@/components/admin/ExpenseFormDialog.shared';
+import { INCOME_CATEGORY_LABELS } from '@/components/admin/IncomeFormDialog.shared';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { formatBase } from '@/utils/format';
-import { CATEGORY_LABELS } from '@/components/admin/ExpenseFormDialog';
-import { INCOME_CATEGORY_LABELS } from '@/components/admin/IncomeFormDialog';
-import { PAYMENT_METHOD_LABELS } from '@/components/admin/CashSessionReceipt';
-import { Cell, ClubBadge, ClubEyebrow, ClubMetric, ClubPanel, ClubRow, ClubTable, PlainCell, type ClubColumn } from './ClubTable';
+import { Trash2 } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { Cell,ClubBadge,ClubEyebrow,ClubMetric,ClubPanel,ClubRow,ClubTable,PlainCell,type ClubColumn } from './ClubTable';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 
@@ -94,7 +94,7 @@ export default function ClubHistoryTab({ restaurant }: { restaurant: Pick<AuthRe
 
   return (
     <div className="flex flex-col gap-4">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <ClubEyebrow>Historial administrativo</ClubEyebrow>
 

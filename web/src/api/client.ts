@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { apiOrigin } from '@/utils/apiOrigin';
+import { attachOrderIntent, finishOrderIntent } from './order-intents';
 
 /**
  * Cliente axios base. En dev, Vite proxea /api hacia el backend (puerto 4000); en la app
@@ -67,7 +68,7 @@ export function clearRememberedEmail(): void {
   localStorage.removeItem(REMEMBER_EMAIL_KEY);
 }
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   config.baseURL = `${apiOrigin()}/api/v1`;
   const token = getToken();
   // Si la llamada ya trae su propio Authorization (ej. QuickTap Wallet, que guarda su token
@@ -77,12 +78,31 @@ api.interceptors.request.use((config) => {
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const resources: Record<string, string> = { '/products': 'products', '/tables': 'tables', '/team': 'users', '/kitchens': 'kitchens', '/branches': 'sites' };
+  const resource = resources[config.url ?? ''];
+  if (token && config.method === 'post' && resource) {
+    // La prevalidación mejora el aviso, pero no debe impedir operaciones en un
+    // relé antiguo o ante un fallo de lectura. El servidor sigue siendo autoritativo.
+    const capacity = await api.get('/plan-requests/capacity').then(r => r.data.data).catch(() => null);
+    const limit = capacity?.limits?.[resource];
+    if (typeof limit === 'number' && capacity.usage[resource] >= limit) {
+      const labels: Record<string, string> = { users: 'usuarios activos', products: 'productos', tables: 'mesas', kitchens: 'estaciones de cocina/impresión', sites: 'sedes' };
+      const message = `Alcanzaste el límite de ${limit} ${labels[resource]}. Mejora tu plan o solicita cotización.`;
+      return Promise.reject({ response: { status: 409, data: { error: message, details: { code: 'PLAN_LIMIT' } } } });
+    }
+  }
+  await attachOrderIntent(config);
   return config;
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => { finishOrderIntent(res.config); return res; },
   (err) => {
+    // Un rechazo de validación no creó efectos; red/timeout/5xx conservan la clave.
+    if (err.response?.status >= 400 && err.response?.status < 500) finishOrderIntent(err.config);
+    if (err.response?.data?.details?.code === 'PLAN_LIMIT') {
+      window.dispatchEvent(new CustomEvent('quicktap:plan-limit', { detail: err.response.data.error }));
+    }
     if (err.response?.status === 401) {
       clearToken();
     }

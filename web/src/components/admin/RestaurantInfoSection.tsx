@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useState } from 'react';
 import { PhotoUploadField } from './PhotoUploadField';
 
 export function RestaurantInfoSection() {
@@ -40,7 +40,7 @@ export function RestaurantInfoSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Información del local</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Estos datos aparecen en tu panel y en el menú público que ven tus clientes.
         </p>
       </TextureCardHeader>
@@ -54,34 +54,34 @@ export function RestaurantInfoSection() {
           defaultPreview="/logo/perfil.jpg"
         />
 
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Nombre</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
         </label>
 
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Descripción</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Ej: Comida criolla y parrilla a la leña."
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
         </label>
 
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Número de contacto (WhatsApp)</span>
           <div className="mt-1">
             <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </div>
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}

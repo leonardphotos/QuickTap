@@ -1,4 +1,5 @@
 import { api } from '@/api/client';
+import type { Quote } from '@/types';
 
 export type CrmSegment = 'ALL' | 'FREQUENT' | 'NEW' | 'INACTIVE' | 'BIRTHDAY';
 
@@ -36,6 +37,7 @@ export interface CrmSummary {
 }
 
 export interface CrmProfile extends Omit<CrmCustomer, 'visits' | 'totalBase' | 'lastVisit'> {
+  quotes?: Quote[];
   history: { date: string; detail: string; amountBase: string }[];
   promotions: { id: string; name: string; code: string; isActive: boolean; endsAt: string | null; sentAt: string | null }[];
   redemptions: { id: string; promotionName: string; code: string; amountBase: string; createdAt: string }[];
@@ -55,6 +57,7 @@ export interface PromotionRow {
   segment: string | null;
   maxPerCustomer: number;
   restrictToTargets: boolean;
+  requiresCode: boolean;
   createdAt: string;
   targetCount: number;
   sentCount: number;

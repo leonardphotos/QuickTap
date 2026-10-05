@@ -1,16 +1,7 @@
-import { forwardRef, type CSSProperties } from 'react';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import type { Currency } from '@/types';
-
-export type ReportKind = 'general' | 'products' | 'delivery' | 'payments' | 'history';
-
-export const REPORT_AREA_LABELS: Record<ReportKind, string> = {
-  general: 'General',
-  products: 'Productos',
-  delivery: 'Delivery',
-  payments: 'Métodos de pago',
-  history: 'Historial de pedidos',
-};
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
+import { forwardRef,type CSSProperties } from 'react';
+import { REPORT_AREA_LABELS } from './ReportReceipt.shared';
 
 const CHANNEL_LABELS: Record<string, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
 const PAYMENT_METHOD_LABELS: Record<string, string> = {

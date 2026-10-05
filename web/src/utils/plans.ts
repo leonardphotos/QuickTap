@@ -1,4 +1,5 @@
 export type PlanId =
+  | 'ESSENTIAL' | 'OPERATIONS' | 'CONTROL'
   | 'TRIAL'
   | 'DELIVERY'
   | 'STARTER'
@@ -31,7 +32,7 @@ export const CYCLE_MONTHS: Record<BillingCycle, number> = {
   ANNUAL: 12,
 };
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE';
+export type PurchasablePlan = 'ESSENTIAL' | 'OPERATIONS' | 'CONTROL' | 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Espejo del cálculo
@@ -43,6 +44,9 @@ export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHO
  * el único de Canchas y OFFICE el único de Administración.
  */
 export const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
+  ESSENTIAL: { MONTHLY: 24.99, QUARTERLY: 24.99, SEMIANNUAL: 24.99, ANNUAL: 24.99 },
+  OPERATIONS: { MONTHLY: 39.99, QUARTERLY: 39.99, SEMIANNUAL: 39.99, ANNUAL: 39.99 },
+  CONTROL: { MONTHLY: 59.99, QUARTERLY: 59.99, SEMIANNUAL: 59.99, ANNUAL: 59.99 },
   DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49, ANNUAL: 17.5 },
   PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
   ELITE: { MONTHLY: 59.99, QUARTERLY: 45.49, SEMIANNUAL: 40.99, ANNUAL: 37.5 },

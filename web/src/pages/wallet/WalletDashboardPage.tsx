@@ -360,12 +360,12 @@ export default function WalletDashboardPage() {
 
           {seccion === 'inicio' && (
             <>
-              <p className="mt-7 text-[13px] font-light text-white/45">Total que debes</p>
+              <p className="mt-7 font-light text-white/45 text-base">Total que debes</p>
               {/* Los centavos en chico: la cifra grande se lee de un golpe y el centavo no
                   compite con ella, igual que en las apps de banco. */}
               <SaldoAnimado monto={resumen.totalPendiente} animar={!reducirMovimiento && !intro} />
               {bs(resumen.totalPendiente, data.rateBs) && (
-                <p className="mt-1 text-[13px] font-light tabular-nums text-white/45">
+                <p className="mt-1 font-light tabular-nums text-white/45 text-base">
                   {bs(resumen.totalPendiente, data.rateBs)}
                 </p>
               )}
@@ -395,7 +395,7 @@ export default function WalletDashboardPage() {
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar por tienda o producto…"
-                  className="mt-4 w-full rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-white/35 focus:border-[#3d9bff]"
+                  className="mt-4 w-full rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-white outline-none transition-colors placeholder:text-white/35 focus:border-[#3d9bff] text-base"
                 />
               </motion.div>
             )}
@@ -447,11 +447,11 @@ export default function WalletDashboardPage() {
             <section>
               <h2 className="mb-2 text-[15px] font-bold">Historial de compras</h2>
               {historialTodo === null ? (
-                <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center text-[12.5px] font-light text-white/40">
+                <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center font-light text-white/40 text-base">
                   Cargando…
                 </p>
               ) : historialTodo.length === 0 ? (
-                <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center text-[12.5px] font-light text-white/40">
+                <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center font-light text-white/40 text-base">
                   Todavía no tienes compras registradas.
                 </p>
               ) : (
@@ -533,7 +533,7 @@ export default function WalletDashboardPage() {
             </div>
 
             {tiendasVisibles.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-brand-950/15 py-10 text-center text-sm font-light text-brand-950/40">
+              <p className="rounded-2xl border border-dashed border-brand-950/15 py-10 text-center font-light text-brand-950/40 text-base">
                 {q ? 'Nada coincide con tu búsqueda.' : 'Todavía no tienes compras registradas.'}
               </p>
             ) : (
@@ -692,7 +692,7 @@ export default function WalletDashboardPage() {
 function SaldoAnimado({ monto, animar }: { monto: number; animar: boolean }) {
   const n = useConteo(monto, animar);
   return (
-    <p className="mt-1.5 flex items-baseline gap-1 font-bold tabular-nums">
+    <p className="mt-1.5 flex items-baseline gap-1 font-bold tabular-nums text-base">
       {/* tracking cerrado: a este tamaño el espaciado por defecto separa demasiado los dígitos
           y la cifra deja de leerse como un solo número. */}
       <span className="text-[64px] leading-[0.95] tracking-[-0.03em]">
@@ -768,7 +768,7 @@ function CarruselTiendas({ tiendas }: { tiendas: TiendaQuickTap[] }) {
             style={{ '--i': i } as React.CSSProperties}
           >
             <IconoTienda tienda={t} />
-            <p className="mt-1.5 truncate text-center text-[11px] font-medium text-white/65">{t.nombre}</p>
+            <p className="mt-1.5 truncate text-center font-medium text-white/65 text-xs">{t.nombre}</p>
           </a>
         ))}
       </div>
@@ -825,21 +825,21 @@ function DetalleCompra({
     <div className="rounded-2xl bg-brand-950/[0.035] p-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-light tabular-nums text-brand-950/40">{fechaHora(compra.ultimaCompra)}</p>
-          <p className="mt-0.5 truncate text-[12.5px] font-light text-brand-950/70">{compra.detalle.join(', ')}</p>
+          <p className="font-light tabular-nums text-brand-950/40 text-xs">{fechaHora(compra.ultimaCompra)}</p>
+          <p className="mt-0.5 truncate font-light text-brand-950/70 text-base">{compra.detalle.join(', ')}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-[13.5px] font-bold tabular-nums">{money(compra.total)}</p>
+          <p className="font-bold tabular-nums text-base">{money(compra.total)}</p>
           {compra.saldo > 0 ? (
-            <p className="text-[11px] font-medium text-amber-600">Faltan {money(compra.saldo)}</p>
+            <p className="font-medium text-amber-600 text-xs">Faltan {money(compra.saldo)}</p>
           ) : (
-            <p className="text-[11px] font-medium text-emerald-600">Pagada</p>
+            <p className="font-medium text-emerald-600 text-xs">Pagada</p>
           )}
         </div>
       </div>
 
       {bs(compra.saldo, rateBs) && compra.saldo > 0 && (
-        <p className="mt-1 text-[11px] font-light tabular-nums text-brand-950/40">
+        <p className="mt-1 font-light tabular-nums text-brand-950/40 text-xs">
           {bs(compra.saldo, rateBs)}
         </p>
       )}

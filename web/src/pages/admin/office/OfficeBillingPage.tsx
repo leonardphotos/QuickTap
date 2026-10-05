@@ -1,5 +1,5 @@
-import type { AuthRestaurant } from '@/context/AuthContext';
 import { VerticalBillingPage } from '@/components/admin/VerticalBillingPage';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 
 /** Espejo de los `features` del plan OFFICE en el backend (platform-settings.service.ts).
  *  Son el respaldo si /public/plans no responde: el cliente ve el plan igual. */

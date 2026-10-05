@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Check, X } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { AlertTriangle,Check,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import {
-  Cell,
-  ClubBadge,
-  ClubEyebrow,
-  ClubMetric,
-  ClubPanel,
-  ClubRow,
-  ClubTable,
-  PlainCell,
-  SubCell,
-  type BadgeTone,
-  type ClubColumn,
+Cell,
+ClubBadge,
+ClubEyebrow,
+ClubMetric,
+ClubPanel,
+ClubRow,
+ClubTable,
+PlainCell,
+SubCell,
+type BadgeTone,
+type ClubColumn,
 } from '../ClubTable';
-import { academyApi, SESSION_STATUS_LABELS, type AcademyDashboard, type ClassSession } from './academyApi';
+import { academyApi,SESSION_STATUS_LABELS,type AcademyDashboard,type ClassSession } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
 
 interface RosterEntry {
@@ -78,8 +78,8 @@ export default function AcademyTodayTab({
 
   useEffect(load, [load]);
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando academia…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando academia…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
   if (!data) return null;
 
   const owes = data.pendingCharges.count > 0;
@@ -117,11 +117,11 @@ export default function AcademyTodayTab({
 
       {data.needsCourt > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 lg:p-4">
-          <p className="flex items-center gap-1.5 text-[13px] font-bold text-amber-900">
+          <p className="flex items-center gap-1.5 font-bold text-amber-900 text-base">
             <AlertTriangle className="h-3.5 w-3.5" />
             {data.needsCourt} clase(s) sin cancha
           </p>
-          <p className="mt-1 text-[12px] font-light leading-relaxed text-amber-900/80">
+          <p className="mt-1 font-light leading-relaxed text-amber-900/80 text-xs">
             Esas fechas chocaban con una reserva ya hecha. Reubícalas desde Grupos para que ocupen pista.
           </p>
         </div>
@@ -237,9 +237,9 @@ function RosterDialog({
         </DialogHeader>
 
         {loading ? (
-          <p className="text-sm font-light text-brand-950/40">Cargando lista…</p>
+          <p className="font-light text-brand-950/40 text-base">Cargando lista…</p>
         ) : roster.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">No hay alumnos en esta clase.</p>
+          <p className="py-6 text-center font-light text-brand-950/40 text-base">No hay alumnos en esta clase.</p>
         ) : (
           <div className="space-y-2">
             {roster.map((e) => (
@@ -267,14 +267,14 @@ function RosterDialog({
                 </div>
               </div>
             ))}
-            <p className="pt-1 text-xs font-light text-brand-950/40">
+            <p className="pt-1 font-light text-brand-950/40 text-xs">
               Cada asistencia descuenta una ficha del lote del alumno (o imputa su parte de la mensualidad) y calcula el
               honorario del profesor.
             </p>
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton
           variant="brand"
           size="default"

@@ -1,19 +1,20 @@
-import { useState } from 'react';
-import {
-  ChefHat,
-  Grid2x2,
-  LayoutDashboard,
-  Palette,
-  QrCode,
-  Rocket,
-  Share2,
-  Sparkles,
-  Users,
-  UtensilsCrossed,
-  Wallet,
-} from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog,DialogContent } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import {
+ChefHat,
+Grid2x2,
+LayoutDashboard,
+Palette,
+QrCode,
+Rocket,
+Share2,
+Sparkles,
+Users,
+UtensilsCrossed,
+Wallet,
+} from 'lucide-react';
+import { useState } from 'react';
+import { STORAGE_PREFIX } from './OnboardingTutorial.shared';
 
 interface Step {
   icon: typeof Sparkles;
@@ -79,12 +80,6 @@ const STEPS: Step[] = [
   },
 ];
 
-const STORAGE_PREFIX = 'quicktap_tutorial_seen_';
-
-export function hasSeenOnboardingTutorial(restaurantId: string): boolean {
-  return localStorage.getItem(STORAGE_PREFIX + restaurantId) === 'true';
-}
-
 function markOnboardingTutorialSeen(restaurantId: string): void {
   localStorage.setItem(STORAGE_PREFIX + restaurantId, 'true');
 }
@@ -114,7 +109,7 @@ export function OnboardingTutorial({ restaurantId, onClose }: { restaurantId: st
             <current.icon className="h-7 w-7 text-brand-500" />
           </div>
           <h2 className="text-lg font-semibold text-brand-950">{current.title}</h2>
-          <p className="text-sm text-brand-950/60 font-light mt-2 leading-relaxed">{current.text}</p>
+          <p className="text-brand-950/60 font-light mt-2 leading-relaxed text-base">{current.text}</p>
 
           <div className="flex items-center gap-1.5 mt-6">
             {STEPS.map((_, i) => (

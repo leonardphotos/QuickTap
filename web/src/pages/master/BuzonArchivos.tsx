@@ -113,8 +113,8 @@ export default function BuzonArchivos({
   return (
     <div className="space-y-4 rounded-2xl border border-brand-950/10 bg-white p-6 shadow-sm">
       <div>
-        <p className="font-semibold text-brand-950">Suelta todos los archivos del cliente</p>
-        <p className="mt-1 text-sm font-light text-brand-950/50">
+        <p className="font-semibold text-brand-950 text-base">Suelta todos los archivos del cliente</p>
+        <p className="mt-1 font-light text-brand-950/50 text-base">
           El inventario, la carta, el recetario, la lista de clientes, el libro del contador — todos juntos, como te los
           mandó. El sistema abre cada uno, mira sus encabezados y te dice qué es, hoja por hoja. No escribe nada hasta
           que tú lo mandes.
@@ -130,8 +130,8 @@ export default function BuzonArchivos({
         className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-brand-950/15 px-4 py-8 text-center"
       >
         <FileSpreadsheet className="h-7 w-7 text-brand-950/25" />
-        <p className="text-sm font-medium text-brand-950">Arrastra los archivos aquí</p>
-        <p className="text-xs font-light text-brand-950/40">
+        <p className="font-medium text-brand-950 text-base">Arrastra los archivos aquí</p>
+        <p className="font-light text-brand-950/40 text-xs">
           Hasta 10 archivos .xlsx a la vez. Los .xls viejos y los .csv hay que reguardarlos como .xlsx.
         </p>
         <TextureButton
@@ -167,7 +167,7 @@ export default function BuzonArchivos({
               <div key={a.archivo + i} className={`rounded-xl border p-3 ${COLORES[color]}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-sm font-medium text-brand-950">
+                    <p className="flex items-center gap-1.5 font-medium text-brand-950 text-base">
                       {a.soportado ? (
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
                       ) : (
@@ -175,7 +175,7 @@ export default function BuzonArchivos({
                       )}
                       <span className="truncate">{a.archivo}</span>
                     </p>
-                    <p className="mt-0.5 text-sm text-brand-950/70">
+                    <p className="mt-0.5 text-brand-950/70 text-base">
                       <span className="font-medium">{a.etiqueta}</span>
                       {util[0] ? ` · ${util[0].filas} fila${util[0].filas === 1 ? '' : 's'}` : ''}
                       {a.hojas.length > 1 ? ` · ${a.hojas.length} hojas` : ''}
@@ -190,10 +190,10 @@ export default function BuzonArchivos({
                   </button>
                 </div>
 
-                {a.error && <p className="mt-1 text-xs text-red-700">{a.error}</p>}
+                {a.error && <p className="mt-1 text-red-700 text-xs">{a.error}</p>}
 
                 {!a.error && (
-                  <p className="mt-1 text-xs font-light text-brand-950/60">
+                  <p className="mt-1 font-light text-brand-950/60 text-xs">
                     {destino ? (
                       <>
                         {a.hojas.find((h) => h.tipo === a.tipo)?.queHace} <span className="font-medium">{destino.comoSeCarga}</span>
@@ -208,7 +208,7 @@ export default function BuzonArchivos({
                   <div className="mt-2 space-y-2 border-t border-brand-950/10 pt-2">
                     {a.hojas.map((h) => (
                       <div key={h.hoja} className="text-xs">
-                        <p className="font-medium text-brand-950">
+                        <p className="font-medium text-brand-950 text-base">
                           {h.hoja}{' '}
                           <span className="font-normal text-brand-950/40">
                             — {h.etiqueta}
@@ -216,7 +216,7 @@ export default function BuzonArchivos({
                             {h.filas === 1 ? '' : 's'}
                           </span>
                         </p>
-                        <p className="text-brand-950/50">{h.motivo}</p>
+                        <p className="text-brand-950/50 text-base">{h.motivo}</p>
                         {h.muestra.length > 0 && (
                           <div className="mt-1 overflow-x-auto">
                             <table className="text-[11px] text-brand-950/60">
@@ -345,7 +345,7 @@ function CargaDirecta({
         </button>
       ) : (
         <>
-          <p className="text-xs text-brand-950/60">
+          <p className="text-brand-950/60 text-xs">
             <span className="font-medium text-brand-950">{filas.length}</span> {tipo} · {nuevos} nuevos ·{' '}
             {filas.length - nuevos} ya los tiene (se actualizan)
           </p>
@@ -362,7 +362,7 @@ function CargaDirecta({
                 </li>
               ))}
             </ul>
-            {filas.length > 60 && <p className="text-[11px] text-brand-950/35">y {filas.length - 60} más…</p>}
+            {filas.length > 60 && <p className="text-brand-950/35 text-xs">y {filas.length - 60} más…</p>}
           </div>
           <div className="mt-2 flex gap-2">
             <TextureButton

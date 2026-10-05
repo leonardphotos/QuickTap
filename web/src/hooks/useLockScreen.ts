@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { DEFAULT_LOCK_SCREEN_MINUTES, needsLockScreen } from '@/utils/roles';
+import { useAuth } from '@/context/AuthContext.shared';
+import { DEFAULT_LOCK_SCREEN_MINUTES,needsLockScreen } from '@/utils/roles';
+import { useCallback,useEffect,useRef,useState } from 'react';
 
 export type LockScreenMode = 'setup' | 'unlock';
 
@@ -16,7 +16,7 @@ export function useLockScreen() {
   // El interruptor de Ajustes manda sobre el rol: apagado, nadie ve el teclado de PIN
   // ni se le exige crear uno. `restaurant` llega en el mismo /auth/me que `user`, así
   // que no hay ventana en la que el rol aplique pero el interruptor todavía no se sepa.
-  const applies = needsLockScreen(user?.role) && !!restaurant?.lockScreenEnabled;
+  const applies = restaurant?.businessType !== 'APPOINTMENTS' && needsLockScreen(user?.role) && !!restaurant?.lockScreenEnabled;
   const storageKey = user ? `quicktap_lock_activity_${user.id}` : null;
   const minutes = (user && restaurant?.lockScreenIntervals[user.role]) || DEFAULT_LOCK_SCREEN_MINUTES;
 

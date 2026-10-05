@@ -24,13 +24,13 @@ export function PrintStationSection() {
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
         <TextureButton variant="secondary" size="sm" className="!w-auto" asChild>
-          <a href="/descargas/QuickTap-Impresion-Setup-1.9.1.exe" download className="flex items-center gap-1.5">
+          <a href="/descargas/QuickTap-Impresion-Setup-1.9.3.exe" download className="flex items-center gap-1.5">
             <Download className="h-3.5 w-3.5 shrink-0" /> Descargar Estación de Impresión
           </a>
         </TextureButton>
 
         <div className="text-sm bg-brand-950/[0.03] rounded-lg p-3 space-y-1.5">
-          <p className="font-medium text-brand-950/80">Cómo instalarla en la computadora de la caja:</p>
+          <p className="font-medium text-brand-950/80 text-base">Cómo instalarla en la computadora de la caja:</p>
           <ol className="list-decimal list-inside space-y-1 text-brand-950/60 font-light">
             <li>
               Windows: abre <span className="font-medium">QuickTap-Impresion-Setup.exe</span> e instala la aplicación.
@@ -51,8 +51,8 @@ export function PrintStationSection() {
             </li>
           </ol>
         </div>
-        <p className="text-xs text-brand-950/40 font-light">
-          Si ya la tenías instalada, instala esta versión 1.9.0: incluye el acceso a la impresora fiscal en Windows.
+        <p className="text-brand-950/40 font-light text-xs">
+          Si ya la tenías instalada, instala esta versión 1.9.3: valida el RIF, evita cierres duplicados e incluye facturas y Reporte Z fiscal en Windows.
         </p>
       </TextureCardContent>
     </TextureCard>

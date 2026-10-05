@@ -78,7 +78,7 @@ export function ClubKitchenLinkSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Tiendas vinculadas</TextureCardTitle>
-        <p className="text-sm font-light text-brand-950/60">
+        <p className="font-light text-brand-950/60 text-base">
           Si un restaurante o una tienda le vende a tus canchas, pídele el código de vinculación desde sus Ajustes y
           cánjealo acá. Cada una aparece como un icono en las tablets de las canchas, y sus comandas le llegan directo
           con el nombre de la cancha. Puedes vincular hasta {maxStores}.
@@ -86,10 +86,10 @@ export function ClubKitchenLinkSection() {
       </TextureCardHeader>
 
       <TextureCardContent className="space-y-4">
-        {!loaded && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
+        {!loaded && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
 
         {loaded && stores.length === 0 && (
-          <p className="rounded-2xl bg-brand-950/[0.03] px-4 py-3 text-sm font-light text-brand-950/50">
+          <p className="rounded-2xl bg-brand-950/[0.03] px-4 py-3 font-light text-brand-950/50 text-base">
             Todavía no hay tiendas vinculadas. En la tablet solo se ve la tienda propia del club.
           </p>
         )}
@@ -106,8 +106,8 @@ export function ClubKitchenLinkSection() {
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-emerald-900">{s.name}</p>
-                  <p className="text-xs font-light text-emerald-800/70">Recibe los pedidos de tus canchas</p>
+                  <p className="truncate font-bold text-emerald-900 text-base">{s.name}</p>
+                  <p className="font-light text-emerald-800/70 text-xs">Recibe los pedidos de tus canchas</p>
                 </div>
                 <button
                   onClick={() => setConfirming(s)}
@@ -123,7 +123,7 @@ export function ClubKitchenLinkSection() {
 
         {confirming && (
           <div className="rounded-2xl bg-red-50 p-4">
-            <p className="text-sm font-medium text-red-900">
+            <p className="font-medium text-red-900 text-base">
               ¿Desvincular "{confirming.name}"? Sus productos dejarán de verse en las tablets de las canchas.
             </p>
             <div className="mt-2.5 flex gap-2">
@@ -146,7 +146,7 @@ export function ClubKitchenLinkSection() {
 
         {loaded && !full && (
           <div>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Código de la tienda</span>
               <input
                 value={code}
@@ -159,19 +159,19 @@ export function ClubKitchenLinkSection() {
                 className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 font-mono text-lg tracking-[0.2em] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
               />
             </label>
-            <p className="mt-1 text-xs font-light text-brand-950/45">El código vence 1 hora después de generarse.</p>
+            <p className="mt-1 font-light text-brand-950/45 text-xs">El código vence 1 hora después de generarse.</p>
           </div>
         )}
 
         {loaded && full && (
-          <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-light text-amber-900">
+          <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 font-light text-amber-900 text-base">
             <Store className="h-4 w-4 shrink-0" />
             Llegaste al máximo de {maxStores} tiendas. Desvincula una para agregar otra.
           </p>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         {!full && (
           <TextureButton

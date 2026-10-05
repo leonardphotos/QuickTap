@@ -1,24 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect,useRef,useState } from 'react';
 
 interface AddressSuggestion {
   displayName: string;
   lat: number;
   lng: number;
-}
-
-/** Traduce coordenadas a una dirección legible (Nominatim/OpenStreetMap) para rellenar el
- * campo de dirección cuando el cliente usa "Mi ubicación actual" en vez de escribirla. Si el
- * servicio falla, devuelve las coordenadas como texto — el campo nunca debe quedar vacío. */
-export async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  try {
-    const params = new URLSearchParams({ format: 'jsonv2', lat: String(lat), lon: String(lng) });
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`);
-    const data = await res.json();
-    if (data?.display_name) return data.display_name as string;
-  } catch {
-    // Sin conexión al servicio de geocodificación — se usa el fallback de abajo.
-  }
-  return `Ubicación actual (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
 }
 
 interface Props {
@@ -68,8 +53,10 @@ export function AddressAutocomplete({ value, onChange, onSelect, placeholder, cl
       setLoading(true);
       const params = new URLSearchParams({ format: 'jsonv2', q: query, addressdetails: '0', limit: '5' });
       if (biasLat != null && biasLng != null) {
-        const delta = 0.3;
+        const delta = 0.45;
         params.set('viewbox', `${biasLng - delta},${biasLat + delta},${biasLng + delta},${biasLat - delta}`);
+        params.set('bounded', '1');
+        params.set('countrycodes', 've');
       }
       fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`)
         .then((res) => res.json())
@@ -105,7 +92,7 @@ export function AddressAutocomplete({ value, onChange, onSelect, placeholder, cl
       />
       {open && (loading || suggestions.length > 0) && (
         <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-brand-950/10 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-          {loading && suggestions.length === 0 && <p className="text-xs text-brand-950/40 px-3 py-2">Buscando…</p>}
+          {loading && suggestions.length === 0 && <p className="text-brand-950/40 px-3 py-2 text-xs">Buscando…</p>}
           {suggestions.map((s, i) => (
             <button
               key={i}

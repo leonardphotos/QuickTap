@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { useToast } from '@/hooks/useToast';
-import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
-import { clubApi, COURT_TYPE_LABELS, WEEKDAY_LABELS, type ClubCourt, type ClubCourtType, type ClubSchedule } from './clubApi';
+import { formatBase } from '@/utils/format';
+import { Pencil,Plus,Trash2 } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useCallback,useEffect,useState } from 'react';
+import { clubApi,COURT_TYPE_LABELS,WEEKDAY_LABELS,type ClubCourt,type ClubCourtType,type ClubSchedule } from './clubApi';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -39,9 +39,9 @@ export default function ClubCourtsPage({ restaurant }: Props) {
 
       <section>
         <h2 className="mb-3 text-[15px] font-bold text-brand-950">Tus canchas</h2>
-        {courts === null && <p className="text-brand-950/40 font-light">Cargando…</p>}
+        {courts === null && <p className="text-brand-950/40 font-light text-base">Cargando…</p>}
         {courts?.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-brand-950/10 p-5 text-[13px] text-brand-950/40 font-light">
+          <p className="rounded-2xl border border-dashed border-brand-950/10 p-5 text-brand-950/40 font-light text-base">
             Todavía no has creado ninguna cancha.
           </p>
         )}
@@ -59,7 +59,7 @@ export default function ClubCourtsPage({ restaurant }: Props) {
 
       <section>
         <h2 className="mb-1 text-[15px] font-bold text-brand-950">Horarios y precios</h2>
-        <p className="mb-3 text-[13px] text-brand-950/50 font-light">
+        <p className="mb-3 text-brand-950/50 font-light text-base">
           La hora pico no es un modo aparte: es otra franja del mismo día con precio distinto. Una franja
           sin cancha aplica a todas; una con cancha manda sobre la general.
         </p>
@@ -68,17 +68,17 @@ export default function ClubCourtsPage({ restaurant }: Props) {
 
         <div className="mt-4 rounded-2xl border border-brand-950/10 divide-y divide-brand-950/[0.06] bg-white overflow-hidden">
           {schedules.length === 0 && (
-            <p className="p-5 text-[13px] text-brand-950/40 font-light">Sin horarios configurados.</p>
+            <p className="p-5 text-brand-950/40 font-light text-base">Sin horarios configurados.</p>
           )}
           {schedules.map((s) => {
             const court = courts?.find((c) => c.id === s.courtId);
             return (
               <div key={s.id} className="flex items-center gap-3 p-3.5">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-semibold text-brand-950">
+                  <p className="font-semibold text-brand-950 text-base">
                     {WEEKDAY_LABELS[s.weekday]} · {s.startTime}–{s.endTime}
                   </p>
-                  <p className="text-[12px] text-brand-950/45 font-light">
+                  <p className="text-brand-950/45 font-light text-xs">
                     Turnos de {s.slotMinutes} min · {court ? court.name : 'Todas las canchas'}
                   </p>
                 </div>
@@ -87,7 +87,7 @@ export default function ClubCourtsPage({ restaurant }: Props) {
                     PICO
                   </span>
                 )}
-                <p className="shrink-0 text-[14px] font-bold text-brand-950">{money(s.priceBase)}</p>
+                <p className="shrink-0 font-bold text-brand-950 text-base">{money(s.priceBase)}</p>
                 <button
                   onClick={async () => {
                     await clubApi.deleteSchedule(s.id);
@@ -149,7 +149,7 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           />
           <CourtTypePicker value={courtType} onChange={setCourtType} />
           <div className="flex gap-2">
@@ -172,8 +172,8 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate font-bold text-brand-950">{court.name}</p>
-              <p className="text-[12px] font-light text-brand-950/45">{COURT_TYPE_LABELS[court.courtType]}</p>
+              <p className="truncate font-bold text-brand-950 text-base">{court.name}</p>
+              <p className="font-light text-brand-950/45 text-xs">{COURT_TYPE_LABELS[court.courtType]}</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -197,7 +197,7 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
 
       {confirming && (
         <div className="mt-3 rounded-xl bg-rose-50 p-3">
-          <p className="text-[13px] font-medium text-rose-900">
+          <p className="font-medium text-rose-900 text-base">
             ¿Desactivar esta cancha? Deja de aceptar reservas; sus reservas viejas se conservan.
           </p>
           <div className="mt-2 flex gap-2">
@@ -287,20 +287,20 @@ function NewCourtForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <form onSubmit={submit} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
-      <p className="mb-3 text-[15px] font-bold text-brand-950">Agregar cancha de pádel</p>
+      <p className="mb-3 font-bold text-brand-950 text-base">Agregar cancha de pádel</p>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[180px] flex-1">
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Nombre</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Nombre</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
             placeholder="Cancha 1"
-            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           />
         </div>
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Tipo</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Tipo</label>
           <CourtTypePicker value={courtType} onChange={setCourtType} />
         </div>
         <TextureButton type="submit" disabled={saving || !name.trim()} className="!w-auto">
@@ -308,7 +308,7 @@ function NewCourtForm({ onSaved }: { onSaved: () => void }) {
           Agregar
         </TextureButton>
       </div>
-      {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
+      {error && <p className="mt-2 font-medium text-rose-600 text-base">{error}</p>}
     </form>
   );
 }
@@ -350,11 +350,11 @@ function NewScheduleForm({ courts, onSaved }: { courts: ClubCourt[]; onSaved: ()
     <form onSubmit={submit} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Día</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Día</label>
           <select
             value={weekday}
             onChange={(e) => setWeekday(Number(e.target.value))}
-            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           >
             {WEEKDAY_LABELS.map((label, i) => (
               <option key={i} value={i}>
@@ -364,11 +364,11 @@ function NewScheduleForm({ courts, onSaved }: { courts: ClubCourt[]; onSaved: ()
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Cancha</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Cancha</label>
           <select
             value={courtId}
             onChange={(e) => setCourtId(e.target.value)}
-            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           >
             <option value="">Todas</option>
             {courts.filter((c) => c.active).map((c) => (
@@ -379,29 +379,29 @@ function NewScheduleForm({ courts, onSaved }: { courts: ClubCourt[]; onSaved: ()
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Desde</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Desde</label>
           <input
             type="time"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           />
         </div>
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Hasta</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Hasta</label>
           <input
             type="time"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
-            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           />
         </div>
         <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Turno</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Turno</label>
           <select
             value={slotMinutes}
             onChange={(e) => setSlotMinutes(Number(e.target.value))}
-            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           >
             <option value={60}>60 min</option>
             <option value={90}>90 min</option>
@@ -409,7 +409,7 @@ function NewScheduleForm({ courts, onSaved }: { courts: ClubCourt[]; onSaved: ()
           </select>
         </div>
         <div className="w-24">
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Precio</label>
+          <label className="mb-1 block text-brand-950/60 text-sm font-medium">Precio</label>
           <input
             type="number"
             min="0"
@@ -417,10 +417,10 @@ function NewScheduleForm({ courts, onSaved }: { courts: ClubCourt[]; onSaved: ()
             value={priceBase}
             onChange={(e) => setPriceBase(e.target.value)}
             required
-            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
           />
         </div>
-        <label className="flex items-center gap-2 pb-2 text-[13px] font-medium text-brand-950/60">
+        <label className="flex items-center gap-2 pb-2 text-brand-950/60 text-sm font-medium">
           <input type="checkbox" checked={isPeak} onChange={(e) => setIsPeak(e.target.checked)} />
           Hora pico
         </label>
@@ -429,7 +429,7 @@ function NewScheduleForm({ courts, onSaved }: { courts: ClubCourt[]; onSaved: ()
           Agregar
         </TextureButton>
       </div>
-      {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
+      {error && <p className="mt-2 font-medium text-rose-600 text-base">{error}</p>}
     </form>
   );
 }

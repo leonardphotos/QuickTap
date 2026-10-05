@@ -1,18 +1,6 @@
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MEAL_SERVICES } from '@/utils/meal-services';
-
-/** Suma días a una fecha "YYYY-MM-DD" sin pasar por Date (evita saltos por zona horaria). */
-export function shiftDate(date: string, days: number): string {
-  const [y, m, d] = date.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
-export function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
+import { CalendarDays,ChevronLeft,ChevronRight } from 'lucide-react';
+import { shiftDate,todayIso } from './SalaTopBar.shared';
 
 function humanDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number);
@@ -27,11 +15,13 @@ export function SalaTopBar({
   onDateChange,
   mealServiceId,
   onMealServiceChange,
+  showMealService = true,
 }: {
   date: string;
   onDateChange: (date: string) => void;
   mealServiceId: string;
   onMealServiceChange: (id: string) => void;
+  showMealService?: boolean;
 }) {
   const today = todayIso();
 
@@ -67,10 +57,11 @@ export function SalaTopBar({
         </button>
       )}
 
-      <select
+      {showMealService && <select
+        aria-label="Turno de reservas"
         value={mealServiceId}
         onChange={(e) => onMealServiceChange(e.target.value)}
-        className="rounded-full border border-brand-950/10 bg-white px-3 py-1.5 text-xs font-semibold text-brand-950"
+        className="rounded-full border border-brand-950/10 bg-white px-3 py-1.5 font-semibold text-brand-950 text-base"
       >
         <option value="all">Todo el día</option>
         {MEAL_SERVICES.map((s) => (
@@ -78,7 +69,7 @@ export function SalaTopBar({
             {s.label}
           </option>
         ))}
-      </select>
+      </select>}
     </div>
   );
 }

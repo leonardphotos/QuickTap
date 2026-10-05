@@ -1,8 +1,12 @@
+import { SignupPromotionPrice, type SignupPromotionQuote } from '@/components/billing/SignupPromotionBanner';
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import { FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
 
 interface Quote {
+  signupPromotion?: SignupPromotionQuote | null;
+  months: number;
+  cycleUsd: string;
   monthlyUsd: string;
   additionalCharges: { id: string; description: string; amountUsd: string }[];
   totalUsd: string;
@@ -36,27 +40,28 @@ export function ChargeBreakdown({ plan, billingCycle }: { plan: PurchasablePlan;
   const listPrice = FIXED_PLAN_PRICES[plan][billingCycle];
   const hasCharges = quote.additionalCharges.length > 0;
   const hasAgreedPrice = Math.abs(Number(quote.monthlyUsd) - listPrice) > 0.009;
-  if (!hasCharges && !hasAgreedPrice) return null;
+  if (!hasCharges && !hasAgreedPrice && !quote.signupPromotion) return null;
 
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
-      <p className="font-semibold text-brand-950 mb-3">Detalle de tu pago</p>
+      <p className="font-semibold text-brand-950 mb-3 text-base">Detalle de tu pago</p>
 
+      {quote.signupPromotion && <SignupPromotionPrice promotion={quote.signupPromotion} />}
       <div className="flex items-center justify-between gap-3 py-2 text-sm">
         <span className="text-brand-950/70">
-          Mensualidad
-          {hasAgreedPrice && <span className="text-brand-950/40 font-light"> · precio acordado contigo</span>}
+          {quote.months > 1 ? `Membresía · ${quote.months} meses` : 'Mensualidad'}
+          {hasAgreedPrice && !quote.signupPromotion && <span className="text-brand-950/40 font-light"> · precio acordado contigo</span>}
         </span>
-        <span className="font-medium text-brand-950">${Number(quote.monthlyUsd).toFixed(2)}</span>
+        <span className="font-medium text-brand-950">€{Number(quote.cycleUsd).toFixed(2)}</span>
       </div>
 
       {quote.additionalCharges.map((c) => (
         <div key={c.id} className="border-t border-brand-950/[0.06] py-2">
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="text-brand-950/70 min-w-0">{c.description}</span>
-            <span className="font-medium text-brand-950 shrink-0">${Number(c.amountUsd).toFixed(2)}</span>
+            <span className="font-medium text-brand-950 shrink-0">€{Number(c.amountUsd).toFixed(2)}</span>
           </div>
-          <p className="text-xs font-light text-amber-700 mt-0.5">
+          <p className="font-light text-amber-700 mt-0.5 text-xs">
             Cobro adicional por "{c.description}" — no forma parte de tu mensualidad, se cobra una sola vez.
           </p>
         </div>
@@ -64,7 +69,7 @@ export function ChargeBreakdown({ plan, billingCycle }: { plan: PurchasablePlan;
 
       <div className="flex items-center justify-between gap-3 border-t border-brand-950/10 pt-3 mt-1">
         <span className="font-semibold text-brand-950">Total a pagar</span>
-        <span className="text-lg font-semibold text-brand-950">${Number(quote.totalUsd).toFixed(2)}</span>
+        <span className="text-lg font-semibold text-brand-950">€{Number(quote.totalUsd).toFixed(2)}</span>
       </div>
     </div>
   );

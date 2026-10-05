@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { Lock, Unlock } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { InlinePanel } from './InlinePanel';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { UserRole } from '@/types';
 import { formatBase } from '@/utils/format';
 import { ROLE_LABELS } from '@/utils/roles';
-import type { UserRole } from '@/types';
-import { CashSessionReceipt, PAYMENT_METHOD_LABELS, type CashSessionData, type CashSessionSummary } from './CashSessionReceipt';
+import { Lock,Unlock } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
+import { CashSessionReceipt,type CashSessionData,type CashSessionSummary } from './CashSessionReceipt';
+import { PAYMENT_METHOD_LABELS } from './CashSessionReceipt.shared';
+import { InlinePanel } from './InlinePanel';
 import { OpenComandasDialog } from './OpenComandasDialog';
 
 /** Cuenta bancaria vista desde el cierre de caja: solo lo necesario para el traspaso. */
@@ -215,22 +216,22 @@ function OpenCashForm({ onOpened }: { onOpened: () => void }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-brand-950/50">¿Cuánto hay en caja ahora mismo, por método de pago?</p>
+      <p className="text-brand-950/50 text-xs">¿Cuánto hay en caja ahora mismo, por método de pago?</p>
       <div className="space-y-2.5">
         {PAYMENT_METHODS.map((m) => (
           <div key={m} className="flex items-center justify-between gap-3">
-            <label className="text-sm text-brand-950/70">{PAYMENT_METHOD_LABELS[m]}</label>
+            <label className="text-brand-950/70 text-sm font-medium">{PAYMENT_METHOD_LABELS[m]}</label>
             <input
               value={amounts[m] ?? ''}
               onChange={(e) => setAmounts((prev) => ({ ...prev, [m]: e.target.value.replace(/[^0-9.]/g, '') }))}
               placeholder="0.00"
-              className="w-28 text-sm text-right border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+              className="w-28 text-right border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
             />
           </div>
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
         {saving ? 'Abriendo…' : 'Abrir caja'}
@@ -364,11 +365,11 @@ function CloseCashForm({
     <>
       {!closed && (
         <div className="space-y-4">
-          {!preview && !error && <p className="text-sm text-brand-950/40">Cargando movimiento del turno…</p>}
+          {!preview && !error && <p className="text-brand-950/40 text-base">Cargando movimiento del turno…</p>}
           {preview && (
             <>
               <div>
-                <p className="text-xs font-semibold text-brand-950/70 mb-1.5">Ventas por método</p>
+                <p className="font-semibold text-brand-950/70 mb-1.5 text-xs">Ventas por método</p>
                 <div className="text-sm space-y-1">
                   {Object.entries(preview.paymentsByMethod).map(([m, row]) => (
                     <div key={m} className="flex justify-between text-brand-950/80">
@@ -383,7 +384,7 @@ function CloseCashForm({
               {/* Propina: su propio segmento, no es venta del restaurante — no entra al total neto. */}
               {preview.tipsByMethod && Number(preview.totalTips) > 0 && (
                 <div className="border-t border-brand-950/10 pt-2">
-                  <p className="text-xs font-semibold text-brand-950/70 mb-1.5">Propinas del turno</p>
+                  <p className="font-semibold text-brand-950/70 mb-1.5 text-xs">Propinas del turno</p>
                   <div className="text-sm space-y-1">
                     {Object.entries(preview.tipsByMethod)
                       .filter(([, v]) => Number(v) > 0)
@@ -408,6 +409,12 @@ function CloseCashForm({
                 <span>Egresos manuales</span>
                 <span>−{formatBase(preview.movements.totalExpense, symbol)}</span>
               </div>
+              {Number(preview.totalRefunds ?? 0) > 0 && (
+                <div className="text-sm flex justify-between text-red-700">
+                  <span>Devoluciones a clientes</span>
+                  <span>−{formatBase(preview.totalRefunds ?? '0', symbol)}</span>
+                </div>
+              )}
               <div className="text-base font-semibold flex justify-between text-brand-950 border-t border-brand-950/10 pt-2">
                 <span>Total neto del turno</span>
                 <span>{formatBase(preview.totalNet, symbol)}</span>
@@ -415,7 +422,7 @@ function CloseCashForm({
 
               {methodsToCount.length > 0 && (
                 <div className="border-t border-brand-950/10 pt-3">
-                  <label className="flex items-start gap-2.5">
+                  <label className="flex items-start gap-2.5 text-sm font-medium">
                     <input
                       type="checkbox"
                       checked={counting}
@@ -447,7 +454,7 @@ function CloseCashForm({
                               value={counted[method] ?? ''}
                               onChange={(e) => setCounted((c) => ({ ...c, [method]: e.target.value }))}
                               placeholder="0.00"
-                              className="w-24 shrink-0 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                              className="w-24 shrink-0 rounded-lg border border-brand-950/15 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                             />
                             <span
                               className={`w-16 shrink-0 text-right text-xs font-semibold ${
@@ -493,15 +500,15 @@ function CloseCashForm({
                   el número de cierre como concepto. */}
               {vaults.length > 0 && cashAccounts.length > 0 && (
                   <div className="rounded-xl border border-brand-950/10 p-3">
-                    <p className="text-sm font-medium text-brand-950">Traspaso a bóveda (opcional)</p>
-                    <p className="mt-0.5 text-xs font-light text-brand-950/50">
+                    <p className="font-medium text-brand-950 text-base">Traspaso a bóveda (opcional)</p>
+                    <p className="mt-0.5 font-light text-brand-950/50 text-xs">
                       Cuánto efectivo sale de la caja y se guarda en la bóveda al cerrar este turno.
                     </p>
                     {vaults.length > 1 && (
                       <select
                         value={vaultId}
                         onChange={(e) => setVaultId(e.target.value)}
-                        className="mt-2 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                        className="mt-2 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                       >
                         {vaults.map((v) => (
                           <option key={v.id} value={v.id}>
@@ -528,7 +535,7 @@ function CloseCashForm({
                             value={vaultAmounts[a.id] ?? ''}
                             onChange={(e) => setVaultAmounts((v) => ({ ...v, [a.id]: e.target.value }))}
                             placeholder="0.00"
-                            className="w-28 shrink-0 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                            className="w-28 shrink-0 rounded-lg border border-brand-950/15 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                           />
                         </div>
                       ))}
@@ -538,7 +545,7 @@ function CloseCashForm({
             </>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
 
           <TextureButton
             variant="brand"
@@ -554,7 +561,7 @@ function CloseCashForm({
 
       {closed && (
         <div className="space-y-4">
-          <p className="text-sm text-brand-950/70">
+          <p className="text-brand-950/70 text-base">
             Cierre #{closed.closeNumber} generado correctamente. Descarga el comprobante para tu registro.
           </p>
           <div className="flex flex-wrap gap-2">

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Info } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
+import { CATEGORY_LABELS } from '@/components/admin/ExpenseFormDialog.shared';
+import { useAuth } from '@/context/AuthContext.shared';
 import { formatBase } from '@/utils/format';
-import { CATEGORY_LABELS } from '@/components/admin/ExpenseFormDialog';
+import { Info } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 type Range = 'month' | 'year' | 'week' | 'day' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Histórico' };
@@ -12,7 +12,7 @@ const TAX_KEY = 'qt-islr-rate';
 interface IncomeStatement {
   period: { label: string };
   ordersCount: number;
-  revenue: { sales: string; serviceCharge: string; total: string };
+  revenue: { sales: string; serviceCharge: string; deliveryFees: string; packagingFees: string; total: string };
   costOfSales: { amount: string; basis: 'PRODUCT_COST' | 'SUPPLIES'; suppliesPurchases: string; productCost: string };
   grossProfit: { amount: string; marginPercent: string | null };
   operatingExpenses: {
@@ -84,7 +84,7 @@ export function IncomeStatementSection() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el estado de resultados.'));
   }, [range, taxRate]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const m = (v: string) => formatBase(v, symbol);
   const neg = (v: string) => Number(v) < 0;
@@ -101,7 +101,7 @@ export function IncomeStatementSection() {
             {RANGE_LABELS[r]}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-1.5 text-xs text-brand-950/60">
+        <label className="ml-auto flex items-center gap-1.5 text-brand-950/60 text-sm font-medium">
           ISLR estimado
           <input
             type="number"
@@ -110,27 +110,29 @@ export function IncomeStatementSection() {
             step="0.5"
             value={taxRate}
             onChange={(e) => setTaxRate(e.target.value)}
-            className="w-16 rounded-lg border border-brand-950/15 px-2 py-1 text-right text-sm font-semibold text-brand-950"
+            className="w-16 rounded-lg border border-brand-950/15 px-2 py-1 text-right font-semibold text-brand-950 text-base"
           />
           %
         </label>
       </div>
 
       {!data ? (
-        <p className="text-sm font-light text-brand-950/40">Calculando…</p>
+        <p className="font-light text-brand-950/40 text-base">Calculando…</p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm">
           <div className="border-b border-brand-950/[0.06] px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-950/40">Estado de resultados · NIIF (por función)</p>
+            <p className="font-semibold uppercase tracking-wide text-brand-950/40 text-xs">Estado de resultados · NIIF (por función)</p>
             <p className="text-lg font-semibold text-brand-950">{restaurant?.name}</p>
-            <p className="text-xs text-brand-950/50">
+            <p className="text-brand-950/50 text-xs">
               {data.period.label} · {data.ordersCount} pedido{data.ordersCount === 1 ? '' : 's'} · cifras en {symbol}
             </p>
           </div>
           <dl className="divide-y divide-brand-950/[0.05] text-sm">
             <Line label="Ingresos de actividades ordinarias" value={m(data.revenue.total)} strong />
-            <Line label="Ventas (base imponible, sin IVA)" value={m(data.revenue.sales)} sub />
+            <Line label="Productos vendidos (sin IVA)" value={m(data.revenue.sales)} sub />
             {Number(data.revenue.serviceCharge) > 0 && <Line label="Recargo por servicio" value={m(data.revenue.serviceCharge)} sub />}
+            {Number(data.revenue.deliveryFees) > 0 && <Line label="Ingresos por delivery" value={m(data.revenue.deliveryFees)} sub />}
+            {Number(data.revenue.packagingFees) > 0 && <Line label="Ingresos por envases" value={m(data.revenue.packagingFees)} sub />}
             <Line
               label="Costo de ventas"
               hint={data.costOfSales.basis === 'PRODUCT_COST' ? 'Costo vivo de lo vendido (receta / costo del producto)' : 'Compras de insumos del período (no hay costos cargados en los productos)'}
@@ -156,7 +158,7 @@ export function IncomeStatementSection() {
             <Line label="Resultado neto del período" value={m(data.netResult.amount)} pctLabel={data.netResult.marginPercent} strong big tone={neg(data.netResult.amount) ? 'danger' : 'success'} />
           </dl>
           <div className="border-t border-brand-950/[0.06] bg-brand-50/40 px-5 py-3 text-[11px] text-brand-950/55">
-            <p className="mb-1 flex items-center gap-1 font-medium text-brand-950/70">
+            <p className="mb-1 flex items-center gap-1 font-medium text-brand-950/70 text-base">
               <Info className="h-3 w-3" /> Memorando (no son ingresos del negocio)
             </p>
             <p>
@@ -193,8 +195,8 @@ export function BalanceSheetSection() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el estado de situación financiera.'));
   }, [taxRate]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm font-light text-brand-950/40">Calculando…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
+  if (!data) return <p className="font-light text-brand-950/40 text-base">Calculando…</p>;
 
   const m = (v: string) => formatBase(v, symbol);
   const a = data.assets;
@@ -203,9 +205,9 @@ export function BalanceSheetSection() {
   return (
     <div className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm">
       <div className="border-b border-brand-950/[0.06] px-5 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-950/40">Estado de situación financiera · NIIF</p>
+        <p className="font-semibold uppercase tracking-wide text-brand-950/40 text-xs">Estado de situación financiera · NIIF</p>
         <p className="text-lg font-semibold text-brand-950">{restaurant?.name}</p>
-        <p className="text-xs text-brand-950/50">
+        <p className="text-brand-950/50 text-xs">
           Al {new Date(data.asOf).toLocaleDateString('es-VE', { dateStyle: 'long' })} · cifras en {symbol}
           {data.exchangeRateBs && ` · tasa Bs ${data.exchangeRateBs}`}
         </p>
@@ -253,7 +255,7 @@ export function BalanceSheetSection() {
         </dl>
       </div>
       <div className="border-t border-brand-950/[0.06] bg-brand-50/40 px-5 py-3 text-[11px] text-brand-950/55">
-        <p className="flex items-center gap-1">
+        <p className="flex items-center gap-1 text-base">
           <Info className="h-3 w-3" />
           {data.checks.balanced ? 'Activo = Pasivo + Patrimonio ✓' : 'Descuadre de redondeo'} · Estado de gestión: no incluye activos fijos ni depreciación (no se registran en QuickTap). El patrimonio es el residual.
         </p>
@@ -265,7 +267,7 @@ export function BalanceSheetSection() {
 function Header({ label }: { label: string }) {
   return (
     <div className="bg-brand-950/[0.03] px-5 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-950/50">{label}</p>
+      <p className="font-semibold uppercase tracking-wide text-brand-950/50 text-xs">{label}</p>
     </div>
   );
 }

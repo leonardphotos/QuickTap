@@ -254,7 +254,7 @@ export default function MenuPage() {
   const cartCount = cart.reduce((acc, l) => acc + l.quantity, 0);
 
   return (
-    <div className="relative min-h-screen pb-32 overflow-hidden" style={{ backgroundColor: menuBackground }}>
+    <div className="relative min-h-screen pb-32" style={{ backgroundColor: menuBackground }}>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-80 overflow-hidden">
         {theme?.coverImageUrl ? (
           <>
@@ -288,20 +288,27 @@ export default function MenuPage() {
           alt=""
           className="w-20 h-20 rounded-full object-cover shrink-0 ring-4 ring-white/40 shadow-lg"
         />
-        <h1 className="text-base font-semibold text-white drop-shadow-sm leading-tight mt-2">{restaurant.name}</h1>
-        {restaurant.description && (
-          <p className="text-xs font-light max-w-xs" style={{ color: theme?.bioColor || 'rgba(255,255,255,0.8)' }}>
+        <div className="mt-3 max-w-md rounded-[22px] border border-white/35 bg-white/85 px-5 py-3 shadow-[0_12px_36px_-18px_rgba(0,0,0,.35)] backdrop-blur-xl">
+        <h1 className="text-[17px] font-semibold tracking-[-0.015em] text-brand-950">{restaurant.name}</h1>
+        {restaurant.description && !theme?.bioColor && (
+          <p className="mt-1 leading-relaxed text-brand-950/65 text-xs">
             {restaurant.description}
           </p>
         )}
         {qrToken && (
-          <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium mt-1">
+          <span className="inline-block text-[11px] bg-brand-500/10 text-brand-950 px-2.5 py-1 rounded-full font-medium mt-2">
             Pedido en mesa
           </span>
         )}
+        </div>
+        {restaurant.description && theme?.bioColor && (
+          <p className="mt-2 max-w-md leading-relaxed text-xs" style={{ color: theme.bioColor }}>
+            {restaurant.description}
+          </p>
+        )}
       </div>
 
-      <main className="relative max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <main className="relative mx-auto max-w-6xl space-y-7 px-4 py-6 sm:px-6 lg:px-8">
         {restaurant.isOpen === false && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm">
             <Clock className="h-4 w-4 shrink-0" />
@@ -310,13 +317,15 @@ export default function MenuPage() {
         )}
 
         {/* Buscador */}
-        <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2.5 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.1)]">
+        <div className="sticky top-3 z-10 space-y-3 rounded-[28px] border border-white/70 bg-white/85 p-2.5 shadow-[0_12px_40px_-24px_rgba(0,0,0,.35)] backdrop-blur-2xl">
+        <div className="flex items-center gap-2 rounded-full bg-brand-950/[0.045] px-4 py-3 ring-1 ring-inset ring-brand-950/[0.045] focus-within:ring-brand-500/40">
           <Search className="h-4 w-4 text-brand-950/40 shrink-0" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar en el menú"
-            className="flex-1 min-w-0 text-sm bg-transparent outline-none placeholder:text-brand-950/40"
+            aria-label="Buscar en el menú"
+            className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-brand-950/40 text-base"
           />
         </div>
 
@@ -325,7 +334,8 @@ export default function MenuPage() {
           <nav className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] -mx-1 px-1">
             <button
               onClick={() => setCategoryFilter(null)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              aria-pressed={categoryFilter === null}
+              className={`shrink-0 min-h-11 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 categoryFilter === null ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-white text-brand-950/60 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.12)] hover:text-brand-950'
               }`}
             >
@@ -335,7 +345,8 @@ export default function MenuPage() {
               <button
                 key={cat.id}
                 onClick={() => setCategoryFilter(cat.id)}
-                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                aria-pressed={categoryFilter === cat.id}
+                className={`shrink-0 min-h-11 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   categoryFilter === cat.id ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-white text-brand-950/60 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.12)] hover:text-brand-950'
                 }`}
               >
@@ -344,6 +355,7 @@ export default function MenuPage() {
             ))}
           </nav>
         )}
+        </div>
 
         {hasHighlights && (
           <section className="space-y-5">
@@ -381,15 +393,15 @@ export default function MenuPage() {
         )}
 
         {visibleGroups.length === 0 && (
-          <p className="text-sm text-brand-950/40 font-light text-center py-10">
+          <p className="text-brand-950/40 font-light text-center py-10 text-base">
             No encontramos productos{searchTerm ? ` para "${search.trim()}"` : ''}.
           </p>
         )}
 
         {visibleGroups.map((cat) => (
           <section key={cat.id} className="scroll-mt-32">
-            <h2 className="text-base font-semibold text-brand-950 mb-3">{cat.name}</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <h2 className="mb-3 text-lg font-semibold tracking-[-0.02em] text-brand-950">{cat.name}</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
               {cat.products.map((p) => (
                 <ProductGridCard key={p.id} product={p} restaurant={restaurant} onOpen={setSelectedProduct} />
               ))}
@@ -511,7 +523,7 @@ export default function MenuPage() {
                 <NavIcon icon={Receipt} label="Cuenta" onClick={requestBill} disabled={requestingBill} />
               </>
             )}
-            {restaurant.hasTables && (
+            {restaurant.hasTables && restaurant.deliveryAvailable !== false && (
               <NavIcon icon={CalendarDays} label="Mesa" onClick={() => setReservationOpen(true)} />
             )}
             {restaurant.whatsappPhone && (

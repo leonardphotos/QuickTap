@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarClock, PackageX } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { hasFeature } from '@/utils/subscription';
-import { formatExpiry } from '@/utils/expiry';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatExpiry } from '@/utils/expiry';
+import { formatBaseQuantity } from '@/utils/inventoryUnits';
+import { hasFeature } from '@/utils/subscription';
+import { AlertTriangle,CalendarClock,PackageX } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { Link } from 'react-router-dom';
 
 interface ExpiringRow {
   kind: 'INSUMO' | 'PRODUCTO';
@@ -33,8 +34,7 @@ interface AlertsResponse {
   lowStock: LowStockRow[];
 }
 
-const UNIT_LABEL: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'ml', unidad: 'Und' };
-const qty = (v: string | null, unit: string) => (v == null ? '' : `${Number(v)} ${UNIT_LABEL[unit] ?? unit}`);
+const qty = (v: string | null, unit: string) => (v == null ? '' : formatBaseQuantity(Number(v), unit));
 
 /**
  * Aviso emergente de inventario en el Dashboard: se abre solo al entrar mientras haya
@@ -72,7 +72,7 @@ export function InventoryAlertsPopup() {
 
   return (
     <Dialog open onOpenChange={(o) => !o && setOpen(false)}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="inventory-alert-dialog max-w-lg data-[state=open]:!animate-inventory-alert-in data-[state=closed]:!animate-inventory-alert-out motion-reduce:data-[state=open]:!animate-inventory-alert-in motion-reduce:data-[state=closed]:!animate-inventory-alert-out">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
@@ -81,7 +81,7 @@ export function InventoryAlertsPopup() {
             Inventario en alerta · {total}
           </DialogTitle>
         </DialogHeader>
-        <p className="text-[13px] font-light text-brand-950/55">
+        <p className="font-light text-brand-950/55 text-base">
           Este aviso vuelve a aparecer cada vez que entres al Resumen hasta que repongas el stock o actualices la
           caducidad.
         </p>
@@ -90,14 +90,24 @@ export function InventoryAlertsPopup() {
           {out.length > 0 && (
             <AlertGroup icon={PackageX} tone="red" title={`Agotados (${out.length})`}>
               {out.map((r) => (
-                <Row key={r.id} name={r.name} kind={r.kind} detail={`mínimo ${qty(r.minQuantity, r.unit)}`} />
+                <Row
+                  key={r.id}
+                  name={r.name}
+                  kind={r.kind}
+                  detail={`agotado · comprar al menos ${qty(r.minQuantity, r.unit)}`}
+                />
               ))}
             </AlertGroup>
           )}
           {low.length > 0 && (
             <AlertGroup icon={AlertTriangle} tone="amber" title={`Por agotarse (${low.length})`}>
               {low.map((r) => (
-                <Row key={r.id} name={r.name} kind={r.kind} detail={`quedan ${qty(r.quantity, r.unit)} · mínimo ${qty(r.minQuantity, r.unit)}`} />
+                <Row
+                  key={r.id}
+                  name={r.name}
+                  kind={r.kind}
+                  detail={`quedan ${qty(r.quantity, r.unit)} · comprar ${qty(String(Math.max(0, Number(r.minQuantity) - Number(r.quantity))), r.unit)}`}
+                />
               ))}
             </AlertGroup>
           )}

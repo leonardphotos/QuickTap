@@ -15,6 +15,13 @@ interface ReadyOrder {
   channel: string;
 }
 
+const READY_ORDER_SOUND = '/sounds/pedido-nuevo.mp3';
+const READY_DELIVERY_SOUND = '/sounds/pedido-delivery.mp3';
+
+function soundForReadyOrder(channel: string) {
+  return channel === 'DELIVERY' ? READY_DELIVERY_SOUND : READY_ORDER_SOUND;
+}
+
 /** Banner deslizable de "pedido listo", igual en estructura a NewOrderAlert: suena en
  * bucle hasta que se toca la pantalla, se puede deslizar para descartar. Solo pedidos
  * de canal Delivery muestran el botón "Enviar" (despachar repartidor); los demás
@@ -31,7 +38,9 @@ export function OrderReadyToast() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    audioRef.current = new Audio('/sounds/notification.mp3');
+    // Ya no se usa notification.mp3: ese era el tono anterior. Reutilizamos los sonidos
+    // configurados para cada tipo de pedido, incluso cuando Cocina lo marca como listo.
+    audioRef.current = new Audio(READY_ORDER_SOUND);
     api.get('/delivery-couriers').then((res) => setCouriers(res.data.data));
 
     const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
@@ -58,6 +67,11 @@ export function OrderReadyToast() {
     setShown(false);
     requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
     if (audioRef.current) {
+      const sound = soundForReadyOrder(fresh.channel);
+      if (new URL(audioRef.current.src).pathname !== sound) {
+        audioRef.current.pause();
+        audioRef.current.src = sound;
+      }
       audioRef.current.loop = true;
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
@@ -85,8 +99,10 @@ export function OrderReadyToast() {
     setDispatching(true);
     try {
       const res = await api.post(`/orders/${order.orderId}/dispatch-courier`, { courierId });
-      const url = res.data.data?.url;
-      if (win && url) win.location.href = url;
+      const result = res.data.data;
+      const url = result?.url;
+      if (result?.assignedToApp || result?.sent) win?.close();
+      else if (win && url) win.location.href = url;
       else win?.close();
       close();
     } catch {
@@ -137,7 +153,7 @@ export function OrderReadyToast() {
         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-[#e3f5ec] text-[#0f6e46] mb-2">
           Listo
         </span>
-        <p className="text-sm font-semibold text-brand-950">Pedido #{order.orderNumber} Listo</p>
+        <p className="font-semibold text-brand-950 text-base">Pedido #{order.orderNumber} Listo</p>
         <div className="flex gap-2 mt-3" data-no-drag>
           <button
             type="button"

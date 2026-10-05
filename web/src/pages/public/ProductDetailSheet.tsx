@@ -1,18 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
-import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
-import type { CartLine, ComboComponentInfo, ComboSelection, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
-import { formatBase, productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
-import { effectiveMax, effectiveMin, effectiveModifierPrice, aplicaAlTamano, modifierAplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '../../utils/modifierLimits';
-import { ComboInstancePicker, ComboPoolSelector, claveComponente } from '@/components/admin/ProductOptionsDialog';
+import { ComboInstancePicker,ComboPoolSelector } from '@/components/admin/ProductOptionsDialog';
+import { claveComponente } from '@/components/admin/ProductOptionsDialog.shared';
 import {
-  FamilyDrawerRoot,
-  FamilyDrawerPortal,
-  FamilyDrawerOverlay,
-  FamilyDrawerContent,
-  FamilyDrawerAnimatedWrapper,
-  FamilyDrawerClose,
+FamilyDrawerAnimatedWrapper,
+FamilyDrawerClose,
+FamilyDrawerContent,
+FamilyDrawerOverlay,
+FamilyDrawerPortal,
+FamilyDrawerRoot,
 } from '@/components/ui/family-drawer';
+import { Check,ChevronDown,ChevronUp,Clock } from 'lucide-react';
+import type { MouseEvent } from 'react';
+import { useEffect,useEffectEvent,useMemo,useRef,useState } from 'react';
+import type { CartLine,ComboComponentInfo,ComboSelection,ModifierCategory,Product,Restaurant,SelectedModifier } from '../../types';
+import { formatBase,productDisplayPriceBase,publicPriceLabel } from '../../utils/format';
+import { aplicaAlTamano,effectiveMax,effectiveMin,effectiveModifierPrice,lineasConGratis,modifierAplicaAlTamano,totalGrupoConGratis } from '../../utils/modifierLimits';
 
 interface Props {
   product: Product | null;
@@ -61,18 +62,24 @@ export default function ProductDetailSheet({
   const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
   // Combo armable: una instancia por unidad de cada plato componente, cada una con su estado.
   // Pool: con mín/máx definidos el comensal elige cuántos de cada plato; sin límites, fijo.
-  const esComboPool = product?.comboMinSelections != null || product?.comboMaxSelections != null;
+  const fixedComboComponents = (product?.comboComponents ?? []).filter((c) => c.isChoice !== true);
+  const choiceComboComponents = (product?.comboComponents ?? []).filter((c) => c.isChoice === true);
+  const esComboPool = choiceComboComponents.length > 0
+    && (product?.comboMinSelections != null || product?.comboMaxSelections != null);
   const comboPoolMin = product?.comboMinSelections ?? 1;
   const comboPoolMax = product?.comboMaxSelections ?? Infinity;
   const [poolQty, setPoolQty] = useState<Record<string, number>>({});
   const poolTotal = Object.values(poolQty).reduce((a, b) => a + b, 0);
-  const comboInstances = esComboPool
-    ? (product?.comboComponents ?? []).flatMap((c) =>
-        Array.from({ length: poolQty[claveComponente(c)] ?? 0 }, (_, i) => ({ comp: c, n: i + 1 })),
-      )
-    : (product?.comboComponents ?? []).flatMap((c) =>
-        Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
-      );
+  const comboInstances = [
+    ...fixedComboComponents.flatMap((c) =>
+      Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
+    ),
+    ...(esComboPool
+      ? choiceComboComponents.flatMap((c) =>
+          Array.from({ length: poolQty[claveComponente(c)] ?? 0 }, (_, i) => ({ comp: c, n: i + 1 })),
+        )
+      : []),
+  ];
   // Clave estable plato+tamaño+número: en pool, quitar un plato desplaza los índices del arreglo.
   const claveInstancia = (inst: { comp: ComboComponentInfo; n: number }) =>
     `${claveComponente(inst.comp)}#${inst.n}`;
@@ -80,7 +87,7 @@ export default function ProductDetailSheet({
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const addedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  const resetSelection = useEffectEvent(() => {
     setQuantity(1);
     setNote('');
     setJustAdded(false);
@@ -90,7 +97,8 @@ export default function ProductDetailSheet({
     setComboQty({});
     setPoolQty({});
     setCollapsedCategories(new Set());
-  }, [product?.id]);
+  });
+  useEffect(() => { resetSelection(); }, [product?.id]);
 
   useEffect(() => {
     return () => {
@@ -101,7 +109,7 @@ export default function ProductDetailSheet({
   const suggestions = useMemo(() => {
     if (!product) return [];
     return pickSuggestions(allProducts, product.id, 3);
-  }, [product?.id, allProducts]);
+  }, [product, allProducts]);
 
   if (!product) return null;
 
@@ -230,7 +238,7 @@ export default function ProductDetailSheet({
                   src={product.photoUrl}
                   alt={product.name}
                   onClick={() => onOpenGallery(product)}
-                  className="h-52 w-full object-cover cursor-pointer"
+                  className="h-64 sm:h-72 w-full object-cover cursor-pointer"
                 />
               ) : (
                 <div className="h-52 w-full bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-6xl">
@@ -240,7 +248,7 @@ export default function ProductDetailSheet({
 
               <div className="px-6 pt-4 pb-6">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-xl font-semibold text-brand-950">{product.name}</h2>
+                  <h2 className="text-2xl leading-tight tracking-[-0.02em] font-semibold text-brand-950">{product.name}</h2>
                   {(product.isStar || product.isPromo || product.isHouseSpecial || product.onTimePromo) && (
                     <div className="flex gap-1 shrink-0 pt-1">
                       {product.isStar && <Badge color="amber">Estrella</Badge>}
@@ -252,11 +260,11 @@ export default function ProductDetailSheet({
                 </div>
 
                 {product.description && (
-                  <p className="text-sm text-brand-950/60 font-light mt-2 leading-relaxed">{product.description}</p>
+                  <p className="text-brand-950/60 font-light mt-2 leading-relaxed text-base">{product.description}</p>
                 )}
 
                 {product.prepTimeMinutes != null && (
-                  <p className="text-xs text-brand-950/50 font-light mt-1.5 flex items-center gap-1">
+                  <p className="text-brand-950/50 font-light mt-1.5 flex items-center gap-1 text-xs">
                     <Clock className="h-3.5 w-3.5" /> ~{product.prepTimeMinutes} min
                   </p>
                 )}
@@ -265,7 +273,7 @@ export default function ProductDetailSheet({
                   <>
                     {product.pricingMode === 'VARIANTS' && product.variants && product.variants.length > 0 && (
                       <div className="mt-5">
-                        <p className="text-sm font-medium text-brand-950/70 mb-2">Elige una opción</p>
+                        <p className="font-medium text-brand-950/70 mb-2 text-base">Elige una opción</p>
                         <div className="space-y-2">
                           {product.variants.map((v) => (
                             <label
@@ -295,7 +303,7 @@ export default function ProductDetailSheet({
                     {esComboPool && (
                       <div className="mt-4">
                         <ComboPoolSelector
-                          componentes={product.comboComponents ?? []}
+                          componentes={choiceComboComponents}
                           poolQty={poolQty}
                           min={comboPoolMin}
                           max={comboPoolMax}
@@ -306,7 +314,7 @@ export default function ProductDetailSheet({
 
                     {comboInstances.map((inst) => {
                       const clave = claveInstancia(inst);
-                      const repetidas = esComboPool
+                      const repetidas = inst.comp.isChoice
                         ? (poolQty[claveComponente(inst.comp)] ?? 0)
                         : inst.comp.quantity;
                       const nombre = inst.comp.variantName
@@ -341,7 +349,7 @@ export default function ProductDetailSheet({
                           >
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-semibold text-brand-950">{category.name}</p>
+                                <p className="font-semibold text-brand-950 text-base">{category.name}</p>
                                 <span
                                   className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                                     category.isRequired ? 'bg-amber-100 text-amber-700' : 'bg-brand-950/5 text-brand-950/40'
@@ -355,7 +363,7 @@ export default function ProductDetailSheet({
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-brand-950/40 mt-0.5">
+                              <p className="text-brand-950/40 mt-0.5 text-xs">
                                 {categoryHint(category)}
                                 {total > 0 && !Number.isFinite(max) && ` · ${total} elegido${total > 1 ? 's' : ''}`}
                               </p>
@@ -468,7 +476,7 @@ export default function ProductDetailSheet({
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       placeholder="Nota de cocina (ej: sin cebolla)"
-                      className="w-full mt-4 text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="w-full mt-4 border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                     />
 
                     <div className="flex items-center gap-3 mt-5">
@@ -490,14 +498,14 @@ export default function ProductDetailSheet({
                       </button>
                     </div>
                     {price.secondary && (
-                      <p className="text-xs text-brand-950/40 text-center mt-2">Equivalente: {price.secondary}</p>
+                      <p className="text-brand-950/40 text-center mt-2 text-xs">Equivalente: {price.secondary}</p>
                     )}
                   </>
                 )}
 
                 {suggestions.length > 0 && (
                   <div className="mt-6 pt-4 border-t border-brand-950/10">
-                    <p className="text-sm font-semibold text-brand-950 mb-3">También te puede interesar</p>
+                    <p className="font-semibold text-brand-950 mb-3 text-base">También te puede interesar</p>
                     <div className="grid grid-cols-3 gap-2">
                       {suggestions.map((s) => (
                         <SuggestionCard key={s.id} product={s} restaurant={restaurant} onClick={() => onSelectProduct(s)} />
@@ -532,8 +540,8 @@ function SuggestionCard({ product, restaurant, onClick }: { product: Product; re
           🍽️
         </div>
       )}
-      <p className="text-xs font-medium text-brand-950 truncate">{product.name}</p>
-      <p className="text-[11px] text-brand-950/50">
+      <p className="font-medium text-brand-950 truncate text-xs">{product.name}</p>
+      <p className="text-brand-950/50 text-xs">
         {displayPrice.isFromVariant && 'Desde '}
         {price.primary}
       </p>

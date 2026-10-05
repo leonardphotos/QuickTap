@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { Toast } from '@/components/ui/toast';
+import { useAuth } from '@/context/AuthContext.shared';
 import { useLowStockItems } from '@/hooks/useLowStockItems';
+import { useEffect,useRef,useState } from 'react';
 
 /** Aviso breve cuando un insumo cruza su stock mínimo (Caja/Administrador/Dueño, y el Mesero
  * al que se le asignó acceso a Inventario). No suena ni bloquea la pantalla — a diferencia de

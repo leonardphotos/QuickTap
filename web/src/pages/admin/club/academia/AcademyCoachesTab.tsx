@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, Wallet } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { Plus,Wallet } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import {
-  Cell,
-  ClubBadge,
-  ClubEyebrow,
-  ClubPanel,
-  ClubRow,
-  ClubTable,
-  PlainCell,
-  SubCell,
-  type ClubColumn,
+Cell,
+ClubBadge,
+ClubEyebrow,
+ClubPanel,
+ClubRow,
+ClubTable,
+PlainCell,
+SubCell,
+type ClubColumn,
 } from '../ClubTable';
-import { academyApi, LEVELS, PAY_TYPE_LABELS, type Coach } from './academyApi';
+import { academyApi,LEVELS,PAY_TYPE_LABELS,type Coach } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
 
 const COLS: ClubColumn[] = [
@@ -64,11 +64,11 @@ export default function AcademyCoachesTab({
 
   useEffect(load, [load]);
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando profesores…</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando profesores…</p>;
 
   return (
     <div className="flex flex-col gap-3.5">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <ClubEyebrow>Equipo docente</ClubEyebrow>
       <ClubPanel
@@ -188,7 +188,7 @@ function CoachDialog({ symbol, onClose, onSaved }: { symbol: string; onClose: ()
           <Field label="Teléfono (WhatsApp) *">
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={INPUT} placeholder="04141234567" />
           </Field>
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             A este número le llegan los avisos cuando se le asigna una clase, se le inscribe un alumno o se le cancela una
             sesión.
           </p>
@@ -226,12 +226,12 @@ function CoachDialog({ symbol, onClose, onSaved }: { symbol: string; onClose: ()
             </select>
           </Field>
           {payType === 'COMMISSION_ON_CONSUMED' && (
-            <p className="text-xs font-light text-brand-950/40">
+            <p className="font-light text-brand-950/40 text-xs">
               Cobra menos si faltan alumnos: comparte el riesgo con el club.
             </p>
           )}
           {payType === 'COMMISSION_ON_ENROLLMENT' && (
-            <p className="text-xs font-light text-brand-950/40">
+            <p className="font-light text-brand-950/40 text-xs">
               Cobra igual asistan o no: el riesgo de las ausencias lo asume el club.
             </p>
           )}
@@ -249,7 +249,7 @@ function CoachDialog({ symbol, onClose, onSaved }: { symbol: string; onClose: ()
             )}
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
@@ -304,28 +304,28 @@ function EarningsDialog({ coach, symbol, onClose }: { coach: Coach; symbol: stri
           <DialogTitle>Honorarios de {coach.displayName}</DialogTitle>
         </DialogHeader>
         {loading ? (
-          <p className="text-sm font-light text-brand-950/40">Cargando…</p>
+          <p className="font-light text-brand-950/40 text-base">Cargando…</p>
         ) : done ? (
-          <p className="py-4 text-center text-sm font-semibold text-emerald-700">
+          <p className="py-4 text-center font-semibold text-emerald-700 text-base">
             Liquidado y registrado como gasto de nómina.
           </p>
         ) : data ? (
           <div className="space-y-3">
-            <p className="text-xs font-light text-brand-950/50">Últimos 30 días</p>
+            <p className="font-light text-brand-950/50 text-xs">Últimos 30 días</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-brand-950/[0.04] p-3">
                 <p className="text-[20px] font-bold leading-tight text-brand-950">{data.sessionsCount}</p>
-                <p className="text-xs font-semibold text-brand-950/60">clases dadas</p>
+                <p className="font-semibold text-brand-950/60 text-xs">clases dadas</p>
               </div>
               <div className="rounded-2xl bg-brand-950/[0.04] p-3">
                 <p className="text-[20px] font-bold leading-tight text-brand-950">{formatBase(data.pendingBase, symbol)}</p>
-                <p className="text-xs font-semibold text-brand-950/60">por pagar</p>
+                <p className="font-semibold text-brand-950/60 text-xs">por pagar</p>
               </div>
             </div>
-            <p className="text-xs font-light text-brand-950/40">
+            <p className="font-light text-brand-950/40 text-xs">
               Al liquidar se registra un gasto de nómina, para que el honorario pese en el balance y en el cierre de caja.
             </p>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
             <TextureButton
               variant="brand"
               size="default"
@@ -337,7 +337,7 @@ function EarningsDialog({ coach, symbol, onClose }: { coach: Coach; symbol: stri
             </TextureButton>
           </div>
         ) : (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-red-600 text-base">{error}</p>
         )}
       </DialogContent>
     </Dialog>
@@ -346,7 +346,7 @@ function EarningsDialog({ coach, symbol, onClose }: { coach: Coach; symbol: stri
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1 block text-[13px] font-medium text-brand-950/70">{label}</span>
       {children}
     </label>

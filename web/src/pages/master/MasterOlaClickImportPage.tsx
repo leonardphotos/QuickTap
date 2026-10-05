@@ -127,11 +127,11 @@ export default function MasterOlaClickImportPage() {
 
       {(step === 'idle' || step === 'connecting') && (
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-brand-950">API Key de OlaClick (compartida por el restaurante)</label>
+          <label className="block text-brand-950 text-sm font-medium">API Key de OlaClick (compartida por el restaurante)</label>
           <input
             type="text"
             placeholder="olk_live_..."
-            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 text-base"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
@@ -149,14 +149,14 @@ export default function MasterOlaClickImportPage() {
 
       {step === 'connected' && (
         <div className="space-y-3">
-          <p className="text-sm font-medium text-brand-500">Cuenta conectada correctamente.</p>
+          <p className="font-medium text-brand-500 text-base">Cuenta conectada correctamente.</p>
           <TextureButton variant="brand" size="sm" className="!w-auto" onClick={handlePreview}>
             Ver vista previa del menú
           </TextureButton>
         </div>
       )}
 
-      {step === 'loading_preview' && <p className="text-sm text-brand-950/60">Trayendo el menú desde OlaClick...</p>}
+      {step === 'loading_preview' && <p className="text-brand-950/60 text-base">Trayendo el menú desde OlaClick...</p>}
 
       {(step === 'preview' || step === 'confirming') && preview && (
         <div className="space-y-4">
@@ -194,7 +194,7 @@ export default function MasterOlaClickImportPage() {
                     const isExcluded = excluded.has(prod.externalSourceId);
                     return (
                       <div key={prod.externalSourceId} className={isExcluded ? 'opacity-50' : ''}>
-                      <label className="flex items-center gap-3 text-sm">
+                      <label className="flex items-center gap-3 text-sm font-medium">
                         <input
                           type="checkbox"
                           checked={!isExcluded}
@@ -235,7 +235,7 @@ export default function MasterOlaClickImportPage() {
               Diagnóstico — qué campos expone OlaClick
             </summary>
             <div className="mt-3 space-y-2">
-              <p className="text-xs text-brand-950/60">
+              <p className="text-brand-950/60 text-xs">
                 Campos que trae cada producto:{' '}
                 <code className="break-all">{preview.diagnostics.productKeys.join(', ') || '—'}</code>
               </p>

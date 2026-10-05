@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Ban, Plus, ShieldCheck, Star } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { Ban,Plus,ShieldCheck,Star } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { card } from '../clubStyle';
 
 const INPUT =
@@ -59,9 +60,9 @@ export default function ClubPlayersPage({
   return (
     <div className="flex flex-col gap-5">
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+        <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {tabs.map((t) => (
-            <button
+            <AnimatedTab active={tab === t}
               key={t}
               type="button"
               onClick={() => setTab(t)}
@@ -70,9 +71,9 @@ export default function ClubPlayersPage({
               }`}
             >
               {TAB_LABELS[t]}
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </div>
 
       {tab === 'clientes' && <CustomersTab restaurant={restaurant} isAdmin={isAdmin} />}
@@ -108,31 +109,31 @@ function CustomersTab({
 
   return (
     <div className={`${card} p-5`}>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-red-600 text-base">{error}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-bold text-brand-950">Clientes</p>
+        <p className="font-bold text-brand-950 text-base">Clientes</p>
         <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           Agregar
         </TextureButton>
       </div>
-      <p className="mt-0.5 text-xs font-light text-brand-950/50">
+      <p className="mt-0.5 font-light text-brand-950/50 text-xs">
         Los que reservaron alguna vez y los cargados a mano, en la misma lista.
       </p>
 
       <input value={q} onChange={(e) => setQ(e.target.value)} className={`${INPUT} mt-3`} placeholder="Buscar por nombre o teléfono…" />
 
       {loading ? (
-        <p className="py-6 text-center text-sm font-light text-brand-950/40">Cargando…</p>
+        <p className="py-6 text-center font-light text-brand-950/40 text-base">Cargando…</p>
       ) : rows.length === 0 ? (
-        <p className="py-6 text-center text-sm font-light text-brand-950/40">No hay clientes todavía.</p>
+        <p className="py-6 text-center font-light text-brand-950/40 text-base">No hay clientes todavía.</p>
       ) : (
         <ul className="mt-3 divide-y divide-brand-950/[0.06]">
           {rows.map((c) => (
             <li key={c.id} className="py-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-brand-950">
+                  <p className="truncate font-semibold text-brand-950 text-base">
                     {c.name}
                     {c.blockedReason && (
                       <span className="ml-1.5 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
@@ -140,19 +141,19 @@ function CustomersTab({
                       </span>
                     )}
                   </p>
-                  <p className="text-xs font-light text-brand-950/50">
+                  <p className="font-light text-brand-950/50 text-xs">
                     {c.phone}
                     {c.clubPlayerAccount && ` · @${c.clubPlayerAccount.username}`}
                     {` · ${c.bookings} reserva${c.bookings === 1 ? '' : 's'}`}
                   </p>
-                  {c.blockedReason && <p className="text-xs font-light text-red-600">{c.blockedReason}</p>}
+                  {c.blockedReason && <p className="font-light text-red-600 text-xs">{c.blockedReason}</p>}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="flex items-center justify-end gap-1 text-sm font-bold text-brand-950">
+                  <p className="flex items-center justify-end gap-1 font-bold text-brand-950 text-base">
                     <Star className="h-3.5 w-3.5 text-amber-500" />
                     {c.points}
                   </p>
-                  <p className="text-[11px] font-light text-brand-950/40">puntos</p>
+                  <p className="font-light text-brand-950/40 text-xs">puntos</p>
                 </div>
               </div>
               {isAdmin && (
@@ -228,10 +229,10 @@ function CustomerDialog({ onClose, onSaved }: { onClose: () => void; onSaved: ()
           <Field label="Cédula">
             <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} className={INPUT} placeholder="Opcional" />
           </Field>
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Si este teléfono ya existe se actualizan sus datos, no se crea un duplicado.
           </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
@@ -296,7 +297,7 @@ function PointsDialog({
           <DialogTitle>Puntos de {customer.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-sm text-brand-950">
+          <p className="text-brand-950 text-base">
             Saldo actual: <span className="font-bold">{customer.points}</span> puntos
           </p>
 
@@ -314,7 +315,7 @@ function PointsDialog({
             <Field label="Motivo *">
               <input value={note} onChange={(e) => setNote(e.target.value)} className={INPUT} placeholder="Por qué se ajusta" />
             </Field>
-            <p className="mt-1 text-xs font-light text-brand-950/40">
+            <p className="mt-1 font-light text-brand-950/40 text-xs">
               Todo ajuste queda en el libro de puntos con su motivo: por eso se puede auditar de dónde salió cada punto.
             </p>
             <TextureButton variant="minimal" size="default" disabled={saving} className="mt-2 disabled:opacity-50" onClick={adjust}>
@@ -322,7 +323,7 @@ function PointsDialog({
             </TextureButton>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
         </div>
       </DialogContent>
     </Dialog>
@@ -352,9 +353,9 @@ function BlacklistTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className={`${card} p-5`}>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-red-600 text-base">{error}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-sm font-bold text-brand-950">
+        <p className="flex items-center gap-1.5 font-bold text-brand-950 text-base">
           <Ban className="h-4 w-4 text-red-500" />
           Bloqueados
         </p>
@@ -363,25 +364,25 @@ function BlacklistTab({ isAdmin }: { isAdmin: boolean }) {
           Bloquear
         </TextureButton>
       </div>
-      <p className="mt-0.5 text-xs font-light text-brand-950/50">
+      <p className="mt-0.5 font-light text-brand-950/50 text-xs">
         No pueden reservar por internet. Recepción sí puede anotarlos a mano.
       </p>
 
       {loading ? (
-        <p className="py-6 text-center text-sm font-light text-brand-950/40">Cargando…</p>
+        <p className="py-6 text-center font-light text-brand-950/40 text-base">Cargando…</p>
       ) : rows.length === 0 ? (
-        <p className="py-6 text-center text-sm font-light text-brand-950/40">Nadie bloqueado. Bien.</p>
+        <p className="py-6 text-center font-light text-brand-950/40 text-base">Nadie bloqueado. Bien.</p>
       ) : (
         <ul className="mt-3 divide-y divide-brand-950/[0.06]">
           {rows.map((b) => (
             <li key={b.id} className="py-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-brand-950">{b.customer?.name ?? b.phone}</p>
-                  <p className="text-xs font-light text-brand-950/50">
+                  <p className="truncate font-semibold text-brand-950 text-base">{b.customer?.name ?? b.phone}</p>
+                  <p className="font-light text-brand-950/50 text-xs">
                     {b.phone} · {b.automatic ? 'automático' : 'manual'}
                   </p>
-                  <p className="text-xs font-light text-red-600">{b.reason}</p>
+                  <p className="font-light text-red-600 text-xs">{b.reason}</p>
                 </div>
                 {isAdmin && (
                   <button
@@ -444,7 +445,7 @@ function BlockDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
           <Field label="Motivo *">
             <input value={reason} onChange={(e) => setReason(e.target.value)} className={INPUT} placeholder="Por qué se bloquea" />
           </Field>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Bloqueando…' : 'Bloquear'}
           </TextureButton>
@@ -478,12 +479,12 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
     setSaved(true);
   }
 
-  if (!s) return <p className="text-sm font-light text-brand-950/40">Cargando reglas…</p>;
+  if (!s) return <p className="font-light text-brand-950/40 text-base">Cargando reglas…</p>;
 
   return (
     <div className="flex flex-col gap-5">
       <div className={`${card} p-5`}>
-        <p className="text-sm font-bold text-brand-950">Reservar por internet</p>
+        <p className="font-bold text-brand-950 text-base">Reservar por internet</p>
         <Toggle
           label="Pedir código por WhatsApp"
           hint="El jugador tiene que confirmar su número antes de cerrar la reserva."
@@ -498,7 +499,7 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
         />
         {s.autoBlacklistEnabled && (
           <>
-            <label className="mt-3 block">
+            <label className="mt-3 block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Ausencias antes de bloquear</span>
               <input
                 type="number"
@@ -511,7 +512,7 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
             </label>
             {/* El aviso importa: settlePastBookings marca ausente a toda reserva sin
                 check-in, así que en un club que no escanea, esto alcanzaría a todos. */}
-            <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-light text-amber-900">
+            <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 font-light text-amber-900 text-xs">
               Esto solo funciona si de verdad escaneas los QR en recepción: una reserva sin escanear cuenta como
               ausencia. Mientras el club no registre ningún check-in, no se bloquea a nadie.
             </p>
@@ -520,7 +521,7 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
       </div>
 
       <div className={`${card} p-5`}>
-        <p className="text-sm font-bold text-brand-950">Fidelización</p>
+        <p className="font-bold text-brand-950 text-base">Fidelización</p>
         <Toggle
           label="Dar puntos por jugar y consumir"
           hint="Se otorgan al cerrarse la reserva, no al reservarla."
@@ -529,7 +530,7 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
         />
         {s.loyaltyEnabled && (
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Puntos por reserva</span>
               <input
                 type="number"
@@ -539,7 +540,7 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
                 className={INPUT}
               />
             </label>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Puntos por cada {symbol}1</span>
               <input
                 type="number"
@@ -550,7 +551,7 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
                 className={INPUT}
               />
             </label>
-            <label className="col-span-2 block">
+            <label className="col-span-2 block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">
                 Puntos que equivalen a {symbol}1 al canjear
               </span>
@@ -566,8 +567,8 @@ function RulesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySy
         )}
       </div>
 
-      {saving && <p className="text-sm font-light text-brand-950/40">Guardando…</p>}
-      {saved && !saving && <p className="text-sm text-emerald-700">Guardado.</p>}
+      {saving && <p className="font-light text-brand-950/40 text-base">Guardando…</p>}
+      {saved && !saving && <p className="text-emerald-700 text-base">Guardado.</p>}
     </div>
   );
 }
@@ -584,7 +585,7 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="mt-3 flex items-start gap-3">
+    <label className="mt-3 flex items-start gap-3 text-sm font-medium">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-brand-500" />
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-brand-950">{label}</span>
@@ -596,7 +597,7 @@ function Toggle({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1 block text-[13px] font-medium text-brand-950/70">{label}</span>
       {children}
     </label>

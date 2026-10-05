@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Copy, Link2, Trash2 } from 'lucide-react';
-import { clubLinkApi, type RestaurantLinkState } from '@/api/clubLink';
-import { useAuth } from '@/context/AuthContext';
+import { clubLinkApi,type RestaurantLinkState } from '@/api/clubLink';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardContent, TextureCardHeader, TextureCardTitle } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Copy,Link2,Trash2 } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 
 /** "12:34" restantes, o null si ya venció. */
 function useCountdown(expiresAt: string | null | undefined): string | null {
@@ -90,7 +90,7 @@ export function ClubLinkSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Vincular canchas</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Si un club deportivo te terceriza la cocina o la barra, genera un código y dáselo. Cuando lo canjee, los
           pedidos que sus jugadores hagan desde la tablet de cada cancha te van a llegar en la pestaña{' '}
           <span className="font-medium text-brand-950/80">Canchas</span>, con el nombre de la cancha haciendo de mesa.
@@ -100,7 +100,7 @@ export function ClubLinkSection() {
       <TextureCardContent className="space-y-4">
         {codeAlive ? (
           <div className="rounded-2xl border border-brand-500/25 bg-brand-500/[0.06] p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-brand-950/50">Código activo</p>
+            <p className="font-medium uppercase tracking-wide text-brand-950/50 text-xs">Código activo</p>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <span className="font-mono text-3xl font-bold tracking-[0.2em] text-brand-950">
                 {state!.activeCode!.code}
@@ -112,12 +112,12 @@ export function ClubLinkSection() {
                 <Copy className="h-3.5 w-3.5" /> Copiar
               </button>
             </div>
-            <p className="mt-2 text-sm font-light text-brand-950/60">
+            <p className="mt-2 font-light text-brand-950/60 text-base">
               Vence en <span className="font-semibold text-brand-950">{countdown}</span>. Se usa una sola vez.
             </p>
           </div>
         ) : (
-          <p className="text-sm font-light text-brand-950/50">
+          <p className="font-light text-brand-950/50 text-base">
             No tienes ningún código activo. Genera uno cuando tengas al club listo para canjearlo.
           </p>
         )}
@@ -135,7 +135,7 @@ export function ClubLinkSection() {
 
         {state && state.clubs.length > 0 && (
           <div className="border-t border-brand-950/[0.06] pt-4">
-            <p className="text-sm font-semibold text-brand-950">Canchas vinculadas</p>
+            <p className="font-semibold text-brand-950 text-base">Canchas vinculadas</p>
             <ul className="mt-2 space-y-2">
               {state.clubs.map((c) => (
                 <li key={c.id} className="rounded-xl border border-brand-950/[0.07] bg-white px-3 py-2.5">
@@ -148,8 +148,8 @@ export function ClubLinkSection() {
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-brand-950">{c.name}</p>
-                    <p className="text-xs font-light text-brand-950/45">/{c.slug}</p>
+                    <p className="truncate font-semibold text-brand-950 text-base">{c.name}</p>
+                    <p className="font-light text-brand-950/45 text-xs">/{c.slug}</p>
                   </div>
                   <button
                     onClick={() => setConfirmingId(c.id)}
@@ -163,7 +163,7 @@ export function ClubLinkSection() {
 
                   {confirmingId === c.id && (
                     <div className="mt-2.5 rounded-lg bg-red-50 p-3">
-                      <p className="text-[13px] font-medium text-red-900">
+                      <p className="font-medium text-red-900 text-base">
                         ¿Desvincular "{c.name}"? Dejarás de recibir los pedidos de sus canchas.
                       </p>
                       <div className="mt-2 flex gap-2">
@@ -189,8 +189,8 @@ export function ClubLinkSection() {
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
       </TextureCardContent>
     </TextureCard>
   );

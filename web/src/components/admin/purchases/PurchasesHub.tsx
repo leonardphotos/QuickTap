@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { hasFeature } from '@/utils/subscription';
-import { SuppliersSection } from '@/components/admin/SuppliersSection';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
+import { PayablesSection } from '@/components/admin/PayablesSection';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { QuoteManager } from '@/components/admin/QuoteManager';
-import { PayablesSection } from '@/components/admin/PayablesSection';
+import { SuppliersSection } from '@/components/admin/SuppliersSection';
+import { useAuth } from '@/context/AuthContext.shared';
+import { hasFeature } from '@/utils/subscription';
+import { useState } from 'react';
 import { PurchasesRegisterSection } from './PurchasesRegisterSection';
 import { SupplierRatingsSection } from './SupplierRatingsSection';
 
@@ -38,9 +39,9 @@ export function PurchasesHub({ initialTab = 'register' }: { initialTab?: TabId }
   return (
     <div className="flex flex-col gap-5">
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+        <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {TABS.map((t) => (
-            <button
+            <AnimatedTab active={tab === t.id}
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
@@ -49,9 +50,9 @@ export function PurchasesHub({ initialTab = 'register' }: { initialTab?: TabId }
               }`}
             >
               {t.label}
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </div>
 
       {tab === 'register' && <PurchasesRegisterSection />}

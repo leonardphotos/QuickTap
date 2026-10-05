@@ -3,6 +3,7 @@ import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { MaskedAmount } from '@/components/master/MaskedAmount';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
+import { useMasterAuth } from '@/context/MasterAuthContext.shared';
 
 interface QrNfcRequestRow {
   id: string;
@@ -18,6 +19,8 @@ interface QrNfcRequestRow {
 }
 
 export default function MasterQrNfcRequestsPage() {
+  const { admin } = useMasterAuth();
+  const canApprove = admin?.role === 'ADMIN' || admin?.role === 'MANAGER';
   const [status, setStatus] = useState<'PENDING' | 'APPROVED'>('PENDING');
   const [requests, setRequests] = useState<QrNfcRequestRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -63,29 +66,29 @@ export default function MasterQrNfcRequestsPage() {
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
-      {requests?.length === 0 && <p className="text-sm text-brand-950/40 font-light">Sin solicitudes aquí.</p>}
+      {requests?.length === 0 && <p className="text-brand-950/40 font-light text-base">Sin solicitudes aquí.</p>}
 
       <div className="space-y-4">
         {requests?.map((req) => (
           <div key={req.id} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-medium text-brand-950">
+                <p className="font-medium text-brand-950 text-base">
                   {req.quantity} unidades · <MaskedAmount value={`$${req.totalPriceUsd} ($${req.unitPriceUsd} c/u)`} />
                 </p>
-                <p className="text-sm text-brand-950/60 font-light">
+                <p className="text-brand-950/60 font-light text-base">
                   {req.restaurant.name} (/{req.restaurant.slug})
                 </p>
-                <p className="text-xs text-brand-950/40 font-light mt-0.5">
+                <p className="text-brand-950/40 font-light mt-0.5 text-xs">
                   {req.contactName} · {req.contactEmail} {req.contactPhone && `· ${req.contactPhone}`}
                   {' · '}
                   {new Date(req.createdAt).toLocaleString('es-VE')}
                 </p>
               </div>
 
-              {req.status === 'PENDING' && (
+              {canApprove && req.status === 'PENDING' && (
                 <TextureButton
                   variant="brand"
                   size="sm"

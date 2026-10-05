@@ -77,7 +77,7 @@ export function EventoDetalle({
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{evento.name}</p>
+          <p className="min-w-0 flex-1 truncate font-semibold text-base">{evento.name}</p>
           {shop.logoUrl && <img src={shop.logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover" />}
         </div>
 
@@ -160,7 +160,7 @@ export function EventoDetalle({
               </div>
 
               {evento.eventDescription && (
-                <p className="mt-5 whitespace-pre-line text-[14px] font-light leading-relaxed text-white/70">
+                <p className="mt-5 whitespace-pre-line font-light leading-relaxed text-white/70 text-base">
                   {evento.eventDescription}
                 </p>
               )}
@@ -187,13 +187,13 @@ export function EventoDetalle({
               className="px-4"
             >
               <h2 className="mt-2 text-[20px] font-bold">Antes de continuar</h2>
-              <p className="mt-1 text-[12.5px] font-light text-white/50">
+              <p className="mt-1 font-light text-white/50 text-base">
                 Lee las condiciones de esta entrada. Tienes que aceptarlas para poder pagar.
               </p>
               <div className="mt-4 max-h-[46dvh] overflow-y-auto rounded-2xl bg-white/[0.05] p-4 text-[13px] font-light leading-relaxed text-white/75 whitespace-pre-line">
                 {evento.eventTerms}
               </div>
-              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-white/[0.04] p-4">
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-white/[0.04] p-4 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={acepta}
@@ -227,14 +227,14 @@ export function EventoDetalle({
             >
               {/* El precio recién aparece acá: después de las condiciones. */}
               <div className="mt-2 rounded-3xl bg-white/[0.05] p-5 text-center">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-white/40">Precio de la entrada</p>
+                <p className="font-medium uppercase tracking-wider text-white/40 text-xs">Precio de la entrada</p>
                 <p className="mt-1 text-[40px] font-black leading-none">{precio.primary}</p>
-                {precio.secondary && <p className="mt-1 text-[13px] font-light text-white/45">{precio.secondary}</p>}
+                {precio.secondary && <p className="mt-1 font-light text-white/45 text-base">{precio.secondary}</p>}
               </div>
 
               {fin ? (
                 <>
-                  <p className="mt-5 text-[12.5px] font-medium text-white/60">¿Cómo quieres pagar?</p>
+                  <p className="mt-5 font-medium text-white/60 text-base">¿Cómo quieres pagar?</p>
                   <div className="mt-2 space-y-2">
                     <OpcionPago
                       activa={!financiado}
@@ -262,7 +262,7 @@ export function EventoDetalle({
                         <div className="mt-3 rounded-2xl bg-white/[0.04] p-4">
                           {fin.installments > 2 && (
                             <div className="mb-3">
-                              <p className="text-[12px] font-medium text-white/60">¿En cuántas cuotas?</p>
+                              <p className="font-medium text-white/60 text-xs">¿En cuántas cuotas?</p>
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 {Array.from({ length: fin.installments - 1 }, (_, i) => i + 2).map((n) => (
                                   <button
@@ -281,7 +281,7 @@ export function EventoDetalle({
                               </div>
                             </div>
                           )}
-                          <p className="text-[12px] font-medium text-white/60">Tu plan de pago</p>
+                          <p className="font-medium text-white/60 text-xs">Tu plan de pago</p>
                           <div className="mt-2 space-y-1.5">
                             <LineaCuota etiqueta="Inicial (hoy)" valor={publicPriceLabel(inicial, shop).primary} destacada />
                             {Array.from({ length: cuotasElegidas }, (_, i) => (
@@ -292,7 +292,7 @@ export function EventoDetalle({
                               />
                             ))}
                           </div>
-                          <p className="mt-3 border-t border-white/[0.08] pt-2 text-[11px] font-light text-white/40">
+                          <p className="mt-3 border-t border-white/[0.08] pt-2 font-light text-white/40 text-xs">
                             Tu entrada se activa al pagar la inicial, y su código se completa a
                             medida que pagas las cuotas.
                             {fin.deadline &&
@@ -304,7 +304,7 @@ export function EventoDetalle({
                   </AnimatePresence>
                 </>
               ) : (
-                <p className="mt-4 rounded-2xl bg-white/[0.04] px-4 py-3 text-center text-[12.5px] font-light text-white/50">
+                <p className="mt-4 rounded-2xl bg-white/[0.04] px-4 py-3 text-center font-light text-white/50 text-base">
                   Esta entrada se paga completa.
                 </p>
               )}
@@ -329,7 +329,7 @@ export function EventoDetalle({
                   <Wallet className="h-6 w-6 text-[var(--color-brand-500)]" />
                 </span>
                 <h2 className="mt-3 text-[20px] font-bold">Tu entrada vive en QuickTap Wallet</h2>
-                <p className="mt-1 max-w-[19rem] text-[12.5px] font-light leading-relaxed text-white/50">
+                <p className="mt-1 max-w-[19rem] font-light leading-relaxed text-white/50 text-base">
                   Ahí guardas tu código, ves lo que te falta pagar y abonas tus cuotas.
                 </p>
               </div>
@@ -340,7 +340,7 @@ export function EventoDetalle({
                 <PasoTutorial n={3} icono={Ticket} titulo="Abre Entradas" texto="Ahí está tu boleto. Tócalo y se voltea para mostrar el código." />
               </ol>
 
-              <p className="mt-5 rounded-2xl bg-white/[0.04] px-4 py-3 text-[11.5px] font-light leading-snug text-white/50">
+              <p className="mt-5 rounded-2xl bg-white/[0.04] px-4 py-3 font-light leading-snug text-white/50 text-base">
                 Al terminar te abrimos WhatsApp con tu pedido para coordinar el pago con
                 {' '}{shop.name}. Tu entrada aparece en el Wallet en cuanto lo confirmen.
               </p>

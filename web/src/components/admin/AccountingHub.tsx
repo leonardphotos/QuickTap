@@ -1,12 +1,13 @@
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
+import { useAuth } from '@/context/AuthContext.shared';
+import ClubPayrollPage from '@/pages/admin/club/ClubPayrollPage';
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { BankAccountsSection } from './BankAccountsSection';
+import { FiscalBooksSection } from './FiscalBooksSection';
 import { MovementsLedgerSection } from './MovementsLedgerSection';
 import { SuppliersSection } from './SuppliersSection';
-import { FiscalBooksSection } from './FiscalBooksSection';
-import { BankAccountsSection } from './BankAccountsSection';
-import { BalanceSheetSection, IncomeStatementSection } from './accounting/FinancialStatementsSection';
 import { CostAnalysisSection } from './accounting/CostAnalysisSection';
-import ClubPayrollPage from '@/pages/admin/club/ClubPayrollPage';
+import { BalanceSheetSection,IncomeStatementSection } from './accounting/FinancialStatementsSection';
 
 const ALL_TABS = [
   { id: 'ledger', label: 'Movimientos' },
@@ -38,9 +39,9 @@ export function AccountingHub({ sections }: { sections?: AccountingTabId[] } = {
   return (
     <div className="flex flex-col gap-5">
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+        <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {tabs.map((t) => (
-            <button
+            <AnimatedTab active={tab === t.id}
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
@@ -49,9 +50,9 @@ export function AccountingHub({ sections }: { sections?: AccountingTabId[] } = {
               }`}
             >
               {t.label}
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </div>
 
       {tab === 'ledger' && <MovementsLedgerSection />}

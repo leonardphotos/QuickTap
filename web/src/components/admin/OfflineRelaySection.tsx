@@ -44,8 +44,8 @@ export function OfflineRelaySection() {
           <ServerCog className="h-5 w-5" />
         </div>
         <div>
-          <p className="font-semibold text-brand-950">Seguir trabajando sin internet</p>
-          <p className="mt-1 text-sm font-light text-brand-950/60">
+          <p className="font-semibold text-brand-950 text-base">Seguir trabajando sin internet</p>
+          <p className="mt-1 font-light text-brand-950/60 text-base">
             Si se cae la conexión, esta tablet puede seguir tomando pedidos e imprimiendo
             comandas hablando con la computadora del local. Los pedidos se suben solos cuando
             vuelve el internet.
@@ -53,7 +53,7 @@ export function OfflineRelaySection() {
         </div>
       </div>
 
-      <label className="block text-sm text-brand-950/60">
+      <label className="block text-brand-950/60 text-sm font-medium">
         Dirección de la computadora del local
         <input
           value={url}
@@ -62,7 +62,7 @@ export function OfflineRelaySection() {
             setResult(null);
           }}
           placeholder="http://192.168.1.50:4001"
-          className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm text-brand-950 focus:border-brand-500 focus:outline-none"
+          className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-brand-950 focus:border-brand-500 focus:outline-none text-base"
         />
         <span className="mt-1 block text-xs font-light text-brand-950/40">
           Déjalo vacío para desactivarlo. La computadora tiene que estar en la misma red WiFi.

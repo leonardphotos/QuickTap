@@ -5,7 +5,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariantsOuter = cva(
-  'rounded-full transition-transform duration-200 ease-out-strong active:scale-[0.97]',
+  'rounded-full transition-transform duration-150 ease-out-strong enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none',
   {
     variants: {
       variant: {
@@ -92,6 +92,7 @@ const TextureButton = React.forwardRef<HTMLButtonElement, UnifiedButtonProps>(
         className={cn(buttonVariantsOuter({ variant, size }), className)}
         ref={ref}
         {...props}
+        data-slot="texture-button"
       >
         <div className={cn(innerDivVariants({ variant, size }))}>{children}</div>
       </Comp>

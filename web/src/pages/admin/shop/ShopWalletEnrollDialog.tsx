@@ -112,30 +112,30 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
           <DialogTitle>{paso === 'cliente' ? 'Agregar cliente a QuickTap Wallet' : 'Plan de cuotas'}</DialogTitle>
         </DialogHeader>
 
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-600 text-base">{error}</p>}
 
         {paso === 'cliente' ? (
           <div className="space-y-3">
-            <p className="text-[11px] font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               Con estos datos el cliente entra a quicktap.club/wallet a ver lo que debe y a reportar
               sus abonos. Su clave es la cédula.
             </p>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Nombre</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Correo</span>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="opcional" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="opcional" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Teléfono</span>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0414-1234567" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0414-1234567" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
               </label>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Cédula</span>
-                <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="V-12345678" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+                <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="V-12345678" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
               </label>
             </div>
             <TextureButton variant="brand" size="default" disabled={guardando} onClick={siguiente}>
@@ -144,7 +144,7 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
           </div>
         ) : (
           <div className="space-y-3">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Monto inicial (se cobra hoy, aparte de las cuotas)</span>
               <input
                 type="number"
@@ -154,18 +154,18 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
                 value={inicial}
                 onChange={(e) => setInicial(e.target.value)}
                 placeholder="0.00"
-                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
               />
             </label>
 
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Cuotas</span>
-                <input type="number" min={2} max={60} value={cantidad} onChange={(e) => setCantidad(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+                <input type="number" min={2} max={60} value={cantidad} onChange={(e) => setCantidad(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
               </label>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Recargo por financiar (%)</span>
-                <input type="number" min={0} step="0.5" value={recargo} onChange={(e) => setRecargo(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+                <input type="number" min={0} step="0.5" value={recargo} onChange={(e) => setRecargo(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
               </label>
             </div>
 

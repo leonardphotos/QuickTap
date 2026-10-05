@@ -45,7 +45,7 @@ export default function ClubCheckInPage() {
     <div className="mx-auto flex w-full max-w-lg flex-col gap-6 text-center">
       <div>
         <h1 className="text-[20px] font-bold text-brand-950 tracking-tight">Control de acceso</h1>
-        <p className="mt-1 text-[13px] text-brand-950/50 font-light">
+        <p className="mt-1 text-brand-950/50 font-light text-base">
           Escanea el QR que el jugador recibió al reservar.
         </p>
       </div>
@@ -63,7 +63,7 @@ export default function ClubCheckInPage() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="…o pega el código aquí"
-          className="flex-1 rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+          className="flex-1 rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
         />
         <TextureButton type="submit" disabled={loading || !code.trim()}>
           Validar
@@ -82,9 +82,9 @@ export default function ClubCheckInPage() {
               {result.already ? 'Ya había entrado' : 'Acceso permitido'}
             </p>
           </div>
-          <p className="mt-2.5 text-[15px] font-bold text-brand-950">{result.booking.playerName}</p>
+          <p className="mt-2.5 font-bold text-brand-950 text-base">{result.booking.playerName}</p>
           {result.booking.block && (
-            <p className="text-[13px] text-brand-950/60">
+            <p className="text-brand-950/60 text-base">
               {result.booking.block.court.name} ·{' '}
               {new Date(result.booking.block.startsAt).toLocaleTimeString('es-VE', {
                 hour: '2-digit',
@@ -97,7 +97,7 @@ export default function ClubCheckInPage() {
               })}
             </p>
           )}
-          <p className="mt-1 text-[13px] text-brand-950/50 font-light">
+          <p className="mt-1 text-brand-950/50 font-light text-base">
             {result.booking.playerCount} jugadores · {result.booking.playerPhone}
           </p>
         </div>
@@ -107,9 +107,9 @@ export default function ClubCheckInPage() {
         <div className="rounded-2xl border border-rose-300 bg-rose-50 p-5">
           <div className="flex items-center gap-2">
             <XCircle className="h-5 w-5 text-rose-600" />
-            <p className="font-bold text-rose-900">No válido</p>
+            <p className="font-bold text-rose-900 text-base">No válido</p>
           </div>
-          <p className="mt-1 text-[13px] text-rose-800">{result.message}</p>
+          <p className="mt-1 text-rose-800 text-base">{result.message}</p>
         </div>
       )}
 
@@ -159,7 +159,7 @@ function QrScanDialog({ open, onClose, onDecoded }: { open: boolean; onClose: ()
         )}
         {cameraError && (
           <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/80">
-            <p className="text-sm text-white text-center">{cameraError} Revisa los permisos de cámara del navegador.</p>
+            <p className="text-white text-center text-base">{cameraError} Revisa los permisos de cámara del navegador.</p>
           </div>
         )}
       </div>

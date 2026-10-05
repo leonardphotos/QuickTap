@@ -1,37 +1,25 @@
-import { useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
-import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import {
-  METHODS_ALLOWING_PROOF,
-  METHODS_REQUIRING_PROOF_OR_REFERENCE,
-  METHODS_WITH_QR,
-  paymentDocumentError,
-  referenceLabel,
-} from '@/utils/payments';
-import type { PaymentMethod } from '@/types';
-import { methodAccountsOf } from '@/utils/payment-accounts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TextureButton } from '@/components/ui/texture-button';
-import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
-import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
-import { clubApi, type ClubBooking, type ClubBookingPayment } from './clubApi';
-
-// Mismas etiquetas y reglas que el cobro de comandas (PaymentDialog.tsx) — es
-// literalmente "la misma pasarela de pago de restaurantes" que se pidió.
-export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  MOBILE_PAYMENT: 'Pago Móvil',
-  ZELLE: 'Zelle',
-  CASH: 'Efectivo Bs',
-  CASH_USD: 'Efectivo $',
-  CARD: 'Punto de Venta',
-  BINANCE: 'Binance',
-  PAYPAL: 'PayPal',
-  TRANSFER: 'Transferencia',
-  PAYROLL_DEDUCTION: 'Descuento de nómina',
-};
+import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
+import { PromoCodeField } from '@/components/admin/crm/PromoCodeField';
+import { promoDiscountAmount,type AppliedPromo } from '@/components/admin/crm/PromoCodeField.shared';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { PaymentMethod } from '@/types';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import {
+METHODS_ALLOWING_PROOF,
+METHODS_REQUIRING_PROOF_OR_REFERENCE,
+METHODS_WITH_QR,
+paymentDocumentError,
+referenceLabel,
+} from '@/utils/payments';
+import { ArrowLeft,Camera,Check,Copy,Loader2,QrCode } from 'lucide-react';
+import type { ChangeEvent } from 'react';
+import { useRef,useState } from 'react';
+import { PAYMENT_LABELS } from './ClubPaymentDialog.shared';
+import { clubApi,type ClubBooking,type ClubBookingPayment } from './clubApi';
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
@@ -50,15 +38,15 @@ function PaymentRow({ payment, symbol }: { payment: ClubBookingPayment; symbol: 
   return (
     <div className="flex items-center justify-between gap-2 border-b border-brand-950/[0.06] py-1.5 text-xs last:border-0">
       <div className="min-w-0">
-        <p className="font-medium text-brand-950">{PAYMENT_LABELS[payment.method] ?? payment.method}</p>
+        <p className="font-medium text-brand-950 text-base">{PAYMENT_LABELS[payment.method] ?? payment.method}</p>
         {payment.referenceNumber && (
-          <p className="truncate text-brand-950/40">
+          <p className="truncate text-brand-950/40 text-base">
             Ref: {payment.referenceNumber}
             {payment.proofImageUrl && <span className="text-emerald-600"> · ✓ Comprobante</span>}
           </p>
         )}
       </div>
-      <p className="shrink-0 font-semibold text-brand-950">{formatBase(payment.amountBase, symbol)}</p>
+      <p className="shrink-0 font-semibold text-brand-950 text-base">{formatBase(payment.amountBase, symbol)}</p>
     </div>
   );
 }
@@ -138,7 +126,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
           const value = selectedAccount.fields[f];
           return (
             <div key={f} className="flex items-center justify-between gap-2">
-              <p className="truncate">
+              <p className="truncate text-base">
                 <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
               </p>
               <button
@@ -298,7 +286,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
 
           {paidNow != null ? (
             <div className="space-y-3 py-2 text-center">
-              <p className="text-sm font-medium text-emerald-600">✓ Pago de {formatBase(paidNow, symbol)} registrado</p>
+              <p className="font-medium text-emerald-600 text-base">✓ Pago de {formatBase(paidNow, symbol)} registrado</p>
               {latestBooking.payments && latestBooking.payments.length > 0 && (
                 <div className="rounded-xl border border-brand-950/10 px-3 py-2 text-left">
                   {latestBooking.payments.map((p) => (
@@ -307,11 +295,11 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                 </div>
               )}
               {remainingAfter > 0.01 ? (
-                <p className="text-sm text-brand-950/60">
+                <p className="text-brand-950/60 text-base">
                   Aún debe <span className="font-semibold text-brand-950">{formatBase(remainingAfter, symbol)}</span>
                 </p>
               ) : (
-                <p className="text-sm text-brand-950/60">Reserva saldada.</p>
+                <p className="text-brand-950/60 text-base">Reserva saldada.</p>
               )}
               <div className="flex justify-center gap-2">
                 {mode === 'split' && remainingAfter > 0.01 && (
@@ -339,7 +327,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
             <>
               {needsReference && (
                 <div>
-                  <p className="mb-1.5 text-xs font-medium text-brand-950/50">
+                  <p className="mb-1.5 font-medium text-brand-950/50 text-xs">
                     {referenceLabel(method)}
                     {needsProof && <span className="text-brand-950/40"> — o adjunta el comprobante abajo</span>}
                   </p>
@@ -347,7 +335,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
                     placeholder={referenceLabel(method)}
-                    className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                    className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                   />
                 </div>
               )}
@@ -364,33 +352,33 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                     {uploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                     {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
                   </TextureButton>
+                  <p className="text-center text-brand-950/50 text-xs">Puedes elegir una foto o captura de tu galería.</p>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="hidden"
                     onChange={handleProofFileChange}
                   />
                   {proofUrl && (
                     <div className="flex items-center justify-center gap-2.5">
                       <img src={proofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg border border-brand-950/10 object-cover" />
-                      <p className="text-xs font-semibold text-emerald-600">✓ Comprobante adjunto</p>
+                      <p className="font-semibold text-emerald-600 text-xs">✓ Comprobante adjunto</p>
                     </div>
                   )}
-                  {proofError && <p className="text-xs font-semibold text-red-600">{proofError}</p>}
+                  {proofError && <p className="font-semibold text-red-600 text-xs">{proofError}</p>}
                 </div>
               )}
 
               {mode === 'split' ? (
                 <div>
-                  <p className="mb-1.5 text-xs font-medium text-brand-950/50">Monto a abonar</p>
+                  <p className="mb-1.5 font-medium text-brand-950/50 text-xs">Monto a abonar</p>
                   <input
                     autoFocus
                     value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
                     placeholder={`Máx. ${chargeableBalance.toFixed(2)}`}
-                    className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                    className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                   />
                 </div>
               ) : (
@@ -415,7 +403,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                   recepción elige cómo le pagan, se lo enseña al jugador en pantalla completa
                   y recién entonces registra. El QR no va acá — se ve en esa pantalla. */}
               <div>
-                <p className="mb-1.5 text-xs font-medium text-brand-950/50">Método de pago</p>
+                <p className="mb-1.5 font-medium text-brand-950/50 text-xs">Método de pago</p>
                 <div className="flex flex-wrap gap-1.5">
                   {paymentOptions.map((o) => (
                     <button
@@ -443,7 +431,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                 )}
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-red-600 text-base">{error}</p>}
 
               <TextureButton variant="brand" size="default" disabled={sending} onClick={submit} className="disabled:opacity-50">
                 {sending ? 'Registrando…' : 'Registrar pago'}

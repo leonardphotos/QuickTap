@@ -7,13 +7,13 @@ import { SEO_SERVICES, SEO_VERTICALS } from '@/data/seoPages';
  * ligera, CTA de registro y un pie con TODO el mapa de páginas — ese pie es el
  * enlazado interno que reparte autoridad entre clusters sin ensuciar el copy.
  */
-export function SeoPageLayout({ children }: { children: ReactNode }) {
+export function SeoPageLayout({ children, showClosingCta = true, onTrialStart }: { children: ReactNode; showClosingCta?: boolean; onTrialStart?: () => void }) {
   return (
     <div className="min-h-screen bg-white text-brand-950">
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-brand-950/[0.06]">
         <div className="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between gap-3">
           <Link to="/" className="flex items-center min-w-0">
-            <img src="/logo/icono.png" alt="QuickTap" className="h-7 w-7" />
+            <img src="/logo/icono.png?v=20261002" alt="QuickTap" className="h-7 w-7" />
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link to="/precios" className="text-sm text-brand-950/70 hover:text-brand-950 px-1.5 py-1">
@@ -23,7 +23,7 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
               Iniciar sesión
             </Link>
             <Link
-              to="/empezar"
+              to="/empezar" onClick={onTrialStart}
               className="inline-flex items-center justify-center rounded-full bg-brand-logo text-white font-medium text-xs px-4 py-2 transition-colors hover:bg-[#008ae6] active:scale-[0.97]"
             >
               Prueba gratis
@@ -35,15 +35,15 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
       <main className="max-w-5xl mx-auto px-5 py-10 lg:py-14">{children}</main>
 
       {/* CTA de cierre — igual en todas las páginas SEO */}
-      <section className="max-w-5xl mx-auto px-5 pb-14">
+      {showClosingCta && <section className="max-w-5xl mx-auto px-5 pb-14">
         <div className="rounded-3xl bg-brand-logo text-white px-6 py-10 sm:px-12 text-center">
           <h2 className="text-xl sm:text-2xl font-bold">Pruébalo con tu propio negocio</h2>
-          <p className="mt-2 text-sm text-white/80 font-light max-w-xl mx-auto">
+          <p className="mt-2 text-white/80 font-light max-w-xl mx-auto text-base">
             15 días gratis, sin tarjeta de crédito. Configura tu carta, tus mesas y tu WhatsApp en una tarde.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              to="/empezar"
+              to="/empezar" onClick={onTrialStart}
               className="inline-flex items-center justify-center rounded-full bg-white text-brand-logo font-semibold text-sm px-6 py-3 shadow-[0_16px_32px_-8px_rgba(0,27,67,0.35)] transition-transform duration-200 active:scale-[0.97] hover:bg-white/90"
             >
               Regístrate y comienza gratis hoy
@@ -53,12 +53,12 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </div>
-      </section>
+      </section>}
 
       <footer className="border-t border-brand-950/10 bg-[#fafafa]">
         <div className="max-w-5xl mx-auto px-5 py-10 grid grid-cols-2 sm:grid-cols-4 gap-8 text-sm">
           <div>
-            <p className="font-semibold mb-3">Funciones</p>
+            <p className="font-semibold mb-3 text-base">Funciones</p>
             <ul className="space-y-2">
               {SEO_SERVICES.map((s) => (
                 <li key={s.slug}>
@@ -70,7 +70,7 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
             </ul>
           </div>
           <div>
-            <p className="font-semibold mb-3">Por tipo de negocio</p>
+            <p className="font-semibold mb-3 text-base">Por tipo de negocio</p>
             <ul className="space-y-2">
               {SEO_VERTICALS.map((v) => (
                 <li key={v.slug}>
@@ -82,23 +82,24 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
             </ul>
           </div>
           <div>
-            <p className="font-semibold mb-3">QuickTap</p>
+            <p className="font-semibold mb-3 text-base">QuickTap</p>
             <ul className="space-y-2">
               <li><Link to="/" className="text-brand-950/60 hover:text-brand-950">Software para restaurantes</Link></li>
               <li><Link to="/precios" className="text-brand-950/60 hover:text-brand-950">Precios y planes</Link></li>
               <li><Link to="/comparativa" className="text-brand-950/60 hover:text-brand-950">Cómo elegir un software</Link></li>
+              <li><Link to="/herramientas/calculadora-costo-plato" className="text-brand-950/60 hover:text-brand-950">Calculadora de costo por plato</Link></li>
               <li><Link to="/legal" className="text-brand-950/60 hover:text-brand-950">Legal</Link></li>
             </ul>
           </div>
           <div>
-            <p className="font-semibold mb-3">Empezar</p>
+            <p className="font-semibold mb-3 text-base">Empezar</p>
             <ul className="space-y-2">
-              <li><Link to="/empezar" className="text-brand-950/60 hover:text-brand-950">Crear cuenta gratis</Link></li>
+              <li><Link to="/empezar" onClick={onTrialStart} className="text-brand-950/60 hover:text-brand-950">Crear cuenta gratis</Link></li>
               <li><Link to="/admin/login" className="text-brand-950/60 hover:text-brand-950">Iniciar sesión</Link></li>
             </ul>
           </div>
         </div>
-        <p className="text-center text-xs text-brand-950/40 font-light pb-6">
+        <p className="text-center text-brand-950/40 font-light pb-6 text-xs">
           © {new Date().getFullYear()} QuickTap.club — todo a un toque.
         </p>
       </footer>
@@ -118,7 +119,7 @@ export function SeoFaqList({ faq }: { faq: { q: string; a: string }[] }) {
               {f.q}
               <span className="text-brand-950/40 group-open:rotate-45 transition-transform text-lg leading-none">+</span>
             </summary>
-            <p className="mt-2 text-sm text-brand-950/70 font-light leading-relaxed">{f.a}</p>
+            <p className="mt-2 text-brand-950/70 font-light leading-relaxed text-base">{f.a}</p>
           </details>
         ))}
       </div>

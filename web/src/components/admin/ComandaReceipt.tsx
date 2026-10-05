@@ -1,6 +1,7 @@
-import { forwardRef, type CSSProperties } from 'react';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
-import type { LiveOrder } from './LiveOrdersPanel';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute,formatModifierLabel } from '@/utils/format';
+import { forwardRef,type CSSProperties } from 'react';
+import { comandaAddressText } from '@/utils/comanda-address';
+import type { LiveOrder } from './LiveOrdersPanel.shared';
 
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
@@ -48,6 +49,7 @@ const totalRow: CSSProperties = { ...row, fontWeight: 600, fontSize: 14, marginT
 const footer: CSSProperties = { fontSize: 10, textAlign: 'center', color: 'rgba(0,27,67,0.4)', marginTop: 16 };
 
 export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restaurantName }, ref) => {
+  const address = comandaAddressText(order.customerAddress);
   const symbol = CURRENCY_SYMBOLS[order.currency as 'USD' | 'EUR'] ?? '$';
 
   return (
@@ -74,7 +76,7 @@ export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restau
         )}
       </div>
 
-      {(order.customerName || order.customerPhone || order.customerAddress || order.customerIdNumber) && (
+      {(order.customerName || order.customerPhone || address || order.customerIdNumber) && (
         <div style={section}>
           <p style={sectionLabel}>Datos del cliente</p>
           {order.customerName && (
@@ -95,10 +97,10 @@ export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restau
               <span>{order.customerPhone}</span>
             </div>
           )}
-          {order.customerAddress && (
+          {address && (
             <div style={rowGap}>
               <span style={{ flexShrink: 0 }}>Dirección</span>
-              <span style={{ textAlign: 'right' }}>{order.customerAddress}</span>
+              <span style={{ textAlign: 'right' }}>{address}</span>
             </div>
           )}
         </div>
@@ -118,21 +120,28 @@ export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restau
         ))}
       </div>
 
+      {order.customerNote?.trim() && (
+        <div style={{ borderTop: '1px dashed #001b43', borderBottom: '1px dashed #001b43', padding: '10px 0', marginBottom: 12, breakInside: 'avoid' }}>
+          <div style={sectionLabel}>NOTAS DEL PEDIDO</div>
+          <div style={{ fontWeight: 600, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{order.customerNote.trim()}</div>
+        </div>
+      )}
+
       <div style={totalsBlock}>
         <div style={row}>
           <span>Subtotal</span>
           <span>{formatBase(order.subtotalBase, symbol)}</span>
         </div>
-        {Number(order.serviceChargeBase) > 0 && (
-          <div style={rowGap}>
-            <span>Servicio</span>
-            <span>{formatBase(order.serviceChargeBase, symbol)}</span>
-          </div>
-        )}
         {Number(order.ivaBase) > 0 && (
           <div style={rowGap}>
             <span>IVA</span>
             <span>{formatBase(order.ivaBase, symbol)}</span>
+          </div>
+        )}
+        {Number(order.serviceChargeBase) > 0 && (
+          <div style={rowGap}>
+            <span>Servicio</span>
+            <span>{formatBase(order.serviceChargeBase, symbol)}</span>
           </div>
         )}
         {Number(order.deliveryFeeBase) > 0 && (

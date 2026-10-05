@@ -1,16 +1,16 @@
-import { waPhone } from '@/utils/waPhone';
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Landmark, Send, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/hooks/useToast';
-import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { ShopInstallmentsDialog } from './ShopInstallmentsDialog';
 import { TextureCard } from '@/components/ui/texture-card';
 import { Toast } from '@/components/ui/toast';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useToast } from '@/hooks/useToast';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
+import { waPhone } from '@/utils/waPhone';
+import { AlertTriangle,Landmark,Send,Trash2 } from 'lucide-react';
+import { useEffect,useState } from 'react';
 import { shopMoneyFormatters } from './shopFormat';
+import { ShopInstallmentsDialog } from './ShopInstallmentsDialog';
 
 interface ReceivableSale {
   id: string;
@@ -127,7 +127,7 @@ export default function ShopReceivablesPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-brand-950">Cuentas por cobrar</h1>
-          <p className="text-sm text-brand-950/60 font-light">Clientes con cuenta abierta: ventas fiadas con saldo pendiente. Abona y avísale al cliente cuando se acerque la fecha.</p>
+          <p className="text-brand-950/60 font-light text-base">Clientes con cuenta abierta: ventas fiadas con saldo pendiente. Abona y avísale al cliente cuando se acerque la fecha.</p>
         </div>
         <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowHistory((v) => !v)}>
           {showHistory ? 'Ver solo pendientes' : 'Ver historial completo'}
@@ -141,7 +141,7 @@ export default function ShopReceivablesPage() {
               <Landmark className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-[11px] text-brand-950/45 font-medium">Total pendiente</p>
+              <p className="text-brand-950/45 font-medium text-xs">Total pendiente</p>
               <p className="text-lg font-bold text-brand-950">{money(totalPending)}</p>
             </div>
           </div>
@@ -150,14 +150,14 @@ export default function ShopReceivablesPage() {
               <AlertTriangle className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-[11px] text-brand-950/45 font-medium">Cuentas vencidas</p>
+              <p className="text-brand-950/45 font-medium text-xs">Cuentas vencidas</p>
               <p className="text-lg font-bold text-brand-950">{overdueCount}</p>
             </div>
           </div>
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <TextureCard>
         <ul className="divide-y divide-brand-950/10">
@@ -165,21 +165,21 @@ export default function ShopReceivablesPage() {
             <li key={s.id} className="px-4 py-3.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-medium text-brand-950">
+                  <p className="font-medium text-brand-950 text-base">
                     {s.customerName || 'Cliente sin nombre'}
                     {s.settledAt && (
                       <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Saldada</span>
                     )}
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {new Date(s.time).toLocaleDateString('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })}
                     {' · '}
                     {s.creditTerms === 'FULL' ? 'Todo fiado' : 'Abono inicial + resto fiado'}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="font-semibold text-brand-950">{money(s.balance)}</p>
-                  <p className="text-xs text-brand-950/40">de {money(s.total)}</p>
+                  <p className="font-semibold text-brand-950 text-base">{money(s.balance)}</p>
+                  <p className="text-brand-950/40 text-xs">de {money(s.total)}</p>
                 </div>
               </div>
 
@@ -192,7 +192,7 @@ export default function ShopReceivablesPage() {
                         value={dueInput}
                         onChange={(e) => setDueInput(e.target.value)}
                         autoFocus
-                        className="text-xs border border-brand-950/15 rounded-lg px-2 py-1"
+                        className="border border-brand-950/15 rounded-lg px-2 py-1 text-base"
                       />
                       <button onClick={() => saveDueDate(s.id)} className="text-xs font-medium text-brand-500 hover:text-brand-600">
                         Guardar
@@ -226,13 +226,13 @@ export default function ShopReceivablesPage() {
                         onChange={(e) => setPayAmount(e.target.value)}
                         placeholder={`Máx. ${s.balance.toFixed(2)}`}
                         autoFocus
-                        className="w-28 text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+                        className="w-28 border border-brand-950/15 rounded-lg px-2 py-1 text-base"
                       />
                       <input
                         value={payMethod}
                         onChange={(e) => setPayMethod(e.target.value)}
                         placeholder="Método (opcional)"
-                        className="w-32 text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+                        className="w-32 border border-brand-950/15 rounded-lg px-2 py-1 text-base"
                       />
                       <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => confirmPayment(s.id)}>
                         Registrar
@@ -315,14 +315,14 @@ export default function ShopReceivablesPage() {
           <DialogHeader>
             <DialogTitle>Eliminar cuenta por cobrar</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-brand-950">
+          <p className="text-brand-950 text-base">
             ¿Borrar por completo la cuenta de{' '}
             <span className="font-semibold">{saleToDelete?.customerName || 'este cliente'}</span> por{' '}
             {saleToDelete ? money(saleToDelete.total) : ''} (saldo pendiente {saleToDelete ? money(saleToDelete.balance) : ''})?
             Desaparece de todo reporte e historial y el stock vuelve a como estaba antes de la venta. No se puede
             deshacer.
           </p>
-          {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+          {deleteError && <p className="text-red-600 text-base">{deleteError}</p>}
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSaleToDelete(null)}>
               Cancelar

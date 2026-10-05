@@ -52,7 +52,7 @@ export function ClubTable({
   children: ReactNode;
 }) {
   if (rows === 0) {
-    return <p className="py-12 text-center text-sm font-light text-brand-950/40">{empty}</p>;
+    return <p className="py-12 text-center font-light text-brand-950/40 text-base">{empty}</p>;
   }
 
   return (
@@ -184,7 +184,7 @@ export function ClubBadge({ tone = 'neutral', children }: { tone?: BadgeTone; ch
 export function ClubEyebrow({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-brand-950/35">{children}</p>
+      <p className="font-bold uppercase tracking-[0.13em] text-brand-950/35 text-base">{children}</p>
       {action}
     </div>
   );
@@ -212,7 +212,7 @@ export function ClubPanel({
           <div className="min-w-0">
             {title && <h2 className="text-[14px] font-bold tracking-tight text-brand-950">{title}</h2>}
             {description && (
-              <p className="mt-1 max-w-xl text-[12px] font-light leading-relaxed text-brand-950/50">{description}</p>
+              <p className="mt-1 max-w-xl font-light leading-relaxed text-brand-950/50 text-xs">{description}</p>
             )}
           </div>
           {action && <div className="flex shrink-0 flex-wrap items-center gap-1.5">{action}</div>}

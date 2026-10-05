@@ -1,0 +1,1 @@
+import {createRoot} from 'react-dom/client';import {MoneyVisibilityProvider} from '../src/context/MoneyVisibilityContext';import Quotes from '../src/pages/master/MasterQuotesPage';import '../src/index.css';createRoot(document.getElementById('root')!).render(<MoneyVisibilityProvider><Quotes/></MoneyVisibilityProvider>);

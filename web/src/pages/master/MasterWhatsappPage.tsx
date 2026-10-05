@@ -123,7 +123,7 @@ export default function MasterWhatsappPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950 flex items-center gap-2">
           <MessageCircle className="h-6 w-6 text-emerald-600" /> WhatsApp de la plataforma
         </h1>
-        <p className="text-sm text-brand-950/60 font-light mt-1">
+        <p className="text-brand-950/60 font-light mt-1 text-base">
           Manda la bienvenida a cada restaurante que se registra, el recordatorio de renovación de plan 3 días antes
           del vencimiento (con los datos de pago y el comprobante que sube el dueño), el aviso de nuevo ingreso al
           número verificador, y las cotizaciones que se envían desde Cotizaciones — mismo número, mismas 4 vías.
@@ -136,8 +136,8 @@ export default function MasterWhatsappPage() {
       <WhatsappLinkSection base="/master/whatsapp-link" titulo="WhatsApp de cobranzas (vinculado)" cliente={masterApi} />
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-2">
-        <p className="text-sm font-medium text-brand-950">Número que verifica los pagos de renovación</p>
-        <p className="text-xs text-brand-950/50 font-light">
+        <p className="font-medium text-brand-950 text-base">Número que verifica los pagos de renovación</p>
+        <p className="text-brand-950/50 font-light text-xs">
           Cuando un restaurante manda la foto de su comprobante de renovación, el chatbot se la reenvía a este
           número. Si responde <em>Aprobado</em>, el plan se renueva solo; si responde <em>Rechazado</em>, se le pide
           al restaurante reenviar el comprobante. Déjalo vacío para que solo llegue el recordatorio sin reenvío
@@ -147,7 +147,7 @@ export default function MasterWhatsappPage() {
           value={verifierDraft}
           onChange={(e) => setVerifierDraft(e.target.value.replace(/[^\d+]/g, ''))}
           placeholder="584141234567"
-          className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+          className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
         />
         <div className="flex items-center gap-2 pt-1">
           <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={savingVerifier} onClick={saveVerifierPhone}>
@@ -160,27 +160,27 @@ export default function MasterWhatsappPage() {
       {templatesDraft && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
           <div>
-            <p className="text-sm font-medium text-brand-950">Mensajes del chatbot</p>
-            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+            <p className="font-medium text-brand-950 text-base">Mensajes del chatbot</p>
+            <p className="text-brand-950/50 font-light mt-0.5 text-xs">
               Edita el texto de cada mensaje automático. Las variables entre llaves (<code>{'{{así}}'}</code>) se
               reemplazan solas — no las borres, solo muévelas de línea si quieres.
             </p>
           </div>
 
           {TEMPLATE_FIELDS.map((f) => (
-            <label key={f.key} className="block space-y-1.5">
+            <label key={f.key} className="block space-y-1.5 text-sm font-medium">
               <span className="text-xs font-medium text-brand-950/70">{f.label}</span>
               <textarea
                 value={templatesDraft[f.key]}
                 onChange={(e) => setTemplatesDraft({ ...templatesDraft, [f.key]: e.target.value })}
                 rows={f.rows}
-                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
               <span className="block text-[11px] text-brand-950/40 font-light">{f.help}</span>
             </label>
           ))}
 
-          {templatesError && <p className="text-sm text-red-600">{templatesError}</p>}
+          {templatesError && <p className="text-red-600 text-base">{templatesError}</p>}
           <div className="flex items-center gap-2">
             <TextureButton
               variant="brand"

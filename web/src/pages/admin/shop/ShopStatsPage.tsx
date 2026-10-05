@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { TrendingDown, TrendingUp } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { TrendingDown,TrendingUp } from 'lucide-react';
+import { useEffect,useMemo,useState } from 'react';
 import { shopMoneyFormatters } from './shopFormat';
 
 interface SalesStats {
@@ -77,18 +77,18 @@ export default function ShopStatsPage({ restaurant }: { restaurant: AuthRestaura
             type="date"
             value={desde}
             onChange={(e) => setDesde(e.target.value)}
-            className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+            className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
           />
           <input
             type="date"
             value={hasta}
             onChange={(e) => setHasta(e.target.value)}
-            className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+            className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
           />
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {data && (
         <>
@@ -100,16 +100,16 @@ export default function ShopStatsPage({ restaurant }: { restaurant: AuthRestaura
               { label: 'Ticket promedio', value: money(data.ticketPromedio), sub: `Antes ${money(data.previo.ticketPromedio)}` },
             ].map((c) => (
               <div key={c.label} className="rounded-2xl border border-brand-950/10 bg-white p-4">
-                <p className="text-[11px] font-bold uppercase text-brand-950/40">{c.label}</p>
+                <p className="font-bold uppercase text-brand-950/40 text-xs">{c.label}</p>
                 <p className="text-xl font-bold text-brand-950 mt-1">{c.value}</p>
-                {c.sub && <p className="text-[12px] text-brand-950/40">{c.sub}</p>}
+                {c.sub && <p className="text-brand-950/40 text-xs">{c.sub}</p>}
               </div>
             ))}
           </div>
 
           <div className="rounded-2xl border border-brand-950/10 bg-white p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <p className="font-semibold text-brand-950">Ventas por día</p>
+              <p className="font-semibold text-brand-950 text-base">Ventas por día</p>
               {data.cambioPercent === null ? (
                 <span className="text-[12px] text-brand-950/40">Sin ventas en el período anterior</span>
               ) : (
@@ -133,9 +133,9 @@ export default function ShopStatsPage({ restaurant }: { restaurant: AuthRestaura
           </div>
 
           <div className="rounded-2xl border border-brand-950/10 bg-white p-4">
-            <p className="font-semibold text-brand-950 mb-3">Quién vendió</p>
+            <p className="font-semibold text-brand-950 mb-3 text-base">Quién vendió</p>
             {data.porUsuario.length === 0 ? (
-              <p className="text-sm text-brand-950/40">Sin ventas en el período.</p>
+              <p className="text-brand-950/40 text-base">Sin ventas en el período.</p>
             ) : (
               <ul className="space-y-1.5">
                 {data.porUsuario.map((u) => (

@@ -52,7 +52,7 @@ export function ClubScanDialog({ open, products, onClose, onFound }: Props) {
               value={manual}
               onChange={(e) => setManual(e.target.value)}
               placeholder="O escribe el código"
-              className="min-w-0 flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
+              className="min-w-0 flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none text-base"
             />
             <button type="submit" className="shrink-0 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-brand-950">
               Buscar
@@ -66,12 +66,12 @@ export function ClubScanDialog({ open, products, onClose, onFound }: Props) {
     >
       <div className="space-y-2">
         {cameraError ? (
-          <p className="py-8 text-center text-sm text-white/70">{cameraError}</p>
+          <p className="py-8 text-center text-white/70 text-base">{cameraError}</p>
         ) : (
           <video ref={videoRef} className="w-full rounded-xl bg-black" playsInline muted />
         )}
         {notFound && (
-          <p className="text-center text-sm text-amber-300">
+          <p className="text-center text-amber-300 text-base">
             No hay ningún producto con el código <span className="font-semibold">{notFound}</span>. Cárgalo en el
             producto para poder escanearlo.
           </p>

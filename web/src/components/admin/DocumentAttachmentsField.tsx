@@ -65,10 +65,10 @@ export function DocumentAttachmentsField({
     <div className="rounded-xl border border-brand-950/10 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[13px] font-medium text-brand-950/70">{label}</p>
-          <p className="text-[11px] font-light text-brand-950/45">{hint}</p>
+          <p className="font-medium text-brand-950/70 text-base">{label}</p>
+          <p className="font-light text-brand-950/45 text-xs">{hint}</p>
         </div>
-        <label className="shrink-0 cursor-pointer text-xs font-medium text-brand-500 hover:text-brand-600">
+        <label className="shrink-0 cursor-pointer text-brand-500 hover:text-brand-600 text-sm font-medium">
           {uploading ? 'Subiendo…' : 'Adjuntar'}
           <input
             type="file"
@@ -84,7 +84,7 @@ export function DocumentAttachmentsField({
         </label>
       </div>
 
-      {error && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1.5 text-red-600 text-xs">{error}</p>}
 
       {value.length > 0 && (
         <ul className="mt-2 space-y-1">

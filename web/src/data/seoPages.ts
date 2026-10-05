@@ -57,9 +57,8 @@ export const SEO_SERVICES: SeoServicePage[] = [
       'Los precios se muestran en bolívares calculados con la tasa BCV del día (y en dólares como referencia), así que un menú que armaste hace meses sigue cobrando bien hoy. Cambias un plato, una foto o un precio desde tu panel y el menú se actualiza al instante en todos los teléfonos.',
     ],
     screenshot: {
-      // Menú real de un cliente (All Grill Chirikayen) — mejor prueba social que el demo.
-      src: '/images/restaurant-menu-allgrill-captura.jpg',
-      alt: 'Menú digital QR de All Grill Chirikayen visto desde el teléfono del cliente, con fotos de los platos y precios en bolívares y euros',
+      src: '/images/restaurant-demo/menu.jpg',
+      alt: 'Menú digital QR de un restaurante de demostración con fotos, categorías y precios',
     },
     features: [
       { title: 'Carta con fotos y categorías', text: 'Productos estrella, promociones y especiales de la casa destacados; agotados que se ocultan solos.' },
@@ -116,7 +115,7 @@ export const SEO_SERVICES: SeoServicePage[] = [
       'Cada mesa mantiene su cuenta abierta: los pedidos se van acumulando en la misma sesión hasta que el cliente pide la cuenta. El equipo ve todo en vivo — qué mesa pidió, qué está en preparación y qué está listo para servir.',
     ],
     screenshot: {
-      src: '/images/restaurant-cocina-captura.jpg',
+      src: '/images/restaurant-demo/administracion.jpg',
       alt: 'Cola de cocina del sistema de comandas de QuickTap con los pedidos de cada mesa en tiempo real',
     },
     features: [
@@ -174,9 +173,8 @@ export const SEO_SERVICES: SeoServicePage[] = [
       'Tú solo confirmas. El pedido queda también registrado en tu panel, así que no vives copiando mensajes a un cuaderno — la venta entra al sistema sola, con su cliente y su historial.',
     ],
     screenshot: {
-      // Checkout real de un cliente (All Grill Chirikayen), con envío por zona calculado.
-      src: '/images/restaurant-delivery-captura.jpg',
-      alt: 'Pedido de delivery de All Grill Chirikayen listo para enviarse por WhatsApp, con el envío calculado por zona y el total en bolívares',
+      src: '/images/restaurant-demo/menu.jpg',
+      alt: 'Menú de un restaurante de demostración listo para recibir pedidos',
     },
     features: [
       { title: 'Pedido completo, no un audio', text: 'Productos, variantes, extras, notas, dirección y pago — todo en un solo mensaje ordenado.' },
@@ -307,7 +305,7 @@ export const SEO_SERVICES: SeoServicePage[] = [
       'El costo de cada plato se calcula en vivo desde el precio de sus insumos: si el queso sube, ves al momento cómo queda tu margen. Y cuando un insumo se está agotando, el sistema te avisa antes de que la cocina se entere a mitad de servicio.',
     ],
     screenshot: {
-      src: '/images/restaurant-inventario-captura.jpg',
+      src: '/images/restaurant-demo/productos.jpg',
       alt: 'Alertas de inventario de un restaurante con los insumos agotados y por agotarse',
     },
     features: [

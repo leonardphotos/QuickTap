@@ -126,16 +126,16 @@ export function ShopInstallmentsDialog({
           <DialogTitle>Plan de cuotas</DialogTitle>
         </DialogHeader>
 
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-        {cargando && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-600 text-base">{error}</p>}
+        {cargando && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
 
         {!cargando && !plan && (
           <div className="space-y-3">
-            <p className="text-sm font-light text-brand-950/60">
+            <p className="font-light text-brand-950/60 text-base">
               Saldo a financiar: <span className="font-semibold text-brand-950">{money(saldo)}</span>
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Cuotas</span>
                 <input
                   type="number"
@@ -143,19 +143,19 @@ export function ShopInstallmentsDialog({
                   max={60}
                   value={cantidad}
                   onChange={(e) => setCantidad(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                 />
               </label>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Primera cuota</span>
                 <input
                   type="date"
                   value={primeraFecha}
                   onChange={(e) => setPrimeraFecha(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                 />
               </label>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Mora por cuota vencida</span>
                 <input
                   type="number"
@@ -163,10 +163,10 @@ export function ShopInstallmentsDialog({
                   step="0.01"
                   value={mora}
                   onChange={(e) => setMora(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                 />
               </label>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Avisar días antes</span>
                 <input
                   type="number"
@@ -174,11 +174,11 @@ export function ShopInstallmentsDialog({
                   max={30}
                   value={avisoDias}
                   onChange={(e) => setAvisoDias(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                 />
               </label>
             </div>
-            <p className="text-[11px] font-light text-brand-950/45">
+            <p className="font-light text-brand-950/45 text-xs">
               Quedarían {cuotasNum} cuotas de ~{money(saldo / Math.max(1, cuotasNum))}, una por mes. La mora y el aviso
               se congelan en este plan: si luego cambias tu política, esta venta conserva lo pactado.
             </p>
@@ -190,7 +190,7 @@ export function ShopInstallmentsDialog({
 
         {!cargando && plan && (
           <div className="space-y-2">
-            <p className="text-[11px] font-light text-brand-950/45">
+            <p className="font-light text-brand-950/45 text-xs">
               Mora {money(plan.lateFeeAmount)} por cuota vencida · aviso {plan.alertDaysBefore} días antes
             </p>
             {plan.cuotas.map((c) => (
@@ -203,13 +203,13 @@ export function ShopInstallmentsDialog({
                       min={0}
                       value={editMonto}
                       onChange={(e) => setEditMonto(e.target.value)}
-                      className="w-24 rounded-lg border border-brand-950/15 px-2 py-1 text-sm"
+                      className="w-24 rounded-lg border border-brand-950/15 px-2 py-1 text-base"
                     />
                     <input
                       type="date"
                       value={editFecha}
                       onChange={(e) => setEditFecha(e.target.value)}
-                      className="rounded-lg border border-brand-950/15 px-2 py-1 text-sm"
+                      className="rounded-lg border border-brand-950/15 px-2 py-1 text-base"
                     />
                     <TextureButton variant="brand" size="sm" className="!w-auto" disabled={guardando} onClick={() => guardarCuota(c.id)}>
                       Guardar
@@ -221,7 +221,7 @@ export function ShopInstallmentsDialog({
                 ) : (
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-950">
+                      <p className="font-medium text-brand-950 text-base">
                         Cuota #{c.number} · {new Date(`${c.dueDate}T00:00:00`).toLocaleDateString('es-VE')}
                       </p>
                       <p className={`text-[11px] font-light ${COLOR[c.estado]}`}>

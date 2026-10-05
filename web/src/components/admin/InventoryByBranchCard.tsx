@@ -21,22 +21,22 @@ export function InventoryByBranchCard() {
   if (!branches) return null;
 
   return (
-    <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-6">
-      <div className="flex items-center justify-between gap-2 mb-4">
-        <h3 className="text-[15px] font-semibold text-brand-950">Inventario por sucursal</h3>
+    <div className="rounded-[26px] border border-brand-950/[0.06] bg-white/85 p-6 shadow-[0_16px_36px_-30px_rgba(0,27,67,0.32)] backdrop-blur-xl">
+      <div className="mb-5 flex items-center justify-between gap-2">
+        <h3 className="text-[16px] font-bold tracking-[-0.02em] text-brand-950">Inventario por sucursal</h3>
         <Link to="/admin/sucursales" className="text-xs font-medium text-brand-500 hover:underline shrink-0">
           Ver detalle
         </Link>
       </div>
       {branches.length === 0 ? (
-        <p className="text-sm text-brand-950/40 font-light">Sin sucursales todavía.</p>
+        <p className="text-brand-950/40 font-light text-base">Sin sucursales todavía.</p>
       ) : (
         <div className="divide-y divide-brand-950/[0.06]">
           {branches.map((b) => {
             const lowCount = b.items.filter((i) => i.low).length;
             return (
               <div key={b.branchId} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                <p className="text-sm font-medium text-brand-950">
+                <p className="font-medium text-brand-950 text-base">
                   {b.name} {b.isMain && <span className="text-brand-950/40 font-normal">· Sede principal</span>}
                 </p>
                 {lowCount > 0 ? (

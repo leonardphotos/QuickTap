@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Building2, Plus, Store } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { TextureButton } from '@/components/ui/texture-button';
-import { MetricCard } from '@/components/admin/MetricCard';
-import { AddBranchDialog } from '../SucursalesPage';
 import { BranchComparisonSection } from '@/components/admin/BranchComparisonSection';
+import { MetricCard } from '@/components/admin/MetricCard';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
+import { ArrowRight,Building2,Plus,Store } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { AddBranchDialog } from '../SucursalesPage';
 
 interface Branch {
   id: string;
@@ -71,7 +71,7 @@ export default function ShopSucursalesPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-brand-950">Sucursales</h1>
-          <p className="mt-0.5 text-sm font-light text-brand-950/50">
+          <p className="mt-0.5 font-light text-brand-950/50 text-base">
             Cada sucursal tiene su propio inventario, caja y equipo. Aquí ves las ventas de todas juntas.
           </p>
         </div>
@@ -80,14 +80,14 @@ export default function ShopSucursalesPage() {
         </TextureButton>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <div className={`${card} divide-y divide-brand-950/[0.06]`}>
         {branches.length === 0 ? (
           <div className="p-6 text-center">
             <Store className="mx-auto mb-2 h-6 w-6 text-brand-950/30" />
-            <p className="text-sm font-medium text-brand-950">Todavía no tienes sucursales</p>
-            <p className="mt-0.5 text-[13px] font-light text-brand-950/50">
+            <p className="font-medium text-brand-950 text-base">Todavía no tienes sucursales</p>
+            <p className="mt-0.5 font-light text-brand-950/50 text-base">
               Crea la primera: puedes copiarle el catálogo y los precios de esta sede.
             </p>
           </div>
@@ -97,8 +97,8 @@ export default function ShopSucursalesPage() {
               <div className="flex min-w-0 items-center gap-3">
                 <Building2 className="h-4 w-4 shrink-0 text-brand-500" />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-brand-950">{b.name}</p>
-                  <p className="text-xs text-brand-950/50">
+                  <p className="truncate font-medium text-brand-950 text-base">{b.name}</p>
+                  <p className="text-brand-950/50 text-xs">
                     {b.whatsappPhone ?? 'Sin WhatsApp configurado'} · desde {new Date(b.createdAt).toLocaleDateString('es-VE')}
                   </p>
                 </div>
@@ -154,7 +154,7 @@ export default function ShopSucursalesPage() {
 
       {branches.length > 0 && (
         <div>
-          <p className="mb-3 text-sm font-medium text-brand-950/70">Comparativa administrativa entre sedes</p>
+          <p className="mb-3 font-medium text-brand-950/70 text-base">Comparativa administrativa entre sedes</p>
           <BranchComparisonSection />
         </div>
       )}

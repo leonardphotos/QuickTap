@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useState } from 'react';
 import { PhotoUploadField } from './PhotoUploadField';
 
 /** Modo Cartelera: muestra una sola imagen a pantalla completa en el menú público, sin banner ni botones. */
@@ -36,13 +36,13 @@ export function FullscreenImageSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Modo Cartelera (pantalla completa)</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Muestra una sola imagen a pantalla completa en tu enlace público, sin banner, botones ni menú. Útil para un
           cartel, promoción o aviso temporal.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
-        <label className="flex items-center justify-between gap-4 cursor-pointer">
+        <label className="flex items-center justify-between gap-4 cursor-pointer text-sm font-medium">
           <span className="text-sm font-medium text-brand-950">Activar Modo Cartelera</span>
           <button
             type="button"
@@ -63,16 +63,17 @@ export function FullscreenImageSection() {
           label="Imagen de pantalla completa"
           uploadUrl="/restaurant/upload-fullscreen-image"
           shape="square"
-          sinComprimir
-          helpText="Subir imagen — se guarda tal cual, sin reducir. Máx. 20 MB."
+          maxWidthOrHeight={2160}
+          maxSizeMB={2}
+          helpText="Subir imagen optimizada para TV (máx. 2160 px y 2 MB)."
         />
 
         {enabled && !imageUrl && (
-          <p className="text-xs text-amber-600">Sube una imagen para que el Modo Cartelera funcione.</p>
+          <p className="text-amber-600 text-xs">Sube una imagen para que el Modo Cartelera funcione.</p>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}

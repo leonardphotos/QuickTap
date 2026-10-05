@@ -46,7 +46,7 @@ export default function OfficeCuentasPage({ empresa }: { empresa: Empresa }) {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Plan de cuentas</h1>
-          <p className="mt-0.5 text-[13.5px] text-brand-950/50">
+          <p className="mt-0.5 text-brand-950/50 text-base">
             Las cuentas en gris son de agrupación: totalizan a sus hijas y no reciben asientos.
           </p>
         </div>
@@ -60,37 +60,37 @@ export default function OfficeCuentasPage({ empresa }: { empresa: Empresa }) {
       {abierto && (
         <div className="mb-6 rounded-2xl border border-brand-950/[0.08] bg-[#FAFAF9] p-5">
           <div className="mb-4 flex items-start justify-between">
-            <p className="text-[15px] font-semibold">Nueva cuenta</p>
+            <p className="font-semibold text-base">Nueva cuenta</p>
             <button type="button" onClick={() => setAbierto(false)} className="text-brand-950/35 hover:text-brand-950"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid gap-3 sm:grid-cols-4">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/65">Código</span>
-              <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="5.2.09" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 tabular-nums" />
+              <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="5.2.09" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 tabular-nums text-base" />
             </label>
-            <label className="block text-sm sm:col-span-2">
+            <label className="block sm:col-span-2 text-sm font-medium">
               <span className="text-brand-950/65">Nombre</span>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Seguros" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Seguros" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/65">Naturaleza</span>
-              <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2">
+              <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base">
                 {Object.entries(NOMBRE_TIPO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </label>
-            <label className="block text-sm sm:col-span-3">
+            <label className="block sm:col-span-3 text-sm font-medium">
               <span className="text-brand-950/65">Depende de (opcional)</span>
-              <select value={form.parentId} onChange={(e) => setForm({ ...form, parentId: e.target.value })} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2">
+              <select value={form.parentId} onChange={(e) => setForm({ ...form, parentId: e.target.value })} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base">
                 <option value="">Ninguna</option>
                 {(cuentas ?? []).filter((c) => !c.postable).map((c) => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}
               </select>
             </label>
-            <label className="flex items-center gap-2 self-end pb-2 text-sm">
+            <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium">
               <input type="checkbox" checked={form.postable} onChange={(e) => setForm({ ...form, postable: e.target.checked })} className="h-4 w-4 rounded border-brand-950/25 accent-brand-500" />
               Recibe asientos
             </label>
           </div>
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-red-600 text-base">{error}</p>}
           <div className="mt-4 flex gap-2">
             <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-40" disabled={guardando || !form.code.trim() || !form.name.trim()} onClick={crear}>
               {guardando ? 'Creando…' : 'Crear cuenta'}
@@ -130,7 +130,7 @@ export default function OfficeCuentasPage({ empresa }: { empresa: Empresa }) {
             ))}
           </tbody>
         </table>
-        {cuentas === null && <p className="p-6 text-sm text-brand-950/40">Cargando…</p>}
+        {cuentas === null && <p className="p-6 text-brand-950/40 text-base">Cargando…</p>}
       </div>
     </div>
   );

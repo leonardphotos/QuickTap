@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wallet, X } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
-import { clubGradient, courtTypeLabel } from '@/pages/public/clubPublic';
-import { USD_FIRST_METHODS } from '@/utils/payments';
 import { cn } from '@/lib/utils';
-import {
-  CLUB_STORE_ID,
-  clubTabletApi,
-  type TabletCatalogItem,
-  type TabletCourt,
-  type TabletPayMethod,
-  type TabletSession,
-  type MasterCourt,
-  type TabletStore,
-  type TabletTab,
-} from './clubTabletApi';
+import { clubGradient,courtTypeLabel } from '@/pages/public/clubPublic';
+import { formatBase,formatBsAbsolute } from '@/utils/format';
+import { USD_FIRST_METHODS } from '@/utils/payments';
+import { ArrowLeft,Check,Clock,Minus,Plus,QrCode,RotateCcw,ShoppingBag,Trophy,Wallet,X } from 'lucide-react';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import { clubApi } from './clubApi';
+import {
+CLUB_STORE_ID,
+clubTabletApi,
+type MasterCourt,
+type TabletCatalogItem,
+type TabletCourt,
+type TabletPayMethod,
+type TabletSession,
+type TabletStore,
+type TabletTab,
+} from './clubTabletApi';
 import ClubTournamentScreen from './ClubTournamentScreen';
 
 /** La pantalla solo tiene sentido acostada: es una tablet fija en la pared de la cancha. */
@@ -349,7 +349,7 @@ export default function ClubTabletPage() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-8 text-center" style={brand}>
         <RotateCcw className="h-14 w-14 text-white/80" />
         <p className="text-2xl font-bold text-white">Gira la tablet</p>
-        <p className="max-w-xs text-white/70">Esta pantalla funciona en horizontal.</p>
+        <p className="max-w-xs text-white/70 text-base">Esta pantalla funciona en horizontal.</p>
       </div>
     );
   }
@@ -395,7 +395,7 @@ export default function ClubTabletPage() {
         <div className="mt-7 h-px w-28 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
 
         <p className="mt-7 text-2xl font-semibold tracking-tight text-white">¿Listos para jugar?</p>
-        <p className="mt-1.5 text-base font-light text-white/60">
+        <p className="mt-1.5 font-light text-white/60 text-base">
           Escanea el QR de tu reserva para comenzar a jugar
         </p>
 
@@ -411,7 +411,7 @@ export default function ClubTabletPage() {
         </button>
 
         {error && (
-          <p className="mt-6 max-w-md rounded-2xl bg-black/30 px-5 py-3 text-white backdrop-blur-md">{error}</p>
+          <p className="mt-6 max-w-md rounded-2xl bg-black/30 px-5 py-3 text-white backdrop-blur-md text-base">{error}</p>
         )}
 
         {screen === 'scanning' && (
@@ -440,7 +440,7 @@ export default function ClubTabletPage() {
           </button>
         }
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">Llave maestra</p>
+        <p className="font-semibold uppercase tracking-[0.3em] text-white/50 text-xs">Llave maestra</p>
         <h1 className="mt-3 text-[clamp(1.6rem,4vw,2.6rem)] font-bold leading-none tracking-tight text-white">
           ¿Qué cancha abres?
         </h1>
@@ -469,8 +469,8 @@ export default function ClubTabletPage() {
               <p className="truncate text-lg font-bold text-white">{c.name}</p>
               {c.booking ? (
                 <>
-                  <p className="truncate text-sm font-light text-white/75">{c.booking.playerName}</p>
-                  <p className="mt-0.5 text-xs font-light text-white/50">
+                  <p className="truncate font-light text-white/75 text-base">{c.booking.playerName}</p>
+                  <p className="mt-0.5 font-light text-white/50 text-xs">
                     hasta{' '}
                     {new Date(c.booking.endsAt).toLocaleTimeString('es-VE', {
                       hour: '2-digit',
@@ -481,14 +481,14 @@ export default function ClubTabletPage() {
                   </p>
                 </>
               ) : (
-                <p className="text-sm font-light text-white/40">Sin reserva ahora</p>
+                <p className="font-light text-white/40 text-base">Sin reserva ahora</p>
               )}
             </button>
           ))}
         </div>
 
-        {error && <p className="mt-5 text-sm font-medium text-white/85">{error}</p>}
-        <p className="mt-7 max-w-lg text-sm font-light text-white/55">
+        {error && <p className="mt-5 font-medium text-white/85 text-base">{error}</p>}
+        <p className="mt-7 max-w-lg font-light text-white/55 text-base">
           Entras sin el QR del jugador. Úsala solo cuando haga falta.
         </p>
       </TabletPortada>
@@ -508,7 +508,7 @@ export default function ClubTabletPage() {
           </button>
         }
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">
+        <p className="font-semibold uppercase tracking-[0.3em] text-white/50 text-xs">
           Bienvenido, {session.booking.playerName.split(' ')[0]}
         </p>
         <h1 className="mt-3 text-[clamp(2rem,5.5vw,3.5rem)] font-bold leading-none tracking-tight text-white">
@@ -516,8 +516,8 @@ export default function ClubTabletPage() {
         </h1>
 
         {/* El reloj de la partida es lo que el jugador mira de lejos sin acercarse. */}
-        <p className="mt-9 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">te queda</p>
-        <p className="mt-1 text-[clamp(4rem,15vw,9.5rem)] font-bold leading-[0.9] tracking-tighter tabular-nums text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
+        <p className="mt-9 font-semibold uppercase tracking-[0.3em] text-white/50 text-xs">te queda</p>
+        <p className="mt-1 text-[clamp(4rem,15vw,9.5rem)] font-bold leading-[0.9] tracking-tighter tabular-nums text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)] text-base">
           {countdown.text}
         </p>
 
@@ -543,7 +543,7 @@ export default function ClubTabletPage() {
           />
         </div>
 
-        <p className="mt-7 text-sm font-light text-white/55">
+        <p className="mt-7 font-light text-white/55 text-base">
           Tu cuenta: <span className="font-bold text-white">{money(session.money.dueBase)}</span>
         </p>
 
@@ -582,7 +582,7 @@ export default function ClubTabletPage() {
           </button>
         }
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">¿Dónde quieres pedir?</p>
+        <p className="font-semibold uppercase tracking-[0.3em] text-white/50 text-xs">¿Dónde quieres pedir?</p>
         <h1 className="mt-3 text-[clamp(1.6rem,4vw,2.6rem)] font-bold leading-none tracking-tight text-white">
           Tiendas
         </h1>
@@ -605,7 +605,7 @@ export default function ClubTabletPage() {
                 />
               ))}
             </div>
-            <p className="mt-7 max-w-md text-sm font-light text-white/55">
+            <p className="mt-7 max-w-md font-light text-white/55 text-base">
               Cada tienda te cobra lo suyo, así que se piden por separado.
             </p>
           </>
@@ -671,7 +671,7 @@ export default function ClubTabletPage() {
                 />
               ))}
             </div>
-            <p className="shrink-0 text-base font-medium text-white/85">
+            <p className="shrink-0 font-medium text-white/85 text-base">
               {!tabletPaymentsEnabled
                 ? 'Acércate a caja para pagar — esta cancha no cobra desde la tablet.'
                 : tabs.every((t) => Number(t.balanceBase) <= 0)
@@ -744,18 +744,18 @@ export default function ClubTabletPage() {
           <div className="min-w-0 flex-1">
             {/* El nombre de la tienda manda: es de quien se está pidiendo y quien cobra. */}
             <p className="truncate text-2xl font-bold">{store?.name ?? 'Tienda'}</p>
-            <p className="truncate text-sm font-light text-white/75">
+            <p className="truncate font-light text-white/75 text-base">
               {session.booking.playerName} · {session.booking.courtName}
             </p>
           </div>
           <div className="shrink-0 rounded-2xl bg-white/15 px-4 py-2 text-center">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/70">
+            <p className="flex items-center gap-1.5 font-semibold uppercase tracking-wide text-white/70 text-xs">
               <Clock className="h-3.5 w-3.5" /> te queda
             </p>
             <p className="text-xl font-bold tabular-nums">{countdown.text}</p>
           </div>
           <div className="shrink-0 rounded-2xl bg-white/15 px-4 py-2 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">tu cuenta</p>
+            <p className="font-semibold uppercase tracking-wide text-white/70 text-xs">tu cuenta</p>
             <p className="text-xl font-bold">{money(session.money.dueBase)}</p>
           </div>
         </div>
@@ -770,9 +770,9 @@ export default function ClubTabletPage() {
             ))}
           </div>
 
-          {catalog === null && <p className="font-light text-brand-950/40">Cargando…</p>}
+          {catalog === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
           {catalog?.length === 0 && (
-            <p className="font-light text-brand-950/45">Todavía no hay productos disponibles para pedir.</p>
+            <p className="font-light text-brand-950/45 text-base">Todavía no hay productos disponibles para pedir.</p>
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
@@ -791,13 +791,13 @@ export default function ClubTabletPage() {
                     <img src={item.photoUrl} alt="" className="h-24 w-full object-cover" />
                   )}
                   <div className="flex flex-1 flex-col p-3">
-                    <p className="line-clamp-2 text-sm font-semibold leading-tight text-brand-950">{item.name}</p>
+                    <p className="line-clamp-2 font-semibold leading-tight text-brand-950 text-base">{item.name}</p>
                     {/* La categoría, no el origen: toda esta pantalla es de una
                         sola tienda y su nombre ya está arriba. */}
-                    <p className="mt-0.5 text-[11px] font-light text-brand-950/40">
+                    <p className="mt-0.5 font-light text-brand-950/40 text-xs">
                       {item.category}
                     </p>
-                    <p className="mt-auto pt-2 text-base font-bold text-brand-950">{money(item.priceBase)}</p>
+                    <p className="mt-auto pt-2 font-bold text-brand-950 text-base">{money(item.priceBase)}</p>
 
                     {qty === 0 ? (
                       <button
@@ -826,18 +826,18 @@ export default function ClubTabletPage() {
         </main>
 
         <aside className="flex w-[300px] shrink-0 flex-col border-l border-brand-950/[0.07] bg-white">
-          <p className="flex items-center gap-2 border-b border-brand-950/[0.07] px-5 py-4 text-sm font-bold text-brand-950">
+          <p className="flex items-center gap-2 border-b border-brand-950/[0.07] px-5 py-4 font-bold text-brand-950 text-base">
             <ShoppingBag className="h-4 w-4" /> Tu pedido
           </p>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
             {cartLines.length === 0 && !justSent && (
-              <p className="text-sm font-light text-brand-950/40">Toca un producto para agregarlo.</p>
+              <p className="font-light text-brand-950/40 text-base">Toca un producto para agregarlo.</p>
             )}
             {justSent && cartLines.length === 0 && (
               <div className="flex items-start gap-2 rounded-2xl bg-emerald-50 px-3 py-2.5">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                <p className="text-sm font-medium text-emerald-900">
+                <p className="font-medium text-emerald-900 text-base">
                   Pedido enviado. Te lo llevamos a la cancha.
                 </p>
               </div>
@@ -856,7 +856,7 @@ export default function ClubTabletPage() {
             </ul>
           </div>
 
-          {error && <p className="px-5 pb-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="px-5 pb-2 text-red-600 text-base">{error}</p>}
 
           <div className="border-t border-brand-950/[0.07] px-5 py-4">
             <div className="mb-3 flex items-baseline justify-between">
@@ -870,7 +870,7 @@ export default function ClubTabletPage() {
             >
               {sending ? 'Enviando…' : 'Pedir a la cancha'}
             </button>
-            <p className="mt-2 text-center text-[11px] font-light text-brand-950/40">
+            <p className="mt-2 text-center font-light text-brand-950/40 text-xs">
               {storeId === CLUB_STORE_ID
               ? 'Se suma a tu cuenta del club. La pagas al terminar.'
               : `Se suma a tu cuenta con ${store?.name ?? 'esta tienda'}, que cobra por separado.`}
@@ -925,14 +925,14 @@ function TabletPortada({
           )}
           <div className="min-w-0">
             <p className="truncate text-xl font-bold tracking-tight text-white">{restaurant?.name}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">Club deportivo</p>
+            <p className="font-semibold uppercase tracking-[0.3em] text-white/45 text-xs">Club deportivo</p>
           </div>
         </div>
 
         <div className="shrink-0 text-right">
           <p className="text-5xl font-bold leading-none tracking-tight tabular-nums text-white">{clock.time}</p>
           {/* first-letter y no capitalize: en español va "domingo, 9 de agosto", no "9 De Agosto". */}
-          <p className="mt-1.5 text-[13px] font-light text-white/55 first-letter:uppercase">{clock.date}</p>
+          <p className="mt-1.5 font-light text-white/55 first-letter:uppercase text-base">{clock.date}</p>
         </div>
       </header>
 
@@ -1057,8 +1057,8 @@ function TabCard({
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-bold leading-tight text-brand-950">{tab.name}</p>
-          <p className="truncate text-[12px] font-light text-brand-950/50">{tab.detail}</p>
+          <p className="truncate font-bold leading-tight text-brand-950 text-base">{tab.name}</p>
+          <p className="truncate font-light text-brand-950/50 text-xs">{tab.detail}</p>
         </div>
       </div>
 
@@ -1070,7 +1070,7 @@ function TabCard({
         </div>
         {/* El monto en Bs va debajo del de $: es lo que de verdad se transfiere
             por Pago Móvil, y hacerlo calcular a mano invita a equivocarse. */}
-        <p className="text-right text-[13px] font-semibold tabular-nums text-brand-500">
+        <p className="text-right font-semibold tabular-nums text-brand-500 text-base">
           {formatBsAbsolute(tab.balanceBs)}
         </p>
       </div>
@@ -1092,22 +1092,22 @@ function TabCard({
       )}
 
       {pending > 0 && (
-        <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-[12px] font-medium text-sky-800">
+        <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 font-medium text-sky-800 text-xs">
           {money(tab.pendingBase)} en verificación. {tab.name} tiene que confirmarlo.
         </p>
       )}
 
       <div className="mt-4">
         {settled ? (
-          <p className="rounded-xl bg-emerald-50 py-2.5 text-center text-[13px] font-bold text-emerald-700">
+          <p className="rounded-xl bg-emerald-50 py-2.5 text-center font-bold text-emerald-700 text-base">
             Cuenta saldada
           </p>
         ) : !payable ? null : tab.methods.length === 0 ? (
-          <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-light text-amber-900">
+          <p className="rounded-xl bg-amber-50 px-3 py-2 font-light text-amber-900 text-xs">
             Esta tienda no cargó sus datos de cobro. Pregúntale cómo pagarle.
           </p>
         ) : fullyReported ? (
-          <p className="rounded-xl bg-brand-950/[0.04] py-2.5 text-center text-[13px] font-medium text-brand-950/50">
+          <p className="rounded-xl bg-brand-950/[0.04] py-2.5 text-center font-medium text-brand-950/50 text-base">
             Esperando confirmación
           </p>
         ) : (
@@ -1214,7 +1214,7 @@ function PayFlow({
             medio de verdad y no descuadrado por el ancho del botón. */}
         <div className="relative pt-1 text-center">
           <p className="truncate px-10 text-lg font-bold text-brand-950">Pagar a {tab.name}</p>
-          <p className="text-[13px] font-light text-brand-950/50">
+          <p className="font-light text-brand-950/50 text-base">
             {money(tab.balanceBase)} · {formatBsAbsolute(tab.balanceBs)}
           </p>
           {step !== 'verifying' && (
@@ -1256,7 +1256,7 @@ function PayFlow({
 
             {split && (
               <div className="mt-3 rounded-2xl bg-brand-950/[0.04] px-4 py-3">
-                <p className="text-[13px] font-medium text-brand-950/70">¿Entre cuántos?</p>
+                <p className="font-medium text-brand-950/70 text-base">¿Entre cuántos?</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {[2, 3, 4, 5, 6, 8].map((n) => (
                     <button
@@ -1271,7 +1271,7 @@ function PayFlow({
                     </button>
                   ))}
                 </div>
-                <p className="mt-2.5 text-[13px] font-light text-brand-950/60">
+                <p className="mt-2.5 font-light text-brand-950/60 text-base">
                   Cada uno paga{' '}
                   <span className="font-bold text-brand-950">{money(shareBase)}</span> ·{' '}
                   <span className="font-semibold text-brand-500">{formatBsAbsolute(shareBase * rate)}</span>
@@ -1279,7 +1279,7 @@ function PayFlow({
               </div>
             )}
 
-            <p className="mt-5 text-[13px] font-medium text-brand-950/70">¿Cómo vas a pagar?</p>
+            <p className="mt-5 font-medium text-brand-950/70 text-base">¿Cómo vas a pagar?</p>
             <div className="mt-2 space-y-2">
               {/* Un método puede venir varias veces (varios Zelle, varios Pago Móvil):
                   cada cuenta es su propia opción, distinguida por su nombre. */}
@@ -1306,7 +1306,7 @@ function PayFlow({
 
         {step === 'data' && method && (
           <div className="mt-5 text-center">
-            <p className="text-[13px] font-medium text-brand-950/70">
+            <p className="font-medium text-brand-950/70 text-base">
               {usdFirst ? 'Paga' : 'Transfiere'} por {PAY_METHOD_LABELS[method.method] ?? method.method}
             </p>
             {/* El monto, grande y en la moneda del método: es el dato que se
@@ -1314,7 +1314,7 @@ function PayFlow({
             <p className="mt-1 text-[34px] font-bold leading-none tracking-tight tabular-nums text-brand-950">
               {amountLabel(shareBase)}
             </p>
-            <p className="mt-1 text-[12px] font-light text-brand-950/45">
+            <p className="mt-1 font-light text-brand-950/45 text-xs">
               {/* La otra moneda queda de referencia, chiquita. */}
               {usdFirst ? formatBsAbsolute(shareBase * rate) : money(shareBase)}
               {split && ` · tu parte de ${people}`}
@@ -1331,7 +1331,7 @@ function PayFlow({
             {fields.length > 0 && (
               <div className="mt-3 space-y-1 rounded-2xl bg-brand-950/[0.04] px-4 py-3">
                 {fields.map(([f, label]) => (
-                  <p key={f} className="text-sm font-light text-brand-950/70">
+                  <p key={f} className="font-light text-brand-950/70 text-base">
                     <span className="text-brand-950/40">{label}:</span>{' '}
                     <span className="font-semibold text-brand-950">{String(method[f])}</span>
                   </p>
@@ -1360,7 +1360,7 @@ function PayFlow({
           <div className="mt-8 flex flex-col items-center gap-4 pb-6 text-center">
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-500/20 border-t-brand-500" />
             <p className="text-lg font-bold text-brand-950">Verificando tu pago…</p>
-            <p className="max-w-xs text-[13px] font-light text-brand-950/50">
+            <p className="max-w-xs font-light text-brand-950/50 text-base">
               Estamos confirmando la referencia. Esto toma unos segundos.
             </p>
           </div>
@@ -1368,7 +1368,7 @@ function PayFlow({
 
         {step === 'reference' && method && (
           <div className="mt-5">
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="text-[13px] font-medium text-brand-950/70">Número de referencia</span>
               <input
                 autoFocus
@@ -1379,7 +1379,7 @@ function PayFlow({
               />
             </label>
 
-            <label className="mt-3 block">
+            <label className="mt-3 block text-sm font-medium">
               <span className="text-[13px] font-medium text-brand-950/70">¿Cuánto pagaste?</span>
               <input
                 type="number"
@@ -1397,7 +1397,7 @@ function PayFlow({
               </span>
             </label>
 
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+            {error && <p className="mt-3 text-red-600 text-base">{error}</p>}
 
             <div className="mt-5 flex gap-2">
               <button
@@ -1485,7 +1485,7 @@ function FullscreenScanner({ onClose, onDecoded }: { onClose: () => void; onDeco
 
       {cameraError && !typing && (
         <div className="relative max-w-sm px-6 text-center">
-          <p className="text-white">{cameraError} Revisa los permisos de cámara del navegador.</p>
+          <p className="text-white text-base">{cameraError} Revisa los permisos de cámara del navegador.</p>
         </div>
       )}
 

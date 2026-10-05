@@ -1,20 +1,12 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import type { RestaurantSocialLinks, RestaurantTheme } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { RestaurantSocialLinks,RestaurantTheme } from '@/types';
+import { useState } from 'react';
 import { ColorPickerField } from './ColorPickerField';
 import { PhotoUploadField } from './PhotoUploadField';
-
-export const THEME_DEFAULTS: Required<Pick<RestaurantTheme, 'primary' | 'buttonText' | 'accent' | 'text' | 'bannerColor' | 'backgroundColor'>> = {
-  primary: '#056CF2',
-  buttonText: '#FFFFFF',
-  accent: '#0597F2',
-  text: '#001B43',
-  bannerColor: '#0597F2',
-  backgroundColor: '#FFFFFF',
-};
+import { THEME_DEFAULTS } from './ThemeSection.shared';
 
 const SOCIAL_FIELDS: { key: keyof RestaurantSocialLinks; label: string; placeholder: string }[] = [
   { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/tu-negocio' },
@@ -81,7 +73,7 @@ export function ThemeSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Apariencia de {publicoConcordado}</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Personaliza los colores que ven tus clientes al abrir tu {publico}. Los cambios no afectan este panel.
         </p>
       </TextureCardHeader>
@@ -133,8 +125,8 @@ export function ThemeSection() {
 
         <div className="pt-2 border-t border-brand-950/[0.06] space-y-3">
           <div>
-            <p className="text-sm font-medium text-brand-950">Foto de portada</p>
-            <p className="text-xs text-brand-950/50 font-light">
+            <p className="font-medium text-brand-950 text-base">Foto de portada</p>
+            <p className="text-brand-950/50 font-light text-xs">
               Se muestra en el banner con un degradado hacia blanco por encima. Si no subes una, se usa el color del
               degradado de arriba.
             </p>
@@ -178,28 +170,28 @@ export function ThemeSection() {
 
         <div className="pt-2 border-t border-brand-950/[0.06] space-y-3">
           <div>
-            <p className="text-sm font-medium text-brand-950">Redes sociales</p>
-            <p className="text-xs text-brand-950/50 font-light">
+            <p className="font-medium text-brand-950 text-base">Redes sociales</p>
+            <p className="text-brand-950/50 font-light text-xs">
               Aparecen como iconos en el banner de {publicoConcordado}.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {SOCIAL_FIELDS.map((f) => (
-              <label key={f.key} className="block text-sm">
+              <label key={f.key} className="block text-sm font-medium">
                 <span className="text-brand-950/70">{f.label}</span>
                 <input
                   value={theme.socialLinks?.[f.key] ?? ''}
                   onChange={(e) => setSocial(f.key, e.target.value)}
                   placeholder={f.placeholder}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </label>
             ))}
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}

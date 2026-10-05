@@ -1,113 +1,83 @@
-import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { ChevronDown, LogOut, Settings, ShieldCheck } from 'lucide-react';
-import { useMasterAuth } from '../../context/MasterAuthContext';
-import { useMasterTheme } from './useMasterTheme';
-import { MoneyVisibilityProvider } from '@/context/MoneyVisibilityContext';
-import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
+import './master-theme.css';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
-import { TextureButton } from '@/components/ui/texture-button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MASTER_CONFIG_LINKS, MASTER_NAV_LINKS, MASTER_OPERATION_LINKS } from './master-nav';
+import { RecurringExpenses } from '@/components/master/RecurringExpenses';
+import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
+import { MoneyVisibilityProvider } from '@/context/MoneyVisibilityContext';
+import { canManageRestaurant } from '@/utils/master-rbac';
+import { LogOut, LayoutGrid, Plus } from 'lucide-react';
+import { useEffect } from 'react';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useMasterAuth } from '../../context/MasterAuthContext.shared';
+import { canAccessMasterPath, MASTER_NAV_LINKS } from './master-nav';
 
 export default function MasterLayout() {
   const { admin, loading, logout } = useMasterAuth();
   const { pathname } = useLocation();
 
-  useMasterTheme();
+  useEffect(() => {
+    document.body.classList.add('master-theme');
+    return () => document.body.classList.remove('master-theme');
+  }, []);
 
-  if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6 text-center text-sm font-light text-brand-950/50">
+        Preparando todo para ti
+      </div>
+    );
+  }
   if (!admin) return <Navigate to="/master/login" replace />;
 
-  const configActive = MASTER_CONFIG_LINKS.some((l) => l.to === pathname);
+  const current = MASTER_NAV_LINKS.find(
+    (item) => pathname === item.to || (item.to === '/master/restaurants' && pathname.startsWith('/master/restaurants/')),
+  );
+  if (!canAccessMasterPath(admin.role, pathname)) return <Navigate to="/master/summary" replace />;
 
   return (
     <MoneyVisibilityProvider>
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-20 border-b border-brand-950/[0.08] bg-white/85 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center gap-4">
-            <Link to="/master/summary" className="flex items-center gap-2 min-w-0 shrink-0">
-              <ShieldCheck className="h-5 w-5 text-brand-500 shrink-0" />
-              <p className="font-medium text-brand-950 truncate text-[15px] hidden lg:block">Dashboard de administrador</p>
-            </Link>
+      <div className={`master-ui min-h-screen text-brand-950 ${pathname === '/master/apps' ? 'bg-[radial-gradient(ellipse_at_top,#e8efff_0%,#f4f5fa_50%,#edf3f8_100%)]' : 'bg-[#f6f7f9]'}` }>
+        <a className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1200] focus:rounded-xl focus:bg-white focus:p-3" href="#master-content">Ir al contenido</a>
 
-            {/* Solo los 4 destinos de uso diario; el resto vive en "Configuración" para que las
-                pastillas no se compriman ni partan el texto en varias líneas. overflow-x-auto:
-                en anchos intermedios las pastillas (whitespace-nowrap) no entraban en el ancho
-                que le quedaba a este flex-1 y se desbordaban PINTANDO ENCIMA de la tasa BCV /
-                el resto de la cabecera (overflow visible, no hay wrap) — con scroll interno se
-                quedan contenidas en su propia caja en vez de superponerse. */}
-            <nav className="hidden sm:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
-              {MASTER_OPERATION_LINKS.map((l) => (
-                <Link
-                  key={l.to}
-                  to={l.to}
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    pathname === l.to ? 'bg-brand-500 text-white shadow-[0_6px_18px_-8px_rgba(0,154,255,0.7)]' : 'text-brand-950/55 hover:bg-brand-950/[0.06]'
-                  }`}
-                >
-                  <l.icon className="h-3.5 w-3.5 shrink-0" /> {l.label}
-                </Link>
-              ))}
 
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors outline-none ${
-                    configActive ? 'bg-brand-500 text-white shadow-[0_6px_18px_-8px_rgba(0,154,255,0.7)]' : 'text-brand-950/55 hover:bg-brand-950/[0.06]'
-                  }`}
-                >
-                  <Settings className="h-3.5 w-3.5 shrink-0" /> Configuración
-                  <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  {MASTER_CONFIG_LINKS.map((l) => (
-                    <DropdownMenuItem key={l.to} asChild>
-                      <Link to={l.to} className="flex items-start gap-2.5 cursor-pointer">
-                        <l.icon className="h-4 w-4 mt-0.5 shrink-0 text-brand-950/50" />
-                        <span className="min-w-0">
-                          <span className="block text-sm font-medium text-brand-950">{l.label}</span>
-                          <span className="block text-[11px] text-brand-950/45 font-light">{l.hint}</span>
-                        </span>
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </nav>
 
-            <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-              {/* Con las 5 pastillas de operación + Configuración, en anchos medios la tasa
-                  se montaba sobre el menú — solo se muestra donde realmente cabe. */}
-              <DailyRatesBadge className="hidden xl:inline" />
-              <MoneyVisibilityToggle className="text-brand-950/50 hover:text-brand-500 transition-colors" />
-              <TextureButton variant="icon" size="icon" aria-label="Salir" onClick={logout}>
-                <LogOut className="h-4 w-4 text-brand-950/70" />
-              </TextureButton>
+
+        <div className="min-h-screen">
+          <header className="sticky top-0 z-20 border-b border-brand-950/[0.07] bg-white/88 backdrop-blur-xl">
+            <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
+              <Link to="/master/apps" aria-label="Volver a aplicaciones" title="Aplicaciones" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-brand-500 shadow-sm"><LayoutGrid size={20}/></Link>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold tracking-tight text-brand-950 text-base">{pathname === '/master/apps' ? 'Aplicaciones' : current?.label ?? 'Dashboard Máster'}</p>
+                <p className="hidden truncate font-light text-brand-950/45 sm:block text-xs">{current?.hint ?? 'Administración general de QuickTap'}</p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                {canManageRestaurant(admin.role) && (
+                  <Link
+                    to="/master/restaurants?crear=1"
+                    className="hidden items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 py-2.5 text-xs font-semibold text-slate-900 shadow-[0_10px_22px_-14px_rgba(5,151,242,.9)] transition-[background-color,transform] hover:bg-brand-600 active:scale-[.98] sm:inline-flex"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Crear negocio
+                  </Link>
+                )}
+                <DailyRatesBadge className="hidden rounded-full bg-brand-500/[0.08] px-3 py-1.5 sm:inline" />
+                <button type="button" aria-label="Cerrar sesión" onClick={logout} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"><LogOut size={18}/></button>
+                <MoneyVisibilityToggle className="flex h-10 w-10 items-center justify-center rounded-xl border border-brand-950/[0.08] bg-white text-brand-950/45 shadow-sm transition-[color,transform] duration-150 ease-out-strong hover:text-brand-500 active:scale-95" />
+                <div className="hidden items-center gap-2 rounded-xl border border-brand-950/[0.08] bg-white px-2.5 py-1.5 shadow-sm md:flex">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500 text-[11px] font-semibold text-white">
+                    {admin.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="max-w-32 truncate text-xs font-medium text-brand-950">{admin.name}</span>
+                </div>
+              </div>
             </div>
-          </div>
+          </header>
 
-          {/* En celular no hay espacio para el desplegable: se listan todos en una fila deslizable. */}
-          <nav className="sm:hidden flex items-center gap-1 overflow-x-auto px-4 pb-3 -mt-1">
-            {MASTER_NAV_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={`shrink-0 flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  pathname === l.to ? 'bg-brand-500 text-white' : 'text-brand-950/55 bg-brand-950/[0.06]'
-                }`}
-              >
-                <l.icon className="h-3.5 w-3.5 shrink-0" /> {l.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-        <main className="max-w-7xl mx-auto px-6 py-10">
-          <Outlet />
-        </main>
+          <main id="master-content" className="mx-auto w-full max-w-none px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            {pathname !== '/master/apps' && ['ADMIN', 'MANAGER', 'FINANCE', 'AUDITOR'].includes(admin.role) && <RecurringExpenses compact />}
+            <Outlet />
+          </main>
+        </div>
       </div>
     </MoneyVisibilityProvider>
   );

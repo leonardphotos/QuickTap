@@ -1,0 +1,37 @@
+/* Lenguaje de la pasarela, limitado al inicio del restaurante. */
+.restaurant-dashboard-shell{--color-background:#fafaf9;--color-card:#fff;--color-accent:#eef7fd;--color-brand-950:#232823;--color-brand-600:#05a5f5;--color-brand-500:#05a5f5;--color-muted-foreground:#6b736d;--color-border:#e5e7e2;background:#fafaf9!important;color:#232823;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.restaurant-dashboard-shell .restaurant-desktop-dashboard{color:#232823;--rd-muted:#727972}
+.restaurant-dashboard-shell .rd-toolbar h1{font-size:30px;letter-spacing:-1.1px}
+.restaurant-dashboard-shell .rd-toolbar{margin-bottom:30px}
+.restaurant-dashboard-shell .rd-welcome{background:#edf7fd;color:#232823;border-radius:24px;padding:28px}
+.restaurant-dashboard-shell .rd-plan{background:#ffffffb0;color:#05a5f5;border-radius:20px}
+.restaurant-dashboard-shell .rd-welcome-copy h2{font-size:30px;letter-spacing:-1px}
+.restaurant-dashboard-shell .rd-welcome-copy p{color:#70776f}
+.restaurant-dashboard-shell .rd-welcome-art{display:none}
+.restaurant-dashboard-shell .rd-welcome-actions a,.restaurant-dashboard-shell .rd-welcome-actions button{background:#fff;color:#05a5f5;min-height:44px;font-weight:500;border:1px solid #dcecf5}
+.restaurant-dashboard-shell .rd-welcome-actions .rd-action-primary{background:#05a5f5;color:#fff;border-color:#05a5f5}
+.restaurant-dashboard-shell .rd-mini,.restaurant-dashboard-shell .rd-panel,.restaurant-dashboard-shell .rd-existing>div{border-radius:24px;border:1px solid #e8eae5;box-shadow:0 8px 30px #20272004;background:#fff}
+.restaurant-dashboard-shell .rd-mini strong{font-size:34px;letter-spacing:-1px}
+.restaurant-dashboard-shell .rd-mini-icon{background:#edf7fd;color:#05a5f5}
+.restaurant-dashboard-shell .rd-mini-bars span{background:#65bce7}
+.restaurant-dashboard-shell .rd-teal svg{color:#05a5f5}
+.restaurant-dashboard-shell .rd-chart-bars i{background:#05a5f5;width:10px}
+.restaurant-dashboard-shell .rd-highlight{background:#eef7fd;border-radius:16px;padding:18px}
+.restaurant-dashboard-shell .rd-actions a>span:first-child{background:#eef7fd;color:#05a5f5;border-radius:12px}
+.restaurant-dashboard-shell .rd-actions a{min-height:52px}
+.restaurant-dashboard-shell .rd-actions a:hover{color:#05a5f5;background:#f3f9fd}
+.restaurant-dashboard-shell .rd-error{color:#a13d2a;background:#fff0e9}
+.restaurant-dashboard-shell .quicktap-restaurant-sidebar{background:#fff!important;backdrop-filter:none;border-right:1px solid #e8eae5;box-shadow:none;color:#4f5950}
+.restaurant-dashboard-shell .quicktap-restaurant-sidebar [class*="text-white"]{color:#5d685e}
+.restaurant-dashboard-shell .quicktap-restaurant-sidebar a[aria-current="page"]{background:#eaf6fd;color:#05a5f5;box-shadow:none}
+.restaurant-dashboard-shell .quicktap-restaurant-sidebar [class*="text-sky"]{color:#05a5f5}
+.restaurant-dashboard-shell .quicktap-restaurant-sidebar [class*="bg-brand-500"]{background:#05a5f5;color:white}
+.restaurant-dashboard-shell .quicktap-restaurant-sidebar button{min-height:40px}
+.restaurant-dashboard-shell .qt-calm-mobile-summary{background:#edf7fd;box-shadow:none;border:1px solid #dcecf5}
+.restaurant-dashboard-shell .qt-calm-mobile-summary [class*="text-white"]{color:#174665}
+.restaurant-dashboard-shell .qt-calm-mobile-summary .pointer-events-none{display:none}
+.restaurant-dashboard-shell a:focus-visible,.restaurant-dashboard-shell button:focus-visible{outline:3px solid #05a5f5;outline-offset:3px}
+@media(max-width:600px){.restaurant-dashboard-shell main{padding-top:64px}.restaurant-dashboard-shell .qt-calm-mobile-summary{border-radius:24px}}
+/* La demostración usa los mismos componentes y estilos; sus datos son locales. */
+.rd-preview{min-height:100dvh;padding:30px 40px 40px 270px}.rd-preview-nav{position:fixed;inset:0 auto 0 0;width:230px;background:#fff;border-right:1px solid #e8eae5;padding:30px 20px;display:flex;flex-direction:column;gap:10px}.rd-preview-nav strong{font-size:28px;letter-spacing:-1.5px;margin-bottom:28px}.rd-preview-nav button{padding:13px 16px;border:0;background:transparent;border-radius:12px;text-align:left;cursor:pointer}.rd-preview-nav button:first-of-type{background:#eaf6fd;color:#05a5f5}.rd-preview-label{font-size:14px;color:#657360;margin-bottom:22px}.rd-preview-message{padding:14px;background:#eef7fd;border-radius:12px;margin-bottom:20px;font-size:13px}
+@media(max-width:1023px){.rd-preview{padding:20px}.rd-preview-nav{position:static;width:auto;padding:0;background:none;border:0;display:flex;flex-direction:row;flex-wrap:wrap;margin-bottom:20px;gap:3px}.rd-preview-nav strong{width:100%;margin:0 0 12px}.rd-preview-nav button{padding:10px}.rd-preview .rd-toolbar{display:flex;justify-content:space-between;gap:20px}.rd-preview .rd-toolbar>span{display:none}.rd-preview .rd-eyebrow{font-size:12px;letter-spacing:1px;color:#737b72}.rd-preview .rd-top-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}.rd-preview .rd-welcome{grid-column:1/-1}.rd-preview .rd-plan{display:inline-flex;gap:8px;padding:8px;font-size:11px}.rd-preview .rd-welcome-copy{margin-top:22px}.rd-preview .rd-welcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}.rd-preview .rd-welcome-actions a,.rd-preview .rd-welcome-actions button{display:flex;align-items:center;gap:6px;padding:10px;border-radius:12px;font-size:12px}.rd-preview .rd-mini{padding:20px;overflow:hidden}.rd-preview .rd-mini>span,.rd-preview .rd-mini p{font-size:16px}.rd-preview .rd-mini strong{display:block;font-size:28px}.rd-preview .rd-mini-icon,.rd-preview .rd-mini-bars,.rd-preview .rd-mini>svg{display:none}.rd-preview .rd-main-grid,.rd-preview .rd-dashboard-column{display:grid;gap:18px}.rd-preview .rd-panel{padding:22px;min-width:0}.rd-preview .rd-panel h2{font-size:18px;font-weight:600}.rd-preview .rd-panel-title p,.rd-preview .rd-legend{font-size:14px;color:#727972}.rd-preview .rd-chart{height:180px;margin:25px 0;position:relative;padding:10px 0 25px 46px}.rd-preview .rd-chart-grid{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;font-size:9px}.rd-preview .rd-chart-bars{display:flex;gap:3px;height:100%;position:relative}.rd-preview .rd-chart-bars>div{flex:1;display:flex;align-items:end;position:relative}.rd-preview .rd-chart-bars i{width:6px;border-radius:5px}.rd-preview .rd-chart-bars small{position:absolute;bottom:-20px;font-size:12px}.rd-preview .rd-sales-totals{display:flex;flex-wrap:wrap;gap:20px;border-top:1px solid #eee;padding-top:15px}.rd-preview .rd-sales-totals span{font-size:10px;color:#727972}.rd-preview .rd-sales-totals strong{display:block;font-size:19px}.rd-preview .rd-highlight{display:flex;align-items:center;gap:12px;margin-top:15px}.rd-preview .rd-highlight strong{margin-left:auto}.rd-preview .rd-actions a{display:flex;align-items:center;gap:12px;border-bottom:1px solid #eee;font-size:13px}.rd-preview .rd-actions a>span:first-child{padding:8px}.rd-preview .rd-arrow{margin-left:auto}.rd-preview .rd-footer{display:flex;justify-content:space-between;margin-top:25px;font-size:12px;gap:10px}}

@@ -58,38 +58,38 @@ export default function BookSlotDialog({ date, courtId, courtName, slot, priceLa
         </DialogHeader>
 
         <div className="rounded-xl border border-brand-950/[0.08] bg-brand-950/[0.02] p-3">
-          <p className="text-[13px] font-semibold text-brand-950">
+          <p className="font-semibold text-brand-950 text-base">
             {slot.startTime} a {slot.endTime} · {durationMinutes} min
           </p>
-          <p className="mt-0.5 text-[13px] font-bold text-brand-950">{priceLabel}</p>
+          <p className="mt-0.5 font-bold text-brand-950 text-base">{priceLabel}</p>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Nombre del jugador</label>
+            <label className="mb-1 block text-brand-950/60 text-sm font-medium">Nombre del jugador</label>
             <input
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               required
               maxLength={120}
-              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
             />
           </div>
           <div>
-            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">WhatsApp</label>
+            <label className="mb-1 block text-brand-950/60 text-sm font-medium">WhatsApp</label>
             <input
               value={playerPhone}
               onChange={(e) => setPlayerPhone(e.target.value)}
               required
               placeholder="584141234567"
-              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
             />
-            <p className="mt-1 text-[11px] text-brand-950/40 font-light">
+            <p className="mt-1 text-brand-950/40 font-light text-xs">
               Con el teléfono se arma el historial del jugador y, más adelante, el pago dividido.
             </p>
           </div>
           <div>
-            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">
+            <label className="mb-1 block text-brand-950/60 text-sm font-medium">
               Cédula <span className="font-light text-brand-950/35">(opcional)</span>
             </label>
             <input
@@ -97,18 +97,18 @@ export default function BookSlotDialog({ date, courtId, courtName, slot, priceLa
               onChange={(e) => setPlayerIdNumber(e.target.value)}
               maxLength={20}
               placeholder="V-12345678"
-              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
             />
-            <p className="mt-1 text-[11px] text-brand-950/40 font-light">
+            <p className="mt-1 text-brand-950/40 font-light text-xs">
               El jugador sí la da al reservar por la web; por teléfono no siempre, y no debe trabar el mostrador.
             </p>
           </div>
           <div>
-            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Jugadores</label>
+            <label className="mb-1 block text-brand-950/60 text-sm font-medium">Jugadores</label>
             <select
               value={playerCount}
               onChange={(e) => setPlayerCount(Number(e.target.value))}
-              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n}>
@@ -118,7 +118,7 @@ export default function BookSlotDialog({ date, courtId, courtName, slot, priceLa
             </select>
           </div>
 
-          {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
+          {error && <p className="font-medium text-rose-600 text-base">{error}</p>}
 
           <TextureButton type="submit" disabled={saving} className="w-full">
             {saving ? 'Reservando…' : 'Confirmar reserva'}

@@ -18,7 +18,7 @@ const CAMPOS = [
 type Campo = (typeof CAMPOS)[number]['id'];
 
 /**
- * "Contactar a un asesor" del Plan Elite.
+ * "Contactar a un asesor" del plan Control.
  *
  * El Elite no se contrata solo desde la página: son sucursales ilimitadas, migración de
  * catálogo y gerente de cuenta — cosas que se acuerdan hablando, no eligiendo un plan y
@@ -71,7 +71,7 @@ export function AdvisorLeadDialog({ onClose }: Props) {
       >
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#B8902E]">Plan Elite</p>
+            <p className="font-semibold uppercase tracking-wide text-[#B8902E] text-xs">plan Control</p>
             <h3 className="text-lg font-bold text-brand-950">
               {enviado ? 'Solicitud enviada' : 'Contactar a un asesor'}
             </h3>
@@ -89,8 +89,8 @@ export function AdvisorLeadDialog({ onClose }: Props) {
         {enviado ? (
           <div className="px-5 py-6 text-center space-y-3">
             <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
-            <p className="text-base font-semibold text-brand-950">Muy pronto serás contactado por un asesor.</p>
-            <p className="text-sm text-brand-950/55 font-light leading-relaxed">
+            <p className="font-semibold text-brand-950 text-base">Muy pronto serás contactado por un asesor.</p>
+            <p className="text-brand-950/55 font-light leading-relaxed text-base">
               Ya tenemos tus datos. Un asesor te va a llamar al número que dejaste para armar el plan a la medida de tu
               negocio.
             </p>
@@ -100,13 +100,13 @@ export function AdvisorLeadDialog({ onClose }: Props) {
           </div>
         ) : (
           <form onSubmit={enviar} className="px-5 pb-5 pt-3 space-y-3">
-            <p className="text-sm text-brand-950/55 font-light leading-relaxed">
-              El Plan Elite se arma contigo: sucursales, migración de tu catálogo y un gerente de cuenta. Déjanos tus
+            <p className="text-brand-950/55 font-light leading-relaxed text-base">
+              Preparamos contigo la implementación, las sedes y la configuración que necesita tu negocio. Déjanos tus
               datos y te llamamos.
             </p>
 
             {CAMPOS.map((c) => (
-              <label key={c.id} className="block text-sm">
+              <label key={c.id} className="block text-sm font-medium">
                 <span className="text-brand-950/70">{c.label}</span>
                 <input
                   type={c.type}
@@ -115,12 +115,12 @@ export function AdvisorLeadDialog({ onClose }: Props) {
                   onChange={(e) => setValores((v) => ({ ...v, [c.id]: e.target.value }))}
                   placeholder={c.placeholder}
                   required
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B8902E]/30 focus:border-[#B8902E]"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#B8902E]/30 focus:border-[#B8902E] text-base"
                 />
               </label>
             ))}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
 
             <TextureButton
               type="submit"

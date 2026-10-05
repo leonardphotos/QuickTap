@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
+import { TextureButton } from '@/components/ui/texture-button';
 import { apiOrigin } from '@/utils/apiOrigin';
 import { LogOut } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import { getToken } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
-import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '../../context/AuthContext.shared';
 
 interface ReadyOrder {
   orderId: string;
@@ -78,7 +78,7 @@ export default function NumeroPage() {
         {current ? (
           <>
             <p className="text-3xl md:text-4xl font-semibold text-brand-950/40 mb-2 tracking-wide">Ahora atendiendo</p>
-            <p className="font-black text-brand-950 leading-none tabular-nums text-[26vw] md:text-[20vw]">
+            <p className="font-black text-brand-950 leading-none tabular-nums text-[26vw] md:text-[20vw] text-base">
               #{current.orderNumber}
             </p>
             <p className="text-3xl md:text-4xl font-semibold text-brand-500 mt-4">
@@ -92,7 +92,7 @@ export default function NumeroPage() {
 
       {history.length > 0 && (
         <div className="shrink-0 border-t border-brand-950/10 bg-white px-8 py-6">
-          <p className="text-base font-semibold text-brand-950/50 mb-3">Listos</p>
+          <p className="font-semibold text-brand-950/50 mb-3 text-base">Listos</p>
           <div className="flex gap-4 overflow-x-auto">
             {history.map((o) => (
               <div
@@ -100,7 +100,7 @@ export default function NumeroPage() {
                 className="shrink-0 rounded-2xl bg-brand-950/[0.05] px-7 py-4 text-center min-w-[8rem]"
               >
                 <p className="text-4xl font-bold text-brand-950 tabular-nums">#{o.orderNumber}</p>
-                <p className="text-sm text-brand-950/50 mt-1">{CHANNEL_LABELS[o.channel] ?? o.channel}</p>
+                <p className="text-brand-950/50 mt-1 text-base">{CHANNEL_LABELS[o.channel] ?? o.channel}</p>
               </div>
             ))}
           </div>

@@ -39,12 +39,12 @@ export function ReservationRow({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-950">
+          <p className="flex items-center gap-1.5 font-semibold text-brand-950 text-base">
             <Clock className="h-3.5 w-3.5 shrink-0 text-brand-950/40" />
             {reservation.time}
             <span className="truncate font-semibold">{reservation.customerName}</span>
           </p>
-          <p className="mt-0.5 flex items-center gap-2 text-xs text-brand-950/50">
+          <p className="mt-0.5 flex items-center gap-2 text-brand-950/50 text-xs">
             <span className="flex items-center gap-1">
               <Users className="h-3 w-3" /> {reservation.partySize}
             </span>
@@ -56,7 +56,7 @@ export function ReservationRow({
               tables && <span className="truncate">{tables}</span>
             )}
           </p>
-          {reservation.note && <p className="mt-0.5 truncate text-[11px] italic text-brand-950/40">{reservation.note}</p>}
+          {reservation.note && <p className="mt-0.5 truncate italic text-brand-950/40 text-xs">{reservation.note}</p>}
         </div>
         <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${status.className}`}>
           {status.label}

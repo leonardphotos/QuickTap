@@ -81,7 +81,7 @@ export function TableServiceAlert() {
         <h3 className="text-base font-semibold text-brand-950">
           {alert.tableNumber} {isCall ? 'te está llamando' : 'pidió la cuenta'}
         </h3>
-        <p className="mt-1 text-xs text-brand-950/50 font-light">
+        <p className="mt-1 text-brand-950/50 font-light text-xs">
           {isCall ? 'Solicitó atención en la mesa' : 'Solicitó cerrar la mesa'}
         </p>
         <div className="mt-5 flex flex-col gap-2">

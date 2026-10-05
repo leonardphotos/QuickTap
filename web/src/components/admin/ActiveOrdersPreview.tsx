@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import type { PointerEvent, ReactNode } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
-import { apiOrigin } from '@/utils/apiOrigin';
-import { Clock, CreditCard, MessageCircle, Printer, Receipt, SplitSquareHorizontal, Trash2 } from 'lucide-react';
-import { api, getToken } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { hasFeature } from '@/utils/subscription';
-import { abbreviateTableBadge } from '@/utils/format';
-import { useToast } from '@/hooks/useToast';
+import { api,getToken } from '@/api/client';
 import { Toast } from '@/components/ui/toast';
-import { EditOrderDialog, getPaymentStatus, handleWhatsappSendResult, leCorresponde, type LiveOrder } from './LiveOrdersPanel';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useToast } from '@/hooks/useToast';
+import { apiOrigin } from '@/utils/apiOrigin';
+import { abbreviateTableBadge } from '@/utils/format';
+import { hasFeature } from '@/utils/subscription';
+import { Clock,CreditCard,MessageCircle,Printer,Receipt,SplitSquareHorizontal,Trash2 } from 'lucide-react';
+import type { PointerEvent,ReactNode } from 'react';
+import { useEffect,useRef,useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import { EditOrderDialog } from './LiveOrdersPanel';
+import { getPaymentStatus,handleWhatsappSendResult,leCorresponde,type LiveOrder } from './LiveOrdersPanel.shared';
 import { PaymentDialog } from './PaymentDialog';
 
 const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
@@ -168,7 +169,7 @@ export function ActiveOrdersPreview() {
     <div>
       <div className="flex items-baseline justify-between mb-2.5">
         <h2 className="text-sm font-semibold text-brand-950">Comandas activas</h2>
-        <p className="text-xs text-brand-950/50">{visible.length}</p>
+        <p className="text-brand-950/50 text-xs">{visible.length}</p>
       </div>
       <div className="flex flex-col gap-2">
         {visible.map((o) => {
@@ -197,14 +198,14 @@ export function ActiveOrdersPreview() {
                       {meta.label}
                     </span>
                   </div>
-                  <p className="text-[11.5px] text-brand-950/50 truncate mt-0.5">
+                  <p className="text-brand-950/50 truncate mt-0.5 text-base">
                     {itemsSummary || 'Sin productos'} · {timeAgo(o.createdAt)}
                   </p>
                 </div>
               </div>
 
               {fullyPaid ? (
-                <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>
+                <p className="text-emerald-600 font-medium text-center mt-2 text-xs">✓ Pagado</p>
               ) : (
                 <div className={`grid ${canAccountsPayable ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 mt-2`}>
                   <button

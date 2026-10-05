@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
-import { Copy, FileSpreadsheet, Plus, Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS } from '@/utils/format';
-import { UNIT_LABELS, SUB_UNITS } from '@/utils/inventoryUnits';
-import { TextureButton } from '@/components/ui/texture-button';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { FilterPill } from '@/components/ui/filter-pill';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS } from '@/utils/format';
+import { SUB_UNITS,UNIT_LABELS } from '@/utils/inventoryUnits';
+import { Copy,FileSpreadsheet,Plus,Upload,X } from 'lucide-react';
+import type { ChangeEvent } from 'react';
+import { useEffect,useRef,useState } from 'react';
 
 /** Insumo de inventario, tal como lo devuelve GET /inventory. */
 export interface InventoryItem {
@@ -104,7 +104,7 @@ function CopiarATamanoDialog({
           <DialogTitle>Copiar a otro tamaño</DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-brand-950/60 -mt-1">
+        <p className="text-brand-950/60 -mt-1 text-base">
           Los {cantidad} ingrediente{cantidad === 1 ? '' : 's'} de{' '}
           <span className="font-medium text-brand-950">{desdeNombre}</span> se copian a:
         </p>
@@ -134,7 +134,7 @@ function CopiarATamanoDialog({
         </div>
 
         {ocupados > 0 && (
-          <label className="flex items-start gap-2 rounded-xl bg-amber-50/70 p-3 text-[13px] text-amber-900">
+          <label className="flex items-start gap-2 rounded-xl bg-amber-50/70 p-3 text-amber-900 text-sm font-medium">
             <input
               type="checkbox"
               checked={reemplazar}
@@ -148,11 +148,11 @@ function CopiarATamanoDialog({
           </label>
         )}
 
-        <p className="text-[12px] text-brand-950/40 font-light">
+        <p className="text-brand-950/40 font-light text-xs">
           Las cantidades se copian iguales. Si el tamaño lleva más, ajústalas después en su pestaña.
         </p>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <DialogFooter>
           <TextureButton type="button" variant="minimal" size="default" className="!w-auto" onClick={onClose}>
@@ -243,7 +243,7 @@ function CopiarDesdeOtroPlatoDialog({
 
         {resultado ? (
           <>
-            <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">{resultado}</p>
+            <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-emerald-800 text-base">{resultado}</p>
             <DialogFooter>
               <TextureButton type="button" variant="brand" size="default" className="!w-auto" onClick={onClose}>
                 Listo
@@ -252,7 +252,7 @@ function CopiarDesdeOtroPlatoDialog({
           </>
         ) : (
           <>
-            <p className="-mt-1 text-sm text-brand-950/60">
+            <p className="-mt-1 text-brand-950/60 text-base">
               Los ingredientes se copian a <span className="font-medium text-brand-950">{destinoNombre}</span>. Elige de
               dónde traerlos:
             </p>
@@ -261,11 +261,11 @@ function CopiarDesdeOtroPlatoDialog({
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar plato…"
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
             />
 
             <div className="max-h-56 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
-              {visibles.length === 0 && <p className="p-3 text-sm text-brand-950/40">Ningún plato con ese nombre.</p>}
+              {visibles.length === 0 && <p className="p-3 text-brand-950/40 text-base">Ningún plato con ese nombre.</p>}
               {visibles.map((c) => (
                 <button
                   key={c.productId}
@@ -286,7 +286,7 @@ function CopiarDesdeOtroPlatoDialog({
             {/* El aviso mira la receta de ESTE plato, no la del origen: lo que se puede perder
                 es lo que ya está armado acá. */}
             {tieneReceta && (
-              <label className="flex items-start gap-2 rounded-xl bg-amber-50/70 p-3 text-[13px] text-amber-900">
+              <label className="flex items-start gap-2 rounded-xl bg-amber-50/70 p-3 text-amber-900 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={reemplazar}
@@ -301,7 +301,7 @@ function CopiarDesdeOtroPlatoDialog({
               </label>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
 
             <DialogFooter>
               <TextureButton type="button" variant="minimal" size="default" className="!w-auto" onClick={onClose}>
@@ -595,7 +595,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
 
           {importResult && (
             <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.03] p-3 text-xs space-y-1">
-              <p className="text-brand-950">
+              <p className="text-brand-950 text-base">
                 {importResult.created} creados · {importResult.updated} actualizados
                 {importResult.errors.length > 0 && <span className="text-red-600"> · {importResult.errors.length} con error</span>}
               </p>
@@ -627,7 +627,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
           )}
           {variants.length > 0 && (
             <div className="flex items-start justify-between gap-3 -mt-1">
-              <p className="text-xs text-brand-950/40 font-light">
+              <p className="text-brand-950/40 font-light text-xs">
                 {activeVariantId === ''
                   ? 'Ingredientes compartidos: se usan sin importar el tamaño que se venda.'
                   : `Ingredientes solo de "${variants.find((v) => v.id === activeVariantId)?.name}" — además de los compartidos.`}
@@ -660,7 +660,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
           )}
 
           {visibleLines.length === 0 && !adding && (
-            <p className="text-sm text-brand-950/40 font-light">
+            <p className="text-brand-950/40 font-light text-base">
               {variants.length > 0 && activeVariantId !== ''
                 ? 'Este tamaño todavía no tiene ingredientes propios.'
                 : 'Este producto todavía no tiene ingredientes.'}
@@ -671,7 +671,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
             {visibleLines.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
                 <div className="text-sm">
-                  <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                  <p className="font-medium text-brand-950 flex items-center gap-1.5 text-base">
                     {l.type === 'preparacion' && <span title="Preparación">🍯</span>}
                     {l.type === 'cliente' && (
                       <span className="text-[10px] font-medium uppercase tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">
@@ -683,7 +683,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
                       <span className="text-xs font-light text-brand-950/40">→ {l.customerChoiceInventoryItemName}</span>
                     )}
                   </p>
-                  <p className="text-xs text-brand-950/50 font-light">
+                  <p className="text-brand-950/50 font-light text-xs">
                     {l.quantity} {UNIT_LABELS[l.unit] ?? l.unit} · $
                     {l.costBase}
                   </p>
@@ -731,7 +731,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
                       const small = (SUB_UNITS[unit] ?? []).find((u) => u.toBase < 1)?.value;
                       setNewItem({ ...newItem, modifierId: e.target.value, quantity: '', subUnit: small ?? first });
                     }}
-                    className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                    className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                   >
                     <option value="">Cualquier topping de "{selectedCategory.name}" (misma porción para todos)</option>
                     {selectedCategory.modifiers.map((m) => (
@@ -741,7 +741,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-brand-950/50 font-light">
+                  <p className="text-brand-950/50 font-light text-xs">
                     {selectedTopping
                       ? `Si el cliente elige "${selectedTopping.name}", al servir se descuenta esta porción de ${selectedTopping.inventoryItemName}. Le gana a la porción genérica de "${selectedCategory.name}".`
                       : `Porción por defecto: al servir se descuentan estos gramos del insumo del topping que el cliente eligió en "${selectedCategory.name}" — salvo los toppings que tengan porción propia.`}
@@ -749,7 +749,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
                 </>
               )}
               {modifierCategories.length === 0 && (
-                <p className="text-xs text-brand-950/40 font-light">
+                <p className="text-brand-950/40 font-light text-xs">
                   Para agregar "A elección del cliente" primero asocia una categoría de modificadores a este producto
                   (Productos → Modificadores → Asociar / Desasociar).
                 </p>
@@ -759,13 +759,13 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value.replace(/[^0-9.]/g, '') })}
                   placeholder="Cantidad usada"
-                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                 />
                 <select
                   value={newItem.subUnit}
                   onChange={(e) => setNewItem({ ...newItem, subUnit: e.target.value })}
                   disabled={!selectedUnit}
-                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 disabled:opacity-50 text-base"
                 >
                   {subUnitOptions.map((u) => (
                     <option key={u.value} value={u.value}>
@@ -774,8 +774,8 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
                   ))}
                 </select>
               </div>
-              <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio/rendimiento del ingrediente.</p>
-              {error && <p className="text-xs text-red-600">{error}</p>}
+              <p className="text-brand-950/40 text-xs">El costo se calcula automáticamente según el precio/rendimiento del ingrediente.</p>
+              {error && <p className="text-red-600 text-xs">{error}</p>}
               <div className="flex gap-2">
                 <TextureButton type="button" variant="brand" size="sm" className="!w-auto" onClick={addIngredient}>
                   Guardar ingrediente
@@ -803,7 +803,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
           {/* Observaciones: técnica de preparación, emplatado, alérgenos, notas para cocina. */}
           <div className="pt-3 border-t border-brand-950/10">
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <label htmlFor={`recipe-notes-${productId}`} className="text-sm font-medium text-brand-950">
+              <label htmlFor={`recipe-notes-${productId}`} className="text-brand-950 text-sm font-medium">
                 Observaciones
               </label>
               <span className="text-[11px] text-brand-950/40">{notes.length}/3000</span>
@@ -814,7 +814,7 @@ export function RecipePanel({ productId, onSaved }: { productId: string; onSaved
               onChange={(e) => setNotes(e.target.value.slice(0, 3000))}
               rows={3}
               placeholder="Ej: Sellar la carne 2 min por lado; el pan va tostado con mantequilla; contiene gluten y lácteos."
-              className="w-full resize-y rounded-xl border border-brand-950/15 px-3 py-2 text-sm text-brand-950 placeholder:text-brand-950/30"
+              className="w-full resize-y rounded-xl border border-brand-950/15 px-3 py-2 text-brand-950 placeholder:text-brand-950/30 text-base"
             />
             {notes.trim() !== savedNotes && (
               <div className="mt-2 flex items-center gap-2">
@@ -911,20 +911,20 @@ function PriceCascadeSection({ productId }: { productId: string }) {
       {open && (
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <label className="block text-xs">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/60">Resguardo % (fallas al emplatar)</span>
               <input
                 value={resguardo}
                 onChange={(e) => setResguardo(e.target.value.replace(/[^0-9.]/g, ''))}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
               />
             </label>
-            <label className="block text-xs">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/60">Food cost objetivo %</span>
               <input
                 value={targetFoodCost}
                 onChange={(e) => setTargetFoodCost(e.target.value.replace(/[^0-9.]/g, ''))}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
               />
             </label>
           </div>
@@ -1177,13 +1177,13 @@ function IngredientePicker({
         }}
         onFocus={() => setAbierto(true)}
         placeholder="Escribe el ingrediente…"
-        className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+        className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
       />
       {abierto && (
         <div className="max-h-52 overflow-y-auto rounded-lg border border-brand-950/10 bg-white">
           {grupos.map((g) => (
             <div key={g}>
-              <p className="sticky top-0 bg-brand-950/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-950/40">
+              <p className="sticky top-0 bg-brand-950/[0.04] px-2.5 py-1 font-semibold uppercase tracking-wide text-brand-950/40 text-xs">
                 {g}
               </p>
               {visibles
@@ -1219,7 +1219,7 @@ function IngredientePicker({
             </button>
           )}
           {visibles.length === 0 && !puedeCrear && (
-            <p className="px-2.5 py-3 text-sm text-brand-950/40">Escribe al menos dos letras para crear un insumo nuevo.</p>
+            <p className="px-2.5 py-3 text-brand-950/40 text-base">Escribe al menos dos letras para crear un insumo nuevo.</p>
           )}
         </div>
       )}
@@ -1274,26 +1274,26 @@ function CrearInsumoDialog({
         <DialogHeader>
           <DialogTitle>Crear insumo</DialogTitle>
         </DialogHeader>
-        <p className="-mt-1 text-sm text-brand-950/60">
+        <p className="-mt-1 text-brand-950/60 text-base">
           Este insumo todavía no existe en tu inventario. Créalo acá y queda vinculado a la receta al instante.
         </p>
 
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-xs text-brand-950/60">Nombre</span>
           <input
             autoFocus
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
           />
         </label>
 
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-xs text-brand-950/60">¿Cómo se mide?</span>
           <select
             value={form.unit}
             onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
           >
             <option value="kg">Kilos (para pesar: carnes, harinas, verduras)</option>
             <option value="lt">Litros (para líquidos: aceite, leche, salsas)</option>
@@ -1302,55 +1302,55 @@ function CrearInsumoDialog({
         </label>
 
         <div className="grid grid-cols-2 gap-2">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-xs text-brand-950/60">Cantidad que compraste</span>
             <input
               value={form.quantity}
               onChange={(e) => setForm({ ...form, quantity: e.target.value.replace(/[^0-9.]/g, '') })}
               placeholder="0"
               inputMode="decimal"
-              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-xs text-brand-950/60">Lo que costó ({symbol})</span>
             <input
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, '') })}
               placeholder="0"
               inputMode="decimal"
-              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
             />
           </label>
         </div>
-        <p className="-mt-1 text-xs font-light text-brand-950/40">
+        <p className="-mt-1 font-light text-brand-950/40 text-xs">
           El costo de la receta sale de acá: si compraste 5 {form.unit === 'unidad' ? 'unidades' : form.unit} por{' '}
           {symbol}15, cada {form.unit === 'unidad' ? 'unidad' : form.unit} cuesta {symbol}3.
         </p>
 
         <div className="grid grid-cols-2 gap-2">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-xs text-brand-950/60">Avisar al quedar</span>
             <input
               value={form.minQuantity}
               onChange={(e) => setForm({ ...form, minQuantity: e.target.value.replace(/[^0-9.]/g, '') })}
               placeholder="0"
               inputMode="decimal"
-              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-xs text-brand-950/60">Se vence el</span>
             <input
               value={form.expiryDate}
               onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
               type="date"
-              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
             />
           </label>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <DialogFooter>
           <TextureButton type="button" variant="minimal" size="default" className="!w-auto" onClick={onClose}>

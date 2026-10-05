@@ -11,6 +11,14 @@ import type { UserRole } from '../types';
 export const FULL_ACCESS_ROLES: UserRole[] = ['OWNER', 'ADMIN', 'STAFF'];
 // Administración, Gastos, Productos, Mesas/QR y "Movimientos del día": solo dueño/admin (ver nota arriba).
 export const ADMIN_CASHIER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
+
+/** Editar y anular pedidos con trazabilidad, sin otorgar administración general. */
+export const ORDER_CORRECTION_ROLES = ['OWNER', 'ADMIN', 'CASHIER'] as const;
+
+/** Espejo del servidor: Caja atiende pedidos web sin recibir permisos administrativos. */
+export function canManageIncomingOrders(role?: UserRole | null): boolean {
+  return role === 'OWNER' || role === 'ADMIN' || role === 'CASHIER';
+}
 export const RESTRICTED_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
 // Pantalla: un único monitor/TV con Mesas + Cocina en formato horizontal.
 export const SCREEN_ROLES: UserRole[] = ['SCREEN'];
@@ -30,6 +38,7 @@ export const COACH_ROLES: UserRole[] = ['COACH'];
 // Puerta de un evento (Local Comercial): escanea entradas y puede vender en el sitio.
 // Espejo manual de src/utils/roles.ts — cambiar los dos juntos.
 export const VERIFICADOR_ROLES: UserRole[] = ['VERIFICADOR'];
+export const COURIER_ROLES: UserRole[] = ['MOTORIZADO'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
@@ -47,6 +56,7 @@ export const ASSIGNABLE_TEAM_ROLES: UserRole[] = [
   'NUMERO',
   'CANCHA',
   'COACH',
+  'MOTORIZADO',
 ];
 // Tablet compartida de meseros: mismo patrón que SCREEN/COMANDA/NUMERO (una cuenta de
 // dispositivo, con correo/clave real para el login normal), pero su única pantalla es un
@@ -72,6 +82,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   CANCHA: 'Cancha',
   COACH: 'Profesor',
   VERIFICADOR: 'Verificador',
+  MOTORIZADO: 'Motorizado',
 };
 
 // Rutas visibles según el rol. "*" habilita todas las rutas del admin.
@@ -128,6 +139,10 @@ export function isWaiterTabletRole(role?: UserRole | null): boolean {
   return WAITER_TABLET_ROLES.includes(role);
 }
 
+export function isCourierRole(role?: UserRole | null): boolean {
+  return !!role && COURIER_ROLES.includes(role);
+}
+
 export function canManageTeam(role?: UserRole | null): boolean {
   if (!role) return false;
   return TEAM_MANAGER_ROLES.includes(role);
@@ -152,6 +167,7 @@ export function needsLockScreen(role?: UserRole | null): boolean {
 const KIOSK_PATH = '/admin/comanda';
 const NUMERO_PATH = '/admin/numero';
 const WAITER_TABLET_PATH = '/admin/waiter-tablet';
+const COURIER_PATH = '/admin/motorizado';
 
 export function canAccessPath(
   role: UserRole | null | undefined,
@@ -165,12 +181,14 @@ export function canAccessPath(
   if (isKioskRole(role)) return pathname.startsWith(KIOSK_PATH);
   if (isNumeroRole(role)) return pathname.startsWith(NUMERO_PATH);
   if (isWaiterTabletRole(role)) return pathname.startsWith(WAITER_TABLET_PATH);
+  if (isCourierRole(role)) return pathname.startsWith(COURIER_PATH);
   if (canAccessInventory && pathname.startsWith('/admin/inventory')) return true;
   // Comandas también es visible para Mesero/Cocina/Cajero (sin acceso completo): ahí ven sus
   // propios pedidos (Mesero/Cajero) o todos (Cocina) — Resumen ("/admin" exacto) queda vedado
   // porque trae montos de venta y datos financieros, no confundir con "/admin/*" en general,
   // que sigue vedado para estos roles salvo lo listado abajo.
   if (pathname === '/admin/comandas') return true;
+  if (role === 'CASHIER' && pathname.startsWith('/admin/delivery')) return true;
   return RESTRICTED_PATHS.some((p) => pathname.startsWith(p));
 }
 
@@ -180,6 +198,7 @@ export function defaultPathFor(role?: UserRole | null): string {
   if (isKioskRole(role)) return KIOSK_PATH;
   if (isNumeroRole(role)) return NUMERO_PATH;
   if (isWaiterTabletRole(role)) return WAITER_TABLET_PATH;
+  if (isCourierRole(role)) return COURIER_PATH;
   // Mesero/Cajero arrancan en Comandas (su pantalla de trabajo); Cocina en su cola.
   if (role === 'WAITER' || role === 'CASHIER') return '/admin/comandas';
   return '/admin/kitchen';

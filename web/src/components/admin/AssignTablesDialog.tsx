@@ -53,20 +53,20 @@ export function AssignTablesDialog({ waiter, onClose }: Props) {
           <DialogTitle>Asignar mesas a {waiter.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-sm text-brand-950/60 font-light">
+          <p className="text-brand-950/60 font-light text-base">
             Mientras una mesa esté marcada, los pedidos que lleguen desde ella solo le aparecerán a {waiter.name} en el
             Dashboard. Las mesas sin marcar le aparecen a todos los meseros hasta que alguno acepte un pedido de ahí —
             en ese momento se le asigna automáticamente.
           </p>
           {tables === null ? (
-            <p className="text-sm text-brand-950/40 font-light py-3">Cargando…</p>
+            <p className="text-brand-950/40 font-light py-3 text-base">Cargando…</p>
           ) : (
             <ul className="max-h-72 overflow-y-auto divide-y divide-brand-950/10 rounded-xl border border-brand-950/10">
               {tables.map((t) => {
                 const takenByOther = t.assignedWaiterId && t.assignedWaiterId !== waiter.id && !selected.has(t.id);
                 return (
                   <li key={t.id}>
-                    <label className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm cursor-pointer">
+                    <label className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer text-sm font-medium">
                       <span className="flex items-center gap-2 text-brand-950">
                         <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
                         {t.number}
@@ -82,7 +82,7 @@ export function AssignTablesDialog({ waiter, onClose }: Props) {
               )}
             </ul>
           )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving || !tables} onClick={save} className="disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar asignación'}
           </TextureButton>

@@ -121,8 +121,8 @@ export function SinglePlanCard({
 
       <div className="max-w-md mx-auto">
         <div className="h-full flex flex-col rounded-2xl border border-brand-400/40 bg-white p-6 shadow-[0_16px_40px_-20px_rgba(5,108,242,0.45)]">
-          <p className="font-semibold text-brand-950">{name}</p>
-          <p className="text-xs text-brand-950/50 font-light mt-0.5">{subtitle}</p>
+          <p className="font-semibold text-brand-950 text-base">{name}</p>
+          <p className="text-brand-950/50 font-light mt-0.5 text-xs">{subtitle}</p>
 
           <div className="mt-4 flex flex-col gap-0.5">
             <div className="flex items-baseline gap-2 flex-wrap">
@@ -138,9 +138,9 @@ export function SinglePlanCard({
                 </span>
               )}
             </div>
-            {effectiveRateBs && <p className="text-[11px] text-brand-950/45">{formatBs(price, effectiveRateBs)}/mes · a tasa BCV</p>}
+            {effectiveRateBs && <p className="text-brand-950/45 text-xs">{formatBs(price, effectiveRateBs)}/mes · a tasa BCV</p>}
             {billingCycle !== 'MONTHLY' && (
-              <p className="text-[11px] text-brand-950/55 font-medium">
+              <p className="text-brand-950/55 font-medium text-xs">
                 Un solo pago de {currencySymbol}
                 {cycleTotal.toFixed(2)} por {BILLING_CYCLE_LABEL[billingCycle].toLowerCase()}
               </p>

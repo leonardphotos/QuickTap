@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useEffect,useState } from 'react';
 
 interface Waiter {
   id: string;
@@ -111,10 +111,10 @@ export function WaiterProfilePicker({ onSkip, onClose }: Props) {
       {!selected ? (
         <div className="flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8">
           <h1 className="text-2xl sm:text-3xl font-semibold text-center">¿Quién está atendiendo?</h1>
-          {loadError && <p className="text-sm text-red-400">{loadError}</p>}
-          {waiters === null && !loadError && <p className="text-sm text-white/50">Cargando…</p>}
+          {loadError && <p className="text-red-400 text-base">{loadError}</p>}
+          {waiters === null && !loadError && <p className="text-white/50 text-base">Cargando…</p>}
           {waiters?.length === 0 && (
-            <p className="max-w-sm text-center text-sm text-white/50">
+            <p className="max-w-sm text-center text-white/50 text-base">
               Todavía no hay meseros con PIN configurado. Se hace desde Equipo, o cada mesero puede
               ponerse el suyo en Ajustes.
             </p>
@@ -128,7 +128,7 @@ export function WaiterProfilePicker({ onSkip, onClose }: Props) {
                 className="group flex flex-col items-center gap-2.5"
               >
                 <span
-                  className="flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-2xl text-3xl font-bold text-white/90 ring-2 ring-transparent transition-all group-hover:ring-white/70 group-active:scale-95"
+                  className="flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-2xl text-3xl font-bold text-white/90 ring-2 ring-transparent transition-[transform,box-shadow] duration-150 ease-out-strong group-hover:ring-white/70 group-active:scale-95 motion-reduce:transition-none"
                   style={{ backgroundColor: colorDeNombre(w.name) }}
                 >
                   {w.name.trim().charAt(0).toUpperCase()}
@@ -154,9 +154,9 @@ export function WaiterProfilePicker({ onSkip, onClose }: Props) {
             >
               {selected.name.trim().charAt(0).toUpperCase()}
             </span>
-            <p className="text-[15px] font-semibold">{selected.name}</p>
-            <p className="text-sm text-white/50 mt-1">PIN de 4 dígitos</p>
-            {pinError && <p className="text-sm text-red-400 mt-1.5">{pinError}</p>}
+            <p className="font-semibold text-base">{selected.name}</p>
+            <p className="text-white/50 mt-1 text-base">PIN de 4 dígitos</p>
+            {pinError && <p className="text-red-400 mt-1.5 text-base">{pinError}</p>}
           </div>
 
           <div className={`flex gap-4 ${shake ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}>

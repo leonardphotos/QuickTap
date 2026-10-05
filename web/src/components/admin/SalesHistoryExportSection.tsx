@@ -1,15 +1,15 @@
-import { useState } from 'react';
-import { FileSpreadsheet } from 'lucide-react';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import {
-  TextureCard,
-  TextureCardHeader,
-  TextureCardTitle,
-  TextureCardContent,
-  TextureCardDescription,
+TextureCard,
+TextureCardContent,
+TextureCardDescription,
+TextureCardHeader,
+TextureCardTitle,
 } from '@/components/ui/texture-card';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
+import { FileSpreadsheet } from 'lucide-react';
+import { useState } from 'react';
 
 /**
  * Descarga en Excel todo el historial de cobros del negocio: un renglón por
@@ -51,7 +51,7 @@ export function SalesHistoryExportSection() {
         </TextureCardDescription>
       </TextureCardHeader>
       <TextureCardContent className="space-y-3">
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton
           variant="minimal"
           size="default"

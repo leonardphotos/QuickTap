@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, Sparkles, Upload, X } from 'lucide-react';
+import { Download, Plus, Sparkles, Upload, X } from 'lucide-react';
 import { AI_TIMEOUT_MS, masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { MarcaExiste, ResumenInsumos, ResumenRecetas } from './ResumenCarga';
@@ -118,8 +118,8 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
   return (
     <div className="space-y-4 rounded-2xl border border-brand-950/10 bg-white p-6 shadow-sm">
       <div>
-        <p className="font-semibold text-brand-950">{titulo}</p>
-        <p className="mt-1 text-sm font-light text-brand-950/50">
+        <p className="font-semibold text-brand-950 text-base">{titulo}</p>
+        <p className="mt-1 font-light text-brand-950/50 text-base">
           Para un cliente que ya está operando. Se le carga la pieza que le falta —sus insumos, sus recetas— sin tocar
           nada de lo que ya tiene. Los insumos que subas se <span className="font-medium">vinculan</span> con los que ya
           existen, así que las recetas ya armadas quedan costeadas solas.
@@ -166,8 +166,8 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
         ))}
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{aviso}</p>}
+      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700 text-base">{error}</p>}
+      {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800 text-base">{aviso}</p>}
 
       {pestana === 'insumos' && (
         <PanelInsumos
@@ -197,9 +197,9 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
 function Dato({ titulo, valor, detalle, alerta }: { titulo: string; valor: number; detalle: string; alerta?: boolean }) {
   return (
     <div className={`rounded-xl border p-3 ${alerta ? 'border-amber-300 bg-amber-50' : 'border-brand-950/10'}`}>
-      <p className="text-[11px] uppercase tracking-wide text-brand-950/40">{titulo}</p>
+      <p className="uppercase tracking-wide text-brand-950/40 text-xs">{titulo}</p>
       <p className="text-2xl font-semibold tabular-nums text-brand-950">{valor}</p>
-      <p className="text-[11px] font-light text-brand-950/50">{detalle}</p>
+      <p className="font-light text-brand-950/50 text-xs">{detalle}</p>
     </div>
   );
 }
@@ -367,7 +367,7 @@ function PanelInsumos({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-light text-brand-950/50">
+      <p className="font-light text-brand-950/50 text-base">
         Sube el inventario del cliente, su lista de compras o la factura del proveedor —foto o Excel, como lo haya
         mandado. La IA saca cada insumo con su unidad, su existencia y su costo, y decide cuáles son los mismos que ya
         tiene cargados para vincularlos en vez de duplicarlos.
@@ -412,10 +412,10 @@ function PanelInsumos({
 
       {filas.length === 0 && sinCosto.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-          <p className="text-sm font-medium text-amber-900">
+          <p className="font-medium text-amber-900 text-base">
             {sinCosto.length} insumo(s) sin costo — sus recetas están costando cero
           </p>
-          <p className="mt-1 text-xs font-light text-amber-900/70">
+          <p className="mt-1 font-light text-amber-900/70 text-xs">
             {sinCosto
               .slice(0, 12)
               .map((i) => `${i.nombre}${i.usadoEn > 0 ? ` (${i.usadoEn})` : ''}`)
@@ -428,10 +428,10 @@ function PanelInsumos({
 
       {sospechosos.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-          <p className="text-sm font-medium text-amber-900">
+          <p className="font-medium text-amber-900 text-base">
             Revisa la unidad de {sospechosos.length} insumo(s)
           </p>
-          <p className="mt-1 text-xs font-light text-amber-900/70">
+          <p className="mt-1 font-light text-amber-900/70 text-xs">
             {sospechosos.map((f) => `${f.nombre} (${f.cantidad} ${f.unidad})`).join(', ')}. Mil kilos o más de un
             insumo casi siempre es una hoja que estaba en gramos y se leyó como kilos. Corrígelo antes de cargar: si
             entra mal, el costo de todas sus recetas queda mil veces por debajo.
@@ -464,7 +464,7 @@ function PanelInsumos({
                   <input
                     value={f.nombre}
                     onChange={(e) => editar(f.key, { nombre: e.target.value })}
-                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm font-medium"
+                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 font-medium text-base"
                   />
                   <button
                     type="button"
@@ -482,7 +482,7 @@ function PanelInsumos({
                       value={f.cantidad}
                       onChange={(e) => editar(f.key, { cantidad: Number(e.target.value) || 0 })}
                       inputMode="decimal"
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     />
                     {/* Lo que decía la hoja antes de convertir. Es la forma de ver de un golpe
                         si la IA leyó bien la unidad: "8000 gramos" debajo de "8" está bien,
@@ -519,7 +519,7 @@ function PanelInsumos({
                       value={f.costoUnitario}
                       onChange={(e) => editar(f.key, { costoUnitario: Number(e.target.value) || 0 })}
                       inputMode="decimal"
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     />
                   </Campo>
                   <Campo etiqueta="Mínimo">
@@ -527,14 +527,14 @@ function PanelInsumos({
                       value={f.minimo}
                       onChange={(e) => editar(f.key, { minimo: Number(e.target.value) || 0 })}
                       inputMode="decimal"
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     />
                   </Campo>
                   <Campo etiqueta="Categoría">
                     <input
                       value={f.categoria}
                       onChange={(e) => editar(f.key, { categoria: e.target.value })}
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     />
                   </Campo>
                   {/* Empaque: lo que se va con el pedido del cliente. Marcarlo lo manda a la
@@ -544,7 +544,7 @@ function PanelInsumos({
                     <select
                       value={f.tipoEmpaque}
                       onChange={(e) => editar(f.key, { tipoEmpaque: e.target.value as FilaInsumo['tipoEmpaque'] })}
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     >
                       <option value="">No es empaque</option>
                       <option value="ENVASE">Envase</option>
@@ -559,7 +559,7 @@ function PanelInsumos({
                   <select
                     value={f.inventoryItemId}
                     onChange={(e) => editar(f.key, { inventoryItemId: e.target.value, vinculoPor: null })}
-                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   >
                     <option value="">Crear un insumo nuevo</option>
                     {(estado?.insumos ?? []).map((i) => (
@@ -586,7 +586,7 @@ function PanelInsumos({
                     revisar el vínculo de verdad: un "Aceite" que cae en catorce platos hay
                     que mirarlo dos veces antes de aprobarlo. */}
                 {(f.enPlatos.length > 0 || f.enPreparaciones.length > 0) && (
-                  <p className="mt-1 text-[11px] font-light text-brand-950/45">
+                  <p className="mt-1 font-light text-brand-950/45 text-xs">
                     <span className="font-medium text-brand-950/60">Llega a:</span>{' '}
                     {[...f.enPreparaciones.map((p) => `${p} (prep.)`), ...f.enPlatos].join(' · ')}
                   </p>
@@ -613,7 +613,7 @@ function PanelInsumos({
 
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
-    <label className="text-[11px] text-brand-950/50">
+    <label className="text-brand-950/50 text-sm font-medium">
       {etiqueta}
       {children}
     </label>
@@ -715,6 +715,28 @@ function PanelRecetas({
     }
   }
 
+  async function descargarPlantilla() {
+    onError(null);
+    setTrabajando('Preparando la plantilla…');
+    try {
+      const { data } = await masterApi.get(`/master/catalog-ai/${restaurantId}/plantilla-recetario`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(data);
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = 'plantilla-recetario-quicktap.xlsx';
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      onError(e.response?.data?.error ?? 'No se pudo descargar la plantilla.');
+    } finally {
+      setTrabajando(null);
+    }
+  }
+
   function editarFila(key: string, patch: Partial<FilaReceta>) {
     setFilas((prev) => prev.map((f) => (f.key === key ? { ...f, ...patch } : f)));
   }
@@ -769,7 +791,7 @@ function PanelRecetas({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-light text-brand-950/50">
+      <p className="font-light text-brand-950/50 text-base">
         Dos caminos. Si el cliente tiene su recetario, súbelo: esos son sus gramos de verdad. Si no lo tiene, elige los
         platos y la IA propone la ficha técnica de cada uno —una estimación de partida que el cliente después ajusta.
         En los dos casos se escribe <span className="font-medium">solo la receta</span>: nombre, precio y categoría del
@@ -786,6 +808,16 @@ function PanelRecetas({
           onClick={() => archivoRef.current?.click()}
         >
           <Upload className="h-4 w-4" /> Subir el recetario del cliente
+        </TextureButton>
+        <TextureButton
+          type="button"
+          variant="secondary"
+          size="default"
+          className="!w-auto"
+          disabled={!!trabajando}
+          onClick={() => void descargarPlantilla()}
+        >
+          <Download className="h-4 w-4" /> Descargar plantilla
         </TextureButton>
         <input
           ref={archivoRef}
@@ -804,7 +836,7 @@ function PanelRecetas({
       {sinReceta.length > 0 && filas.length === 0 && (
         <div className="rounded-xl border border-brand-950/10 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-brand-950">
+            <p className="font-medium text-brand-950 text-base">
               {sinReceta.length} plato(s) de su carta sin receta
             </p>
             <div className="flex gap-2">
@@ -826,7 +858,7 @@ function PanelRecetas({
           </div>
           <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
             {sinReceta.map((p) => (
-              <label key={p.id} className="flex items-center gap-2 text-sm">
+              <label key={p.id} className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={seleccion.has(p.id)}
@@ -872,7 +904,7 @@ function PanelRecetas({
             ))}
           </div>
 
-          <label className="flex items-start gap-2 text-sm">
+          <label className="flex items-start gap-2 text-sm font-medium">
             <input
               type="checkbox"
               checked={reemplazar}
@@ -940,7 +972,7 @@ function EditorReceta({
         <input
           value={fila.nombre}
           onChange={(e) => onChange({ nombre: e.target.value })}
-          className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm font-medium"
+          className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 font-medium text-base"
         />
         {!fila.productId && (
           <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
@@ -957,7 +989,7 @@ function EditorReceta({
         </button>
       </div>
 
-      <p className="mt-2 text-[11px] font-medium text-brand-950/50">Lleva:</p>
+      <p className="mt-2 font-medium text-brand-950/50 text-xs">Lleva:</p>
       <ul className="mt-1 space-y-1.5">
         {fila.insumos.map((g, i) => (
           <li key={i} className="grid grid-cols-[1fr_5rem_5.5rem_auto] items-center gap-2">
@@ -965,7 +997,7 @@ function EditorReceta({
               <input
                 value={g.nombre}
                 onChange={(e) => editarInsumo(i, { nombre: e.target.value })}
-                className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
               />
               <MarcaExiste yaExiste={g.yaExiste} />
             </div>
@@ -973,12 +1005,12 @@ function EditorReceta({
               value={g.cantidad}
               onChange={(e) => editarInsumo(i, { cantidad: Number(e.target.value) || 0 })}
               inputMode="decimal"
-              className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+              className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
             />
             <select
               value={g.unidad}
               onChange={(e) => editarInsumo(i, { unidad: e.target.value })}
-              className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+              className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
             >
               {UNIDADES.map((u) => (
                 <option key={u} value={u}>
@@ -1006,14 +1038,14 @@ function EditorReceta({
 
       {fila.preparaciones.length > 0 && (
         <div className="mt-3 space-y-2">
-          <p className="text-[11px] font-medium text-brand-950/50">Preparaciones que usa:</p>
+          <p className="font-medium text-brand-950/50 text-xs">Preparaciones que usa:</p>
           {fila.preparaciones.map((pr, i) => (
             <div key={i} className="rounded-lg border border-brand-950/10 bg-brand-950/[0.02] p-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   value={pr.nombre}
                   onChange={(e) => editarPrep(i, { nombre: e.target.value })}
-                  className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                  className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                 />
                 <MarcaExiste yaExiste={pr.yaExiste} nuevoEs="preparación nueva" />
                 <button
@@ -1030,14 +1062,14 @@ function EditorReceta({
                     value={pr.rendimiento}
                     onChange={(e) => editarPrep(i, { rendimiento: Number(e.target.value) || 0 })}
                     inputMode="decimal"
-                    className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   />
                 </Campo>
                 <Campo etiqueta="Unidad">
                   <select
                     value={pr.unidad}
                     onChange={(e) => editarPrep(i, { unidad: e.target.value })}
-                    className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   >
                     {UNIDADES.map((u) => (
                       <option key={u} value={u}>
@@ -1051,7 +1083,7 @@ function EditorReceta({
                     value={pr.cantidad}
                     onChange={(e) => editarPrep(i, { cantidad: Number(e.target.value) || 0 })}
                     inputMode="decimal"
-                    className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   />
                 </Campo>
               </div>
@@ -1066,7 +1098,7 @@ function EditorReceta({
                             insumos: pr.insumos.map((x, y) => (y === j ? { ...x, nombre: e.target.value } : x)),
                           })
                         }
-                        className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                        className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                       />
                       <MarcaExiste yaExiste={g.yaExiste} />
                     </div>
@@ -1080,7 +1112,7 @@ function EditorReceta({
                         })
                       }
                       inputMode="decimal"
-                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     />
                     <select
                       value={g.unidad}
@@ -1089,7 +1121,7 @@ function EditorReceta({
                           insumos: pr.insumos.map((x, y) => (y === j ? { ...x, unidad: e.target.value } : x)),
                         })
                       }
-                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     >
                       {UNIDADES.map((u) => (
                         <option key={u} value={u}>
@@ -1210,7 +1242,7 @@ function PanelEmpaques({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-light text-brand-950/50">
+      <p className="font-light text-brand-950/50 text-base">
         Los envases, cajas y bolsas que subiste con la lista de insumos quedan en la{' '}
         <span className="font-medium">ventana de empaques</span> del inventario. Acá la IA dice en cuál sale cada plato
         —mirando qué es y cuánto ocupa— y al confirmar el sistema empieza a{' '}
@@ -1235,7 +1267,7 @@ function PanelEmpaques({
       {productos.length > 0 && (
         <>
           <div className="rounded-xl border border-brand-950/10 p-3">
-            <p className="text-xs font-medium text-brand-950/60">
+            <p className="font-medium text-brand-950/60 text-xs">
               {empaques.length} empaque(s) cargado(s):{' '}
               <span className="font-light text-brand-950/40">
                 {empaques
@@ -1249,14 +1281,14 @@ function PanelEmpaques({
             {productos.map((p) => (
               <div key={p.productId} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_16rem]">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-brand-950">{p.nombre}</p>
-                  {p.categoria && <p className="text-[11px] font-light text-brand-950/40">{p.categoria}</p>}
+                  <p className="truncate text-brand-950 text-base">{p.nombre}</p>
+                  {p.categoria && <p className="font-light text-brand-950/40 text-xs">{p.categoria}</p>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <select
                     value={elegido[p.productId] ?? ''}
                     onChange={(e) => setElegido((prev) => ({ ...prev, [p.productId]: e.target.value }))}
-                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   >
                     <option value="">Sin empaque</option>
                     {empaques.map((e) => (
@@ -1280,7 +1312,7 @@ function PanelEmpaques({
             ))}
           </div>
 
-          <p className="text-[11px] font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Un plato que dejes en "Sin empaque" se queda como está: esta pantalla pone empaques, no los quita. Para
             quitarle el envase a un plato, entra a su ficha en Productos.
           </p>

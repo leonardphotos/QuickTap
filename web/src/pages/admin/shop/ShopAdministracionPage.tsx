@@ -1,18 +1,18 @@
-import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
 import { AccountingHub } from '@/components/admin/AccountingHub';
+import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { PayablesSection } from '@/components/admin/PayablesSection';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { QuoteManager } from '@/components/admin/QuoteManager';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import ExpensesPage from '@/pages/admin/ExpensesPage';
-import { hasFeature, type FeatureFlag } from '@/utils/subscription';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import type { ShopSession } from './shopSession';
-import ShopStatsPage from './ShopStatsPage';
+import { hasFeature,type FeatureFlag } from '@/utils/subscription';
+import ShopConsumptionPlansPage from './ShopConsumptionPlansPage';
 import ShopPurchasesPage from './ShopPurchasesPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopSalesByUnitPage from './ShopSalesByUnitPage';
-import ShopConsumptionPlansPage from './ShopConsumptionPlansPage';
+import type { ShopSession } from './shopSession';
+import ShopStatsPage from './ShopStatsPage';
 
 /**
  * Administración del local, con el mismo formato que la de restaurantes: un solo menú lateral
@@ -65,7 +65,7 @@ export default function ShopAdministracionPage({ restaurant, session, onGoToBill
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
-        <p className="mt-1 text-sm font-light text-brand-950/60">
+        <p className="mt-1 font-light text-brand-950/60 text-base">
           Ventas, gastos, compras y contabilidad de {restaurant.name}.
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function ShopAdministracionPage({ restaurant, session, onGoToBill
             <div className="space-y-5">
               <div>
                 <h2 className="text-2xl font-semibold text-brand-950">Órdenes de pago</h2>
-                <p className="mt-0.5 text-sm font-light text-brand-950/50">
+                <p className="mt-0.5 font-light text-brand-950/50 text-base">
                   Cuentas por pagar a proveedores: gastos a crédito, retenciones y pagos.
                 </p>
               </div>
@@ -99,7 +99,7 @@ export default function ShopAdministracionPage({ restaurant, session, onGoToBill
             <div className="space-y-5">
               <div>
                 <h2 className="text-2xl font-semibold text-brand-950">Contabilidad</h2>
-                <p className="mt-0.5 text-sm font-light text-brand-950/50">
+                <p className="mt-0.5 font-light text-brand-950/50 text-base">
                   Cuentas bancarias, proveedores y libros de compras/ventas.
                 </p>
               </div>

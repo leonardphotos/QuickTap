@@ -9,7 +9,9 @@ export type PosKeypadField =
   | 'reference'
   | 'received'
   /** Referencia del pago móvil con el que se devuelve el vuelto. */
-  | 'changeReference';
+  | 'changeReference'
+  | 'changePartAmount'
+  | 'changePartReference';
 
 interface Props {
   /** Etiqueta de qué se está escribiendo ahora ("Monto a abonar", "Propina"…). */
@@ -52,7 +54,7 @@ export function PosNumericKeypad({
   return (
     <div className="flex flex-col gap-2 h-full">
       <div className="rounded-2xl bg-brand-950/[0.05] px-5 py-4 shrink-0">
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-950/45">{activeLabel}</p>
+        <p className="font-semibold uppercase tracking-wide text-brand-950/45 text-base">{activeLabel}</p>
         <p className="mt-1 text-5xl font-bold text-brand-950 tabular-nums truncate leading-none">
           {value || '0'}
           {suffix && <span className="text-2xl font-semibold text-brand-950/40"> {suffix}</span>}

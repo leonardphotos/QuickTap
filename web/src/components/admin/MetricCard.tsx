@@ -74,7 +74,7 @@ export function MetricCard({ icon: Icon, title, rows, value, valueTone, caption,
 
       {(trend || action) && (
         <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-brand-950/[0.06]">
-          {trend && <p className="text-[11px] text-brand-950/40 font-light">{trend}</p>}
+          {trend && <p className="text-brand-950/40 font-light text-xs">{trend}</p>}
           {action && (
             <span
               role="button"

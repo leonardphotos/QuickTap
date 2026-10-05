@@ -16,7 +16,7 @@ export function ColorPickerField({ label, value, defaultValue, onChange, classNa
 
   return (
     <div className={cn('space-y-1.5', className)}>
-      <label className="block text-sm font-medium text-brand-950/70">{label}</label>
+      <label className="block text-brand-950/70 text-sm font-medium">{label}</label>
       <div className="relative">
         <button
           type="button"

@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useState } from 'react';
 
 const SERVICE_CHANNELS = [
   { value: 'DINE_IN', label: 'Mesa' },
@@ -26,10 +26,10 @@ function Toggle({
   description: string;
 }) {
   return (
-    <label className="flex items-start justify-between gap-4 py-3 cursor-pointer">
+    <label className="flex items-start justify-between gap-4 py-3 cursor-pointer text-sm font-medium">
       <div>
-        <p className="text-sm font-medium text-brand-950">{label}</p>
-        <p className="text-xs text-brand-950/50 font-light mt-0.5">{description}</p>
+        <p className="font-medium text-brand-950 text-base">{label}</p>
+        <p className="text-brand-950/50 font-light mt-0.5 text-xs">{description}</p>
       </div>
       <button
         type="button"
@@ -80,7 +80,7 @@ export function CheckoutSettingsSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Pedidos y cargos</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Controla si tu menú acepta pedidos, y si se suman cargos opcionales al total.
         </p>
       </TextureCardHeader>
@@ -99,13 +99,13 @@ export function CheckoutSettingsSection() {
         />
         {serviceChargeEnabled && (
           <div className="py-3">
-            <p className="text-sm font-medium text-brand-950">Aplicar el 10% en</p>
-            <p className="text-xs text-brand-950/50 font-light mt-0.5 mb-2">
+            <p className="font-medium text-brand-950 text-base">Aplicar el 10% en</p>
+            <p className="text-brand-950/50 font-light mt-0.5 mb-2 text-xs">
               Selecciona los tipos de pedido que deben llevar cargo por servicio.
             </p>
             <div className="flex flex-wrap gap-x-4 gap-y-2">
               {SERVICE_CHANNELS.map((channel) => (
-                <label key={channel.value} className="flex items-center gap-1.5 text-sm text-brand-950/75 cursor-pointer">
+                <label key={channel.value} className="flex items-center gap-1.5 text-brand-950/75 cursor-pointer text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={serviceChargeChannels.includes(channel.value)}
@@ -127,8 +127,8 @@ export function CheckoutSettingsSection() {
 
         <div className="flex items-start justify-between gap-4 py-3">
           <div>
-            <p className="text-sm font-medium text-brand-950">IVA (16%)</p>
-            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+            <p className="font-medium text-brand-950 text-base">IVA (16%)</p>
+            <p className="text-brand-950/50 font-light mt-0.5 text-xs">
               Solo el equipo de QuickTap puede activarlo, y solo si tienes tu RIF registrado abajo. Escríbenos si
               necesitas activarlo.
             </p>
@@ -142,21 +142,21 @@ export function CheckoutSettingsSection() {
           </span>
         </div>
 
-        <label className="block py-3">
-          <p className="text-sm font-medium text-brand-950">RIF del restaurante</p>
-          <p className="text-xs text-brand-950/50 font-light mt-0.5 mb-1.5">
+        <label className="block py-3 text-sm font-medium">
+          <p className="font-medium text-brand-950 text-base">RIF del restaurante</p>
+          <p className="text-brand-950/50 font-light mt-0.5 mb-1.5 text-xs">
             Necesario para que QuickTap pueda activarte el IVA.
           </p>
           <input
             value={rif}
             onChange={(e) => setRif(e.target.value)}
             placeholder="Ej: J-12345678-9"
-            className="w-full max-w-xs text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="w-full max-w-xs border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
         </label>
 
-        {error && <p className="text-sm text-red-600 pt-2">{error}</p>}
-        {message && <p className="text-sm text-brand-500 pt-2">{message}</p>}
+        {error && <p className="text-red-600 pt-2 text-base">{error}</p>}
+        {message && <p className="text-brand-500 pt-2 text-base">{message}</p>}
 
         <div className="pt-4">
           <TextureButton

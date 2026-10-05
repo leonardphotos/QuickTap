@@ -1,3 +1,8 @@
+import { MEMBERSHIP_ADDONS, priceAddons, type AddonSelection } from '@/utils/membership-addons';
+import { hasFeature, type FeatureFlag } from '@/utils/subscription';
+import { COMMERCIAL_PLANS } from '@/utils/commercial-plans';
+import { planBenefits } from '@/utils/plan-benefits';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Download, FileText, Pencil, Plus, RotateCcw, Send, Trash2, X } from 'lucide-react';
 import { masterApi } from '@/api/client';
@@ -17,6 +22,8 @@ interface QuoteItem {
 }
 
 interface PlatformQuote {
+  currency: "EUR" | "USD";
+  planBenefits: string[];
   id: string;
   quoteNumber: number;
   clientName: string;
@@ -40,6 +47,8 @@ interface PlatformQuote {
  * precios, así la cotización nunca ofrece un plan que no existe o con precio viejo. */
 interface PublicPlan {
   name: string;
+  features?: string[];
+  capacity?: string;
   prices: { MONTHLY: number; QUARTERLY: number; SEMIANNUAL: number; ANNUAL: number };
 }
 
@@ -62,7 +71,7 @@ const ITEM_PRESETS: QuoteItem[] = [
 /** Cargo recurrente MENSUAL, aparte del plan — casilla en el formulario. */
 const HOMOLOGATION_ITEM: QuoteItem = { label: 'Homologación (100 facturas)', amountUsd: 60 };
 
-const money = (n: string | number) => `$${Number(n).toFixed(2)}`;
+const money = (n: string | number, currency = "USD") => `${currency === "EUR" ? "€" : "$"}${Number(n).toFixed(2)}`;
 const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }) : '');
 
 export default function MasterQuotesPage() {
@@ -141,21 +150,21 @@ export default function MasterQuotesPage() {
           <h1 className="text-xl font-bold text-brand-950 flex items-center gap-2">
             <FileText className="h-5 w-5 text-brand-500" /> Cotizaciones
           </h1>
-          <p className="text-sm text-brand-950/50 font-light">Presupuestos para futuros clientes, enviados por WhatsApp.</p>
+          <p className="text-brand-950/50 font-light text-base">Presupuestos para futuros clientes, enviados por WhatsApp.</p>
         </div>
         <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" /> Nueva cotización
         </TextureButton>
       </div>
 
-      <div className="inline-flex items-center gap-1 rounded-full bg-brand-950/[0.05] p-1 mb-5">
+      <AnimatedTabs tone="light" className="inline-flex items-center gap-1 rounded-full bg-brand-950/[0.05] p-1 mb-5">
         {(
           [
             ['open', 'Cotizaciones'],
             ['approved', 'Aprobadas'],
           ] as const
         ).map(([key, label]) => (
-          <button
+          <AnimatedTab active={tab === key}
             key={key}
             type="button"
             onClick={() => setTab(key)}
@@ -164,16 +173,16 @@ export default function MasterQuotesPage() {
             }`}
           >
             {label}
-          </button>
+          </AnimatedTab>
         ))}
-      </div>
+      </AnimatedTabs>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-red-600 mb-3 text-base">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-brand-950/40 font-light">Cargando…</p>
+        <p className="text-brand-950/40 font-light text-base">Cargando…</p>
       ) : quotes.length === 0 ? (
-        <p className="text-sm text-brand-950/40 font-light">
+        <p className="text-brand-950/40 font-light text-base">
           {tab === 'approved' ? 'Todavía no hay cotizaciones aprobadas.' : 'Todavía no hay cotizaciones. Crea la primera.'}
         </p>
       ) : (
@@ -182,21 +191,21 @@ export default function MasterQuotesPage() {
             <div key={q.id} className="rounded-2xl border border-brand-950/[0.08] bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-brand-950">
+                  <p className="font-bold text-brand-950 text-base">
                     #{q.quoteNumber} · {q.clientName}
                     {q.businessName && <span className="font-medium text-brand-950/50"> — {q.businessName}</span>}
                   </p>
-                  <p className="text-xs text-brand-950/50 font-light mt-0.5">
-                    📞 {q.clientPhone} · Plan {q.planName} {money(q.planPriceUsd)} ({q.planCycle.toLowerCase()})
-                    {q.items.length > 0 && ` · ${q.items.map((i) => `${i.label} ${money(i.amountUsd)}`).join(' · ')}`}
+                  <p className="text-brand-950/50 font-light mt-0.5 text-xs">
+                    📞 {q.clientPhone} · Plan {q.planName} {money(q.planPriceUsd, q.currency)} ({q.planCycle.toLowerCase()})
+                    {q.items.length > 0 && ` · ${q.items.map((i) => `${i.label} ${money(i.amountUsd, q.currency)}`).join(' · ')}`}
                     {q.recurringItems.length > 0 &&
-                      ` · ${q.recurringItems.map((i) => `${i.label} ${money(i.amountUsd)}/mes`).join(' · ')}`}
+                      ` · ${q.recurringItems.map((i) => `${i.label} ${money(i.amountUsd, q.currency)}/mes`).join(' · ')}`}
                   </p>
-                  {q.note && <p className="text-xs text-brand-950/40 font-light mt-0.5 italic">{q.note}</p>}
+                  {q.note && <p className="text-brand-950/40 font-light mt-0.5 italic text-xs">{q.note}</p>}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-lg font-bold text-brand-950">{money(q.totalUsd)}</p>
-                  <p className="text-[11px] font-medium">
+                  <p className="text-lg font-bold text-brand-950">{money(q.totalUsd, q.currency)}</p>
+                  <p className="font-medium text-xs">
                     {q.status === 'APPROVED' ? (
                       <span className="text-emerald-600">✓ Aprobada {fecha(q.approvedAt)}</span>
                     ) : q.status === 'SENT' ? (
@@ -293,6 +302,7 @@ export default function MasterQuotesPage() {
 /** Hoja A4 de la cotización con la línea gráfica de QuickTap (logo, azul de marca,
  * Poppins). Se renderiza oculta y se captura con html2canvas → PDF. */
 const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(function QuotePdfTemplate({ quote }, ref) {
+  const money = (n:string|number) => `${quote.currency === "EUR" ? "€" : "$"}${Number(n).toFixed(2)}`;
   const half = Number(quote.totalUsd) / 2;
   const fmtFecha = (d: Date) => d.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
   const creada = new Date(quote.createdAt);
@@ -309,13 +319,13 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
       {/* Cabecera: logo + número, con la franja azul de la marca */}
       <div className="px-12 pt-10 pb-6 flex items-start justify-between">
         <div>
-          <img src="/logo/logo-central.png" alt="QuickTap" style={{ height: 34, width: 'auto' }} />
+          <img src="/logo/logo-central.png?v=20261002" alt="QuickTap" style={{ height: 34, width: 'auto' }} />
         </div>
         <div className="text-right">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: blue }}>Cotización</p>
+          <p className="font-bold uppercase tracking-[0.2em] text-xs" style={{ color: blue }}>Cotización</p>
           <p className="text-2xl font-bold">N.º {quote.quoteNumber}</p>
-          <p className="text-[11px] font-light" style={{ color: dim(0.5) }}>{fmtFecha(creada)}</p>
-          <p className="text-[11px] font-light" style={{ color: dim(0.5) }}>
+          <p className="font-light text-xs" style={{ color: dim(0.5) }}>{fmtFecha(creada)}</p>
+          <p className="font-light text-xs" style={{ color: dim(0.5) }}>
             <span className="font-medium" style={{ color: dim(0.7) }}>Fecha de vencimiento:</span> {fmtFecha(vence)}
           </p>
         </div>
@@ -324,10 +334,10 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
 
       {/* Cliente */}
       <div className="px-12 pt-6">
-        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: dim(0.4) }}>Preparada para</p>
+        <p className="font-bold uppercase tracking-widest text-xs" style={{ color: dim(0.4) }}>Preparada para</p>
         <p className="mt-1 text-lg font-bold">{quote.clientName}</p>
-        {quote.businessName && <p className="text-sm font-medium" style={{ color: dim(0.7) }}>{quote.businessName}</p>}
-        <p className="text-sm font-light" style={{ color: dim(0.5) }}>{quote.clientPhone}</p>
+        {quote.businessName && <p className="font-medium text-base" style={{ color: dim(0.7) }}>{quote.businessName}</p>}
+        <p className="font-light text-base" style={{ color: dim(0.5) }}>{quote.clientPhone}</p>
       </div>
 
       {/* Detalle */}
@@ -362,7 +372,7 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
           </tbody>
         </table>
         {(quote.items.length > 0 || quote.recurringItems.length > 0) && (
-          <p className="mt-1 text-xs font-light" style={{ color: dim(0.5) }}>
+          <p className="mt-1 font-light text-xs" style={{ color: dim(0.5) }}>
             Luego del pago inicial: {money(quote.planPriceUsd)} ({quote.planCycle.toLowerCase()})
             {Number(quote.recurringTotalUsd) > 0 &&
               ` + ${money(quote.recurringTotalUsd)}/mes (${quote.recurringItems.map((i) => i.label).join(', ')})`}
@@ -371,7 +381,7 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
         )}
         {quote.recurringItems.length > 0 && (
           <div className="mt-3 rounded-xl px-4 py-2.5" style={{ backgroundColor: dim(0.03) }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: dim(0.4) }}>Cargos mensuales adicionales</p>
+            <p className="font-bold uppercase tracking-widest mb-1 text-xs" style={{ color: dim(0.4) }}>Cargos mensuales adicionales</p>
             {quote.recurringItems.map((it, i) => (
               <div key={`${it.label}-${i}`} className="flex items-center justify-between text-xs">
                 <span>{it.label}</span>
@@ -382,14 +392,15 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
         )}
       </div>
 
+      {quote.planBenefits?.length>0 && <div className="px-12 pt-5"><p className="font-semibold text-base">Incluido en el plan</p><ul className="mt-2 text-xs space-y-1">{quote.planBenefits.map(b=><li key={b}>✓ {b}</li>)}</ul></div>}
       {/* Términos 50/50 */}
       <div className="mx-12 mt-7 rounded-2xl px-6 py-5" style={{ backgroundColor: 'rgba(0,154,255,0.07)' }}>
-        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: blue }}>Condiciones de pago</p>
-        <p className="mt-1.5 text-sm">
+        <p className="font-bold uppercase tracking-widest text-xs" style={{ color: blue }}>Condiciones de pago</p>
+        <p className="mt-1.5 text-base">
           <span className="font-semibold">50% para comenzar la instalación ({money(half)})</span>
           <span style={{ color: dim(0.6) }}> · el 50% restante ({money(half)}) a los 15 días.</span>
         </p>
-        <p className="mt-1 text-xs font-light" style={{ color: dim(0.5) }}>Incluye 15 días de prueba gratis, sin tarjeta de crédito.</p>
+        <p className="mt-1 font-light text-xs" style={{ color: dim(0.5) }}>Incluye 15 días de prueba gratis, sin tarjeta de crédito.</p>
       </div>
 
       {/* Pie */}
@@ -409,6 +420,13 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
  * aprobadas — el backend también lo rechaza, esto solo evita el viaje inútil. */
 function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; onClose: () => void; onSaved: () => void }) {
   const isEditing = !!quote;
+  const currency = quote?.currency ?? "EUR";
+  const money = (n:string|number) => `${currency === "EUR" ? "€" : "$"}${Number(n).toFixed(2)}`;
+  const [addonSelection,setAddonSelection] = useState<AddonSelection>(()=>MEMBERSHIP_ADDONS.flatMap(d=>{
+    const item=quote?.recurringItems.find(i=>i.label.startsWith(`Módulo: ${d.name} × `));
+    const quantity=item?Number(item.label.split(' × ').at(-1)):0;
+    return Number.isInteger(quantity)&&quantity>0?[{code:d.code,quantity}]:[];
+  }));
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [clientName, setClientName] = useState(quote?.clientName ?? '');
   const [clientPhone, setClientPhone] = useState(quote?.clientPhone ?? '');
@@ -430,7 +448,7 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
       setPlans(list);
       // Al crear (no al editar): arranca con el Plan Pro (o el primero), a precio mensual real.
       if (isEditing) return;
-      const initial = list.find((p) => p.name.includes('Pro')) ?? list[0];
+      const initial = list.find((p) => p.name === 'Esencial') ?? list[0];
       if (initial) {
         setPlanName(initial.name);
         setPlanPrice(String(initial.prices.MONTHLY));
@@ -438,6 +456,9 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const selectedBenefits = planBenefits(planName, plans);
+  const selectedCapacity = plans.find(p => p.name === planName)?.capacity;
 
   const itemsTotal = items.reduce((acc, i) => acc + i.amountUsd, 0);
   const recurringItemsTotal = recurringItems.reduce((acc, i) => acc + i.amountUsd, 0);
@@ -451,6 +472,8 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
 
   function pickPlan(name: string) {
     setPlanName(name);
+    setAddonSelection([]);
+    setRecurringItems(prev=>prev.filter(i=>!i.label.startsWith("Módulo: ")));
     const plan = plans.find((p) => p.name === name);
     if (plan) setPlanPrice(String(priceFor(plan, planCycle)));
   }
@@ -478,10 +501,21 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
     );
   }
 
+  const planId = Object.entries(COMMERCIAL_PLANS).find(([,v])=>v.name===planName)?.[0];
+  function changeAddon(code:string, quantity:number){
+    const next=[...addonSelection.filter(a=>a.code!==code),{code,quantity}];
+    setAddonSelection(next);
+    try{const priced=priceAddons(planId??'',next,f=>hasFeature({subscriptionPlan:planId},f as FeatureFlag));
+      setRecurringItems(prev=>[...prev.filter(i=>!i.label.startsWith('Módulo: ')),...priced.map(a=>({label:`Módulo: ${MEMBERSHIP_ADDONS.find(d=>d.code===a.code)!.name} × ${a.quantity}`,amountUsd:a.monthlyCents/100}))]);setError(null);
+    }catch(e){setError((e as Error).message)}
+  }
   async function save() {
+    if(planId && currency==='EUR')try{priceAddons(planId,addonSelection,f=>hasFeature({subscriptionPlan:planId},f as FeatureFlag))}catch(e){setError((e as Error).message);return}
     setSaving(true);
     setError(null);
     const payload = {
+      currency,
+      planBenefits: [...(selectedCapacity?[selectedCapacity]:[]),...selectedBenefits],
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
       businessName: businessName.trim() || null,
@@ -514,22 +548,22 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
 
         <div className="space-y-3.5">
           <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Nombre del cliente</span>
-              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="María Pérez" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2" />
+              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="María Pérez" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Teléfono (WhatsApp)</span>
-              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="0414-1234567" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2" />
+              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="0414-1234567" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base" />
             </label>
           </div>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Negocio (opcional)</span>
-            <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Restaurante El Fogón" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2" />
+            <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Restaurante El Fogón" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base" />
           </label>
 
           <div className="border-t border-brand-950/[0.06] pt-3">
-            <p className="text-sm font-bold text-brand-950 mb-2">Plan</p>
+            <p className="font-bold text-brand-950 mb-2 text-base">Plan</p>
             <div className="flex flex-wrap gap-1.5 mb-2.5">
               {plans.map((p) => (
                 <button
@@ -545,17 +579,17 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
               ))}
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <label className="block text-sm col-span-1">
+              <label className="block col-span-1 text-sm font-medium">
                 <span className="text-brand-950/60 text-xs">Nombre del plan</span>
-                <input value={planName} onChange={(e) => setPlanName(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                <input value={planName} onChange={(e) => setPlanName(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
               </label>
-              <label className="block text-sm">
-                <span className="text-brand-950/60 text-xs">Precio ($)</span>
-                <input type="number" value={planPrice} onChange={(e) => setPlanPrice(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+              <label className="block text-sm font-medium">
+                <span className="text-brand-950/60 text-xs">Precio ({currency === "EUR" ? "€" : "$"})</span>
+                <input type="number" value={planPrice} onChange={(e) => setPlanPrice(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
               </label>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/60 text-xs">Ciclo</span>
-                <select value={planCycle} onChange={(e) => pickCycle(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                <select value={planCycle} onChange={(e) => pickCycle(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-base">
                   {CYCLES.map((c) => (
                     <option key={c.label}>{c.label}</option>
                   ))}
@@ -564,8 +598,11 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
             </div>
           </div>
 
+          {(selectedBenefits.length > 0 || selectedCapacity) && <section className="rounded-xl bg-sky-50 p-4" aria-label="Beneficios del plan seleccionado"><h3 className="text-sm font-semibold text-brand-950">Incluido en {planName}</h3>{selectedCapacity && <p className="mt-2 font-medium text-gray-500 text-xs">{selectedCapacity}</p>}<ul className="mt-3 space-y-2 text-xs text-slate-600">{selectedBenefits.map(benefit => <li key={benefit} className="flex gap-2"><Check size={14} className="shrink-0 text-brand-500"/>{benefit}</li>)}</ul></section>}
+
+          {planId && currency==='EUR' && <section className="rounded-xl border p-4"><h3 className="text-sm font-semibold">Adicionales mensuales opcionales</h3><p className="text-gray-500 text-xs">Cotizar no activa permisos ni cobra al restaurante.</p>{MEMBERSHIP_ADDONS.map(d=><label key={d.code} className="flex items-center justify-between gap-3 mt-3 text-sm font-medium"><span>{d.name} · €{(d.cents/100).toFixed(2)}/mes</span><input aria-label={d.name} type="number" min={0} max={'feature' in d?1:100} value={addonSelection.find(a=>a.code===d.code)?.quantity??0} onChange={e=>changeAddon(d.code,Number(e.target.value))} className="w-16 rounded border p-2 text-base"/></label>)}<p className="mt-3 text-xs">Solo se suman beneficios no incluidos. Recetas requiere inventario básico.</p>{recurringItems.filter(i=>i.label.startsWith('Módulo: ')).map(i=><p key={i.label} className="mt-2 text-xs">{i.label}: {money(i.amountUsd)}/mes</p>)}</section>}
           <div className="border-t border-brand-950/[0.06] pt-3">
-            <p className="text-sm font-bold text-brand-950 mb-1">Cargos únicos (instalación, extras…)</p>
+            <p className="font-bold text-brand-950 mb-1 text-base">Cargos únicos (instalación, extras…)</p>
             <div className="flex flex-wrap gap-1.5 mb-2.5">
               {ITEM_PRESETS.map((p) => (
                 <button
@@ -574,18 +611,18 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
                   onClick={() => addItem(p)}
                   className="rounded-full bg-brand-950/[0.05] px-3 py-1 text-xs font-semibold text-brand-950/60 hover:text-brand-950"
                 >
-                  + {p.label} (${p.amountUsd})
+                  + {p.label} ({money(p.amountUsd)})
                 </button>
               ))}
             </div>
             <div className="flex items-end gap-2 mb-2">
-              <label className="block text-xs flex-1">
+              <label className="block flex-1 text-sm font-medium">
                 <span className="text-brand-950/60">Concepto</span>
-                <input value={itemLabel} onChange={(e) => setItemLabel(e.target.value)} placeholder="Instalación" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                <input value={itemLabel} onChange={(e) => setItemLabel(e.target.value)} placeholder="Instalación" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
               </label>
-              <label className="block text-xs w-24 shrink-0">
-                <span className="text-brand-950/60">Monto ($)</span>
-                <input type="number" value={itemAmount} onChange={(e) => setItemAmount(e.target.value)} placeholder="60" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+              <label className="block w-24 shrink-0 text-sm font-medium">
+                <span className="text-brand-950/60">Monto ({currency === "EUR" ? "€" : "$"})</span>
+                <input type="number" value={itemAmount} onChange={(e) => setItemAmount(e.target.value)} placeholder="60" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
               </label>
               <button type="button" onClick={() => addItem()} className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-lg border border-brand-950/15 hover:bg-brand-950/5">
                 <Plus className="h-4 w-4 text-brand-950" />
@@ -607,22 +644,22 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
           </div>
 
           <div className="border-t border-brand-950/[0.06] pt-3">
-            <p className="text-sm font-bold text-brand-950 mb-1">Cargos recurrentes (mensuales, aparte del plan)</p>
-            <label className="flex items-center gap-2.5 rounded-lg bg-brand-950/[0.04] px-3 py-2.5 cursor-pointer">
+            <p className="font-bold text-brand-950 mb-1 text-base">Cargos recurrentes (mensuales, aparte del plan)</p>
+            <label className="flex items-center gap-2.5 rounded-lg bg-brand-950/[0.04] px-3 py-2.5 cursor-pointer text-sm font-medium">
               <input type="checkbox" checked={homologationChecked} onChange={(e) => toggleHomologation(e.target.checked)} className="h-4 w-4" />
               <span className="flex-1 text-[13px] font-semibold text-brand-950">{HOMOLOGATION_ITEM.label}</span>
               <span className="text-xs text-brand-950/60">{money(HOMOLOGATION_ITEM.amountUsd)}/mes</span>
             </label>
           </div>
 
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Nota para el cliente (opcional)</span>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ej: precio especial válido hasta fin de mes." className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm" />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ej: precio especial válido hasta fin de mes." className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base" />
           </label>
 
           <div className="rounded-xl bg-brand-500/[0.06] px-4 py-3">
-            <p className="text-sm font-bold text-brand-950">Pago inicial: {money(total)}</p>
-            <p className="text-[11px] text-brand-950/50 font-light">
+            <p className="font-bold text-brand-950 text-base">Pago inicial: {money(total)}</p>
+            <p className="text-brand-950/50 font-light text-xs">
               Para comenzar: 50% ({money(total / 2)}) — el 50% restante a los 15 días.
               {(items.length > 0 || recurringItems.length > 0) &&
                 ` Luego: ${money(Number(planPrice) || 0)} (${planCycle.toLowerCase()})${
@@ -631,7 +668,7 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
             </p>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
         </div>
 
         <DialogFooter>

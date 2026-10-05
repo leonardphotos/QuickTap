@@ -6,7 +6,7 @@ export default function PurchasesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Compras</h1>
-        <p className="mt-1 text-sm font-light text-brand-950/60">
+        <p className="mt-1 font-light text-brand-950/60 text-base">
           Registra lo que le compras a cada proveedor, repón el inventario, lleva el libro de compras y califica a quién
           te vende.
         </p>

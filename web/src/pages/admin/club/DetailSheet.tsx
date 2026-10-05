@@ -50,7 +50,7 @@ export default function DetailSheet({
       >
         <div className="border-b border-brand-950/[0.06] py-4 pl-5 pr-11 lg:py-5">
           <h2 className="truncate text-[16px] font-bold tracking-tight text-brand-950">{title}</h2>
-          {subtitle && <p className="mt-0.5 truncate text-[12px] font-light text-brand-950/50">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 truncate font-light text-brand-950/50 text-xs">{subtitle}</p>}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">{children}</div>
@@ -159,5 +159,5 @@ export function ItemRow({
 }
 
 export function EmptyNote({ children }: { children: ReactNode }) {
-  return <p className="py-4 text-center text-[13px] font-light text-brand-950/40">{children}</p>;
+  return <p className="py-4 text-center font-light text-brand-950/40 text-base">{children}</p>;
 }

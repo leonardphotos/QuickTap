@@ -87,11 +87,11 @@ export function AddStockDialog({ items, onAdd }: { items: AddStockItem[]; onAdd:
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Buscar…"
-                    className="w-full rounded-lg border border-brand-950/15 bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="w-full rounded-lg border border-brand-950/15 bg-white py-2 pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                 </div>
                 <div className="max-h-72 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
-                  {filtered.length === 0 && <p className="p-4 text-sm text-brand-950/40 font-light">Sin resultados.</p>}
+                  {filtered.length === 0 && <p className="p-4 text-brand-950/40 font-light text-base">Sin resultados.</p>}
                   {filtered.map((i) => (
                     <button
                       key={i.id}
@@ -111,8 +111,8 @@ export function AddStockDialog({ items, onAdd }: { items: AddStockItem[]; onAdd:
               <>
                 <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] px-4 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950 truncate">{selected.name}</p>
-                    <p className="text-xs text-brand-950/50 font-light">
+                    <p className="font-medium text-brand-950 truncate text-base">{selected.name}</p>
+                    <p className="text-brand-950/50 font-light text-xs">
                       Stock actual: {selected.currentQuantity} {selected.unitLabel}
                     </p>
                   </div>
@@ -125,22 +125,24 @@ export function AddStockDialog({ items, onAdd }: { items: AddStockItem[]; onAdd:
                   </button>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">Cantidad a añadir</p>
+                  <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
+                    Cantidad a añadir en {selected.unitLabel}
+                  </p>
                   <input
                     autoFocus
                     inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
                     placeholder="0"
-                    className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                   {amount && Number(amount) > 0 && (
-                    <p className="text-xs text-brand-950/40 font-light mt-1.5">
+                    <p className="text-brand-950/40 font-light mt-1.5 text-xs">
                       Nuevo stock: {selected.currentQuantity + Number(amount)} {selected.unitLabel}
                     </p>
                   )}
                 </div>
-                {error && <p className="text-sm text-red-600">{error}</p>}
+                {error && <p className="text-red-600 text-base">{error}</p>}
                 <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
                   {saving ? 'Guardando…' : 'Añadir al stock'}
                 </TextureButton>

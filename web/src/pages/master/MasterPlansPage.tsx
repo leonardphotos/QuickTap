@@ -14,7 +14,7 @@ interface PlanEntry {
 
 type PlanContent = Record<PurchasablePlan, PlanEntry>;
 
-const RESTAURANT_PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
+const RESTAURANT_PLAN_ORDER: PurchasablePlan[] = ['ESSENTIAL', 'OPERATIONS', 'CONTROL'];
 const SHOP_PLAN_ORDER: PurchasablePlan[] = ['SHOP', 'ELITE_SHOP'];
 const CLUB_PLAN_ORDER: PurchasablePlan[] = ['CLUB'];
 const OFFICE_PLAN_ORDER: PurchasablePlan[] = ['OFFICE'];
@@ -86,20 +86,20 @@ export default function MasterPlansPage() {
     <div className="space-y-8 max-w-3xl">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Planes</h1>
-        <p className="text-sm text-brand-950/60 font-light mt-1">
+        <p className="text-brand-950/60 font-light mt-1 text-base">
           Precios y descripción de cada plan, tal como se ven en la landing y en el billing de los restaurantes.
         </p>
       </div>
 
       <Section title="Moneda de cobro">
         <div className="col-span-full space-y-3">
-          <p className="text-sm text-brand-950/60 font-light">
+          <p className="text-brand-950/60 font-light text-base">
             En qué moneda recibes la mensualidad de los restaurantes/locales — recordatorios de pago,
             comprobantes y el aviso de instalación se piden en esta moneda de ahí en adelante. Cambiarla
             no recalcula los precios de abajo, solo el símbolo con el que se muestran y se cobran.
           </p>
           <div className="flex gap-2">
-            {(['USD', 'EUR'] as const).map((c) => (
+            {(['EUR'] as const).map((c) => (
               <button
                 key={c}
                 type="button"
@@ -115,21 +115,21 @@ export default function MasterPlansPage() {
               </button>
             ))}
           </div>
-          {currencyMessage && <p className="text-sm text-brand-950/70">{currencyMessage}</p>}
+          {currencyMessage && <p className="text-brand-950/70 text-base">{currencyMessage}</p>}
         </div>
       </Section>
 
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Restaurantes</p>
+        <p className="font-bold uppercase tracking-wide text-brand-950/40 mb-3 text-xs">Restaurantes</p>
         <div className="space-y-8">
           {RESTAURANT_PLAN_ORDER.map((plan) => (
-            <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
+            <Section key={plan} title={content[plan].name}><p>{content[plan].subtitle}</p><p>€{content[plan].prices.MONTHLY.toFixed(2)} / mes</p><p className="col-span-full text-base">{content[plan].capacity}</p><p className="col-span-full text-gray-500 text-xs">Oferta versionada para nuevas contrataciones. Los contratos heredados se consultan en la ficha de cada negocio; no cambian al publicar esta oferta.</p></Section>
           ))}
         </div>
       </div>
 
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Locales Comerciales</p>
+        <p className="font-bold uppercase tracking-wide text-brand-950/40 mb-3 text-xs">Locales Comerciales</p>
         <div className="space-y-8">
           {SHOP_PLAN_ORDER.map((plan) => (
             <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
@@ -138,7 +138,7 @@ export default function MasterPlansPage() {
       </div>
 
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Canchas</p>
+        <p className="font-bold uppercase tracking-wide text-brand-950/40 mb-3 text-xs">Canchas</p>
         <div className="space-y-8">
           {CLUB_PLAN_ORDER.map((plan) => (
             <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
@@ -147,7 +147,7 @@ export default function MasterPlansPage() {
       </div>
 
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Administración</p>
+        <p className="font-bold uppercase tracking-wide text-brand-950/40 mb-3 text-xs">Administración</p>
         <div className="space-y-8">
           {OFFICE_PLAN_ORDER.map((plan) => (
             <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
@@ -155,7 +155,7 @@ export default function MasterPlansPage() {
         </div>
       </div>
 
-      {message && <p className="text-sm text-brand-950/70">{message}</p>}
+      {message && <p className="text-brand-950/70 text-base">{message}</p>}
       <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50" onClick={save}>
         {saving ? 'Guardando…' : 'Guardar cambios'}
       </TextureButton>
@@ -180,13 +180,13 @@ function PlanSection({
         <Field label="Capacidad" value={entry.capacity} onChange={(v) => onChange({ capacity: v })} />
       </div>
       <div className="col-span-full">
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Beneficios (uno por línea)</span>
           <textarea
             value={entry.features.join('\n')}
             onChange={(e) => onChange({ features: e.target.value.split('\n') })}
             rows={Math.max(4, entry.features.length)}
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 font-light"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 font-light text-base"
           />
         </label>
       </div>
@@ -205,7 +205,7 @@ function PlanSection({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
-      <p className="font-semibold text-brand-950">{title}</p>
+      <p className="font-semibold text-brand-950 text-base">{title}</p>
       <div className="grid sm:grid-cols-2 gap-4">{children}</div>
     </div>
   );
@@ -213,12 +213,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <label className="block text-sm">
+    <label className="block text-sm font-medium">
       <span className="text-brand-950/70">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
       />
     </label>
   );

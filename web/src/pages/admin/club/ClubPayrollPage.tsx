@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, UserMinus, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase, formatBs, formatBsAbsolute } from '@/utils/format';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { formatBase,formatBs,formatBsAbsolute } from '@/utils/format';
+import { Plus,UserMinus,Wallet } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { card } from './clubStyle';
 
 interface Payment {
@@ -81,29 +81,29 @@ export default function ClubPayrollPage({
     }
   }
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando nómina…</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando nómina…</p>;
 
   const monthTotal = employees.reduce((acc, e) => acc + Number(e.paidLast30), 0);
 
   return (
     <div className="flex flex-col gap-5">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <div className={`${card} p-4`}>
           <p className="text-[22px] font-bold leading-tight text-brand-950">{employees.length}</p>
-          <p className="text-[13px] font-semibold text-brand-950/70">En nómina</p>
+          <p className="font-semibold text-brand-950/70 text-base">En nómina</p>
         </div>
         <div className={`${card} p-4`}>
           <p className="text-[22px] font-bold leading-tight text-brand-950">{formatBase(monthTotal, symbol)}</p>
-          <p className="text-[13px] font-semibold text-brand-950/70">Pagado</p>
-          <p className="text-[11px] font-light text-brand-950/40">últimos 30 días</p>
+          <p className="font-semibold text-brand-950/70 text-base">Pagado</p>
+          <p className="font-light text-brand-950/40 text-xs">últimos 30 días</p>
         </div>
       </div>
 
       <div className={`${card} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-bold text-brand-950">Personal</p>
+          <p className="font-bold text-brand-950 text-base">Personal</p>
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setAdding(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Agregar
@@ -111,7 +111,7 @@ export default function ClubPayrollPage({
         </div>
 
         {employees.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">
+          <p className="py-6 text-center font-light text-brand-950/40 text-base">
             Todavía no tienes a nadie en la nómina.
           </p>
         ) : (
@@ -120,8 +120,8 @@ export default function ClubPayrollPage({
               <li key={e.id} className="py-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-brand-950">{e.name}</p>
-                    <p className="text-xs font-light text-brand-950/50">
+                    <p className="truncate font-semibold text-brand-950 text-base">{e.name}</p>
+                    <p className="font-light text-brand-950/50 text-xs">
                       {e.position || 'Sin cargo'}
                       {e.salaryBase && ` · sueldo ${formatBase(e.salaryBase, symbol)}`}
                       {e.phone && ` · ${e.phone}`}
@@ -129,8 +129,8 @@ export default function ClubPayrollPage({
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold text-brand-950">{formatBase(e.paidLast30, symbol)}</p>
-                    <p className="text-[11px] font-light text-brand-950/40">últimos 30 días</p>
+                    <p className="font-bold text-brand-950 text-base">{formatBase(e.paidLast30, symbol)}</p>
+                    <p className="font-light text-brand-950/40 text-xs">últimos 30 días</p>
                   </div>
                 </div>
 
@@ -260,11 +260,11 @@ function EmployeeDialog({ onClose, onSaved }: { onClose: () => void; onSaved: ()
           <Field label="Fecha de ingreso">
             <input type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} className={INPUT} />
           </Field>
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             El sueldo es solo una referencia al pagar — cada pago se registra a mano, porque casi
             nunca coincide exacto.
           </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
@@ -347,7 +347,7 @@ function PayDialog({
             </select>
           </Field>
           {isBsMethod && (
-            <p className="rounded-lg bg-brand-500/[0.06] px-3 py-2 text-xs font-medium text-brand-950/70">
+            <p className="rounded-lg bg-brand-500/[0.06] px-3 py-2 font-medium text-brand-950/70 text-xs">
               {rateBs && Number(amount) > 0 ? (
                 <>
                   Se le paga <span className="font-bold">{formatBs(Number(amount), rateBs)}</span> a tasa{' '}
@@ -358,11 +358,11 @@ function PayDialog({
               )}
             </p>
           )}
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Se registra también como gasto en la categoría Nómina, para que cuente en el balance
             y en el cierre de caja.
           </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Registrando…' : 'Registrar pago'}
           </TextureButton>
@@ -374,7 +374,7 @@ function PayDialog({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1 block text-[13px] font-medium text-brand-950/70">{label}</span>
       {children}
     </label>

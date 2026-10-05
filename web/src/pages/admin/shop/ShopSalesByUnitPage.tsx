@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
+import { PeriodPicker } from '@/components/admin/PeriodPicker';
+import { periodParams,periodoDeHoy,type Period } from '@/components/admin/PeriodPicker.shared';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { useEffect,useState } from 'react';
 import { shopMoneyFormatters } from './shopFormat';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { PeriodPicker, periodParams, periodoDeHoy, type Period } from '@/components/admin/PeriodPicker';
+import { ShopReceiptHistory } from './ShopReceiptHistory';
 
 /**
  * Cuánto se vendió, en la unidad de cada producto.
@@ -56,17 +58,18 @@ export default function ShopSalesByUnitPage({ restaurant }: { restaurant: AuthRe
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-brand-950">Ventas por unidad</h1>
-        <p className="text-sm font-light text-brand-950/50">
+        <p className="font-light text-brand-950/50 text-base">
           Cuánto se vendió de cada categoría, en kilos, metros o unidades según cómo se venda.
         </p>
       </div>
 
       <PeriodPicker value={periodo} onChange={setPeriodo} />
+      <ShopReceiptHistory key={clave} from={from} to={to} money={money} />
 
-      {!data && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
+      {!data && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
 
       {data && data.categorias.length === 0 && (
-        <p className="rounded-2xl border border-brand-950/[0.06] bg-white px-4 py-6 text-center text-sm font-light text-brand-950/40">
+        <p className="rounded-2xl border border-brand-950/[0.06] bg-white px-4 py-6 text-center font-light text-brand-950/40 text-base">
           No hay ventas en ese período.
         </p>
       )}
@@ -76,15 +79,15 @@ export default function ShopSalesByUnitPage({ restaurant }: { restaurant: AuthRe
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {data.categorias.map((c) => (
               <div key={`${c.categoria}-${c.unidad}`} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4">
-                <p className="text-sm font-semibold text-brand-950">{c.categoria}</p>
+                <p className="font-semibold text-brand-950 text-base">{c.categoria}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-brand-950">
                   {c.cantidad.toLocaleString('es-VE')} <span className="text-base font-medium text-brand-950/50">{UNIDAD[c.unidad] ?? c.unidad}</span>
                 </p>
-                <p className="text-[12px] font-light text-brand-950/50">
+                <p className="font-light text-brand-950/50 text-xs">
                   Ingreso {money(c.ingreso)}
                   {moneyBs(c.ingreso) && ` · ${moneyBs(c.ingreso)}`}
                 </p>
-                <p className="text-[12px] font-medium text-emerald-600">Ganancia {money(c.ganancia)}</p>
+                <p className="font-medium text-emerald-600 text-xs">Ganancia {money(c.ganancia)}</p>
               </div>
             ))}
           </div>

@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Pause, Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  Cell,
-  ClubBadge,
-  ClubEyebrow,
-  ClubPanel,
-  ClubRow,
-  ClubTable,
-  PlainCell,
-  SubCell,
-  type ClubColumn,
-} from '../ClubTable';
-import { academyApi, LEVELS, WEEKDAYS, WEEKDAY_SHORT, type ClassGroup, type Coach, type Program } from './academyApi';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
 import { levelRangeLabel } from '@/utils/padelLevel';
+import { AlertTriangle,Pause,Play,Plus,RefreshCw,Trash2 } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import {
+Cell,
+ClubBadge,
+ClubEyebrow,
+ClubPanel,
+ClubRow,
+ClubTable,
+PlainCell,
+SubCell,
+type ClubColumn,
+} from '../ClubTable';
+import { academyApi,LEVELS,WEEKDAY_SHORT,WEEKDAYS,type ClassGroup,type Coach,type Program } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
 
 /** Botón de acción de una fila. En horizontal es solo el icono, para no comerle
@@ -124,7 +124,7 @@ export default function AcademyGroupsTab({
     }
   }
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando grupos…</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando grupos…</p>;
 
   // La columna de acciones solo existe para quien puede usarla: a recepción le
   // sobraría una columna vacía ocupando ancho de lectura.
@@ -141,16 +141,16 @@ export default function AcademyGroupsTab({
 
   return (
     <div className="flex flex-col gap-3.5">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {notice && <p className="text-sm text-emerald-700">{notice}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
+      {notice && <p className="text-emerald-700 text-base">{notice}</p>}
 
       {conflicts.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 lg:p-4">
-          <p className="flex items-center gap-1.5 text-[13px] font-bold text-amber-900">
+          <p className="flex items-center gap-1.5 font-bold text-amber-900 text-base">
             <AlertTriangle className="h-3.5 w-3.5" />
             {conflicts.length} clase(s) sin cancha
           </p>
-          <p className="mt-1 text-[12px] font-light leading-relaxed text-amber-900/80">
+          <p className="mt-1 font-light leading-relaxed text-amber-900/80 text-xs">
             Esas fechas ya tenían una reserva encima. Cámbialas de cancha u hora, o cancélalas.
           </p>
           <ul className="mt-2.5 grid gap-1 sm:grid-cols-2">
@@ -403,7 +403,7 @@ function GroupDialog({
               <input type="number" min="1" value={capacityMax} onChange={(e) => setCapacityMax(e.target.value)} className={INPUT} />
             </Field>
           </div>
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Si al acercarse la clase no se llega al cupo mínimo, se libera sola: la cancha vuelve a alquiler libre y cada
             inscrito recibe una ficha para recuperarla.
           </p>
@@ -424,7 +424,7 @@ function GroupDialog({
           </div>
 
           <div>
-            <p className="mb-1 text-[13px] font-medium text-brand-950/70">Horarios</p>
+            <p className="mb-1 font-medium text-brand-950/70 text-base">Horarios</p>
             <div className="space-y-2">
               {slots.map((s, i) => (
                 <div key={i} className="flex gap-1.5">
@@ -470,7 +470,7 @@ function GroupDialog({
             </button>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Creando…' : 'Crear grupo'}
           </TextureButton>
@@ -482,7 +482,7 @@ function GroupDialog({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1 block text-[13px] font-medium text-brand-950/70">{label}</span>
       {children}
     </label>

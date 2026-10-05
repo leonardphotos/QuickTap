@@ -55,7 +55,7 @@ export function SupplierPicker({ onSelect }: Props) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Buscar proveedor…"
-        className="w-full text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+        className="w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
       />
       <div className="max-h-48 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/10">
         {filtered.map((s) => (
@@ -65,15 +65,15 @@ export function SupplierPicker({ onSelect }: Props) {
             onClick={() => onSelect(s)}
             className="w-full text-left px-3 py-2 text-sm hover:bg-brand-950/[0.03]"
           >
-            <p className="font-medium text-brand-950">{s.name}</p>
+            <p className="font-medium text-brand-950 text-base">{s.name}</p>
             {(s.phone || s.taxId) && (
-              <p className="text-xs text-brand-950/50">
+              <p className="text-brand-950/50 text-xs">
                 {[s.phone, s.taxId].filter(Boolean).join(' · ')}
               </p>
             )}
           </button>
         ))}
-        {filtered.length === 0 && <p className="px-3 py-3 text-center text-xs text-brand-950/40 font-light">Sin resultados.</p>}
+        {filtered.length === 0 && <p className="px-3 py-3 text-center text-brand-950/40 font-light text-xs">Sin resultados.</p>}
       </div>
 
       {!showNewForm ? (
@@ -91,21 +91,21 @@ export function SupplierPicker({ onSelect }: Props) {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nombre"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
           <input
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
             placeholder="Número de teléfono"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
           <input
             value={newTaxId}
             onChange={(e) => setNewTaxId(e.target.value)}
             placeholder="RIF o cédula"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-xs">{error}</p>}
           <div className="flex gap-2">
             <TextureButton variant="brand" size="sm" className="!w-auto disabled:opacity-50" disabled={saving} onClick={createNew}>
               {saving ? 'Guardando…' : 'Crear y elegir'}

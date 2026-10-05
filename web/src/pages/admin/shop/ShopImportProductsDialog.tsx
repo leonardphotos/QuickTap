@@ -72,7 +72,7 @@ export function ShopImportProductsDialog({ onClose, onImported }: { onClose: () 
         <DialogHeader>
           <DialogTitle>Cargar productos desde Excel</DialogTitle>
         </DialogHeader>
-        <p className="text-sm font-light text-brand-950/60">
+        <p className="font-light text-brand-950/60 text-base">
           Sirve con la plantilla o con un archivo exportado de otro sistema — las columnas se reconocen por su
           nombre (Nombre, Categoría, Cantidad, Costo, Precio), sin importar el orden. Un producto que ya exista con
           el mismo nombre se actualiza en vez de duplicarse, sin tocar su stock actual.
@@ -104,15 +104,15 @@ export function ShopImportProductsDialog({ onClose, onImported }: { onClose: () 
         </div>
 
         {error && (
-          <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>
+          <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-base">{error}</p>
         )}
 
         {entro && (
           <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="flex items-center gap-2 text-[15px] font-semibold text-emerald-800">
+            <p className="flex items-center gap-2 font-semibold text-emerald-800 text-base">
               <CheckCircle2 className="h-5 w-5" /> Cargado
             </p>
-            <p className="mt-1 text-[13px] text-emerald-900/80">
+            <p className="mt-1 text-emerald-900/80 text-base">
               {resultado.created} producto{resultado.created === 1 ? '' : 's'} nuevo{resultado.created === 1 ? '' : 's'}
               {resultado.updated > 0 && `, ${resultado.updated} actualizado${resultado.updated === 1 ? '' : 's'}`}.
             </p>
@@ -121,10 +121,10 @@ export function ShopImportProductsDialog({ onClose, onImported }: { onClose: () 
 
         {huboErrores && (
           <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <p className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
+            <p className="flex items-center gap-2 font-semibold text-amber-900 text-base">
               <AlertTriangle className="h-5 w-5" /> No se cargó nada
             </p>
-            <p className="mt-1 text-[13px] text-amber-900/75">
+            <p className="mt-1 text-amber-900/75 text-base">
               Corrige {resultado.errors.length === 1 ? 'esta fila' : `estas ${resultado.errors.length} filas`} y vuelve a subir el archivo.
             </p>
             <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-[12.5px] text-amber-900/80">

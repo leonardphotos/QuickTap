@@ -51,7 +51,7 @@ export function KitchenManageDialog({ open, onOpenChange, kitchens, onChanged }:
         <DialogHeader>
           <DialogTitle>Cocinas</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-brand-950/50 font-light">
+        <p className="text-brand-950/50 font-light text-base">
           Estaciones de cocina (ej: Cocina Caliente, Repostería, Bar) para dividir la comanda al asignarlas a un
           producto. Máximo {MAX_KITCHENS}.
         </p>
@@ -62,15 +62,15 @@ export function KitchenManageDialog({ open, onOpenChange, kitchens, onChanged }:
             onChange={(e) => setName(e.target.value)}
             placeholder="ej: Cocina Caliente"
             disabled={atLimit}
-            className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+            className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50 text-base"
             required
           />
           <TextureButton variant="brand" size="default" disabled={saving || atLimit} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
         </form>
-        {atLimit && <p className="text-xs text-amber-600">Llegaste al máximo de {MAX_KITCHENS} cocinas.</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {atLimit && <p className="text-amber-600 text-xs">Llegaste al máximo de {MAX_KITCHENS} cocinas.</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <ul className="divide-y divide-brand-950/10 rounded-xl border border-brand-950/10 max-h-64 overflow-y-auto">
           {kitchens.map((k) => (

@@ -17,11 +17,11 @@ interface OutlinedFieldProps {
 export function OutlinedField({ label, hint, prefix, className, children }: OutlinedFieldProps) {
   return (
     <div className={cn('relative rounded-lg border border-brand-950/15 px-3 pb-2 pt-2.5', className)}>
-      <span className="absolute -top-2 left-2 bg-white px-1 text-[11px] text-brand-950/50 leading-none">{label}</span>
+      <span className="absolute -top-2 left-2 bg-white px-1 text-sm font-medium text-gray-700 leading-none">{label}</span>
       <div className="flex items-center gap-1.5">
         {prefix && <span className="text-sm text-brand-950/50 shrink-0">{prefix}</span>}
         {children}
-        {hint && <span className="text-[11px] text-brand-950/30 shrink-0 whitespace-nowrap">{hint}</span>}
+        {hint && <span className="text-xs text-gray-500 shrink-0 whitespace-nowrap">{hint}</span>}
       </div>
     </div>
   );
@@ -29,4 +29,4 @@ export function OutlinedField({ label, hint, prefix, className, children }: Outl
 
 /** Clase para el input/select que va dentro de un `OutlinedField` — sin borde propio, el borde
  * ya lo dibuja el wrapper. */
-export const outlinedFieldInputClass = 'w-full min-w-0 text-sm bg-transparent outline-none text-brand-950';
+export const outlinedFieldInputClass = 'w-full min-w-0 text-base bg-transparent outline-none text-gray-900';

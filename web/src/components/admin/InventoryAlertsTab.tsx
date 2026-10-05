@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarClock, PackageX } from 'lucide-react';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { EXPIRY_CLASS, expiryLabel, expiryStatus, formatExpiry } from '@/utils/expiry';
+import { formatBaseQuantity } from '@/utils/inventoryUnits';
 
 /** De dónde sale la fila: un insumo del inventario o un producto del menú. */
 type AlertKind = 'INSUMO' | 'PRODUCTO';
@@ -77,7 +78,7 @@ export function InventoryAlertsTab({ locationScope = 'LOCAL' }: { locationScope?
 
   return (
     <div className="space-y-5">
-      <p className="text-sm font-light text-brand-950/60">
+      <p className="font-light text-brand-950/60 text-base">
         Lo que hay que atender antes de que sea un problema: insumos y productos juntos, sin tener que revisar cada
         pestaña por separado.
       </p>
@@ -117,8 +118,8 @@ export function InventoryAlertsTab({ locationScope = 'LOCAL' }: { locationScope?
         </div>
       )}
 
-      {error && <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</p>}
-      {!data && !error && <p className="font-light text-brand-950/40">Cargando…</p>}
+      {error && <p className="rounded-xl bg-red-50 px-4 py-2.5 text-red-700 text-base">{error}</p>}
+      {!data && !error && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
 
       {data && filter === 'vencer' && (
         <Section
@@ -133,7 +134,7 @@ export function InventoryAlertsTab({ locationScope = 'LOCAL' }: { locationScope?
                   <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold', EXPIRY_CLASS[status])}>
                     {expiryLabel(row.expiryDate, data.today)}
                   </span>
-                  <p className="mt-1 text-[11px] font-light text-brand-950/40">{formatExpiry(row.expiryDate)}</p>
+                  <p className="mt-1 font-light text-brand-950/40 text-xs">{formatExpiry(row.expiryDate)}</p>
                 </div>
               </Row>
             );
@@ -144,7 +145,7 @@ export function InventoryAlertsTab({ locationScope = 'LOCAL' }: { locationScope?
       {data && filter === 'agotar' && (
         <>
           {lowStock.length > 0 && (
-            <p className="text-[13px] font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-base">
               {out} sin existencias · {lowStock.length - out} por agotarse
             </p>
           )}
@@ -160,10 +161,16 @@ export function InventoryAlertsTab({ locationScope = 'LOCAL' }: { locationScope?
                   >
                     {row.status === 'OUT' ? 'Agotado' : 'Por agotarse'}
                   </span>
-                  <p className="mt-1 text-[11px] font-light text-brand-950/45">
-                    {row.quantity} {row.unit}
-                    {Number(row.minQuantity) > 0 && ` · mín. ${row.minQuantity}`}
+                  <p className="mt-1 font-light text-brand-950/45 text-xs">
+                    Quedan {formatBaseQuantity(Number(row.quantity), row.unit)} · mínimo{' '}
+                    {formatBaseQuantity(Number(row.minQuantity), row.unit)}
                   </p>
+                  {Number(row.quantity) < Number(row.minQuantity) && (
+                    <p className="mt-0.5 font-semibold text-brand-500 text-xs">
+                      Comprar al menos{' '}
+                      {formatBaseQuantity(Number(row.minQuantity) - Number(row.quantity), row.unit)}
+                    </p>
+                  )}
                 </div>
               </Row>
             ))}
@@ -214,7 +221,7 @@ function Section({ empty, emptyText, children }: { empty: boolean; emptyText: st
     return (
       <div className="rounded-2xl border border-dashed border-brand-950/10 p-8 text-center">
         <AlertTriangle className="mx-auto h-6 w-6 text-brand-950/20" />
-        <p className="mt-2 text-[13px] font-light text-brand-950/45">{emptyText}</p>
+        <p className="mt-2 font-light text-brand-950/45 text-base">{emptyText}</p>
       </div>
     );
   }
@@ -236,8 +243,8 @@ function Row({
         <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-950/[0.06]" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-brand-950">{row.name}</p>
-        <p className="truncate text-xs font-light text-brand-950/45">
+        <p className="truncate font-medium text-brand-950 text-base">{row.name}</p>
+        <p className="truncate font-light text-brand-950/45 text-xs">
           {KIND_LABEL[row.kind]}
           {row.categoryName ? ` · ${row.categoryName}` : ''}
         </p>

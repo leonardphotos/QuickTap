@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
+import { useEffect,useState } from 'react';
 
 interface PaymentStatsRow {
   method: string;
@@ -59,22 +59,22 @@ export function TodayPaymentMethodsDialog() {
             <DialogTitle>Movimientos de hoy por método de pago</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {!rows && !error && <p className="text-sm text-brand-950/40 font-light">Cargando…</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
+            {!rows && !error && <p className="text-brand-950/40 font-light text-base">Cargando…</p>}
             {rows && (
               <>
                 <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4">
                   <p className="text-xl font-semibold text-brand-950">{formatBase(totalBase, symbol)}</p>
-                  <p className="text-xs text-brand-950/50 font-light">Total cobrado hoy</p>
+                  <p className="text-brand-950/50 font-light text-xs">Total cobrado hoy</p>
                 </div>
                 <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-                  {rows.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin pedidos cobrados hoy.</p>}
+                  {rows.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin pedidos cobrados hoy.</p>}
                   {rows.map((r) => (
                     <div key={r.method} className="flex items-center justify-between gap-3 px-5 py-4">
-                      <p className="font-medium text-brand-950">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
+                      <p className="font-medium text-brand-950 text-base">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
-                        <p className="text-xs text-brand-950/50 font-light">{r.count} pedidos</p>
+                        <p className="font-semibold text-brand-950 text-base">{formatBase(r.totalBase, symbol)}</p>
+                        <p className="text-brand-950/50 font-light text-xs">{r.count} pedidos</p>
                       </div>
                     </div>
                   ))}

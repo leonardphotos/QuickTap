@@ -1,12 +1,14 @@
-import { frecuenciaLabel } from '@/utils/frecuencia';
-import { useState } from 'react';
-import { Check, Copy, Minus, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import { publicPriceLabel } from '@/utils/format';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { reverseGeocode } from '@/components/AddressAutocomplete.shared';
 import { TextureButton } from '@/components/ui/texture-button';
-import { ShopSheet } from './ShopSheet';
+import { publicPriceLabel } from '@/utils/format';
+import { frecuenciaLabel } from '@/utils/frecuencia';
 import { USD_FIRST_METHODS } from '@/utils/payments';
-import { cartSubtotal, formatQty, stepFor, type CartLine, type StorefrontShop } from './shopStorefront';
+import { Bike,Check,Copy,MapPin,Minus,PackageOpen,Paperclip,Plus,Store,Trash2 } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { ShopSheet } from './ShopSheet';
+import { cartSubtotal,formatQty,stepFor,type CartLine,type StorefrontShop } from './shopStorefront';
 
 const PAYMENT_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
@@ -56,19 +58,30 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
   const [mode, setMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [address, setAddress] = useState('');
+  const [locationUrl, setLocationUrl] = useState<string | null>(null);
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [quotedDeliveryFee, setQuotedDeliveryFee] = useState<number | null>(null);
+  const [quotingFee, setQuotingFee] = useState(false);
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState<string | null>(null);
+  const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [subiendoProof, setSubiendoProof] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<{ orderNumber: number; total: number } | null>(null);
+  const [placed, setPlaced] = useState<{ orderNumber: number; total: number; showWallet: boolean } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const subtotal = cartSubtotal(cart);
-  const deliveryFee = mode === 'DELIVERY' ? shop.deliveryFee : 0;
+  const deliveryFee = mode === 'DELIVERY'
+    ? (shop.deliveryPricingMode === 'DISABLED' ? shop.deliveryFee : (quotedDeliveryFee ?? 0))
+    : 0;
   const total = subtotal + deliveryFee;
   const canOrder = shop.isOpen && shop.orderingEnabled;
   // Entradas a un evento: nada que retirar ni despachar, así que no tiene sentido preguntar
@@ -116,18 +129,56 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
   // la captura para confirmar. La misma regla se hace cumplir en el servidor.
   const pideComprobante = ['MOBILE_PAYMENT', 'TRANSFER', 'ZELLE', 'BINANCE', 'PAYPAL'].includes(paymentMethod);
 
-  const enabledMethods = Object.entries(shop.paymentMethodsConfig ?? {})
+  const configuredMethods = Object.entries(shop.paymentMethodsConfig ?? {})
     .filter(([, cfg]) => cfg?.enabled)
     .map(([key]) => key)
     .filter((key) => PAYMENT_LABELS[key]);
+  const enabledMethods = configuredMethods.length > 0 ? configuredMethods : ['CASH', 'CASH_USD', 'CARD'];
   const methodConfig = paymentMethod ? shop.paymentMethodsConfig?.[paymentMethod] : null;
 
   function setQty(index: number, qty: number) {
     const next = [...cart];
     if (qty <= 0) next.splice(index, 1);
-    else next[index] = { ...next[index], qty };
+    else next[index] = { ...next[index], qty: Math.min(qty, next[index].variant.stockRemaining ?? qty) };
     onChangeCart(next);
     if (next.length === 0) onClose();
+  }
+
+  useEffect(() => {
+    if (mode !== 'DELIVERY' || shop.deliveryPricingMode === 'DISABLED' || !locationCoords) {
+      setQuotedDeliveryFee(null);
+      setDeliveryQuoteError(null);
+      return;
+    }
+    setQuotingFee(true);
+    setDeliveryQuoteError(null);
+    api
+      .get(`/public/checkout/delivery/${shop.slug}/quote`, { params: locationCoords })
+      .then((res) => setQuotedDeliveryFee(Number(res.data.data.feeBase)))
+      .catch((err) => {
+        setQuotedDeliveryFee(null);
+        setDeliveryQuoteError(err.response?.data?.error ?? 'No se pudo calcular el envío.');
+      })
+      .finally(() => setQuotingFee(false));
+  }, [locationCoords, mode, shop.deliveryPricingMode, shop.slug]);
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) return setLocationError('Tu navegador no soporta geolocalización.');
+    setGettingLocation(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        setLocationCoords({ lat: coords.latitude, lng: coords.longitude });
+        setLocationUrl(`https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`);
+        if (!address.trim()) setAddress(await reverseGeocode(coords.latitude, coords.longitude));
+        setGettingLocation(false);
+      },
+      () => {
+        setLocationError('No se pudo obtener tu ubicación. Revisa los permisos.');
+        setGettingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   }
 
   async function copy(value: string, field: string) {
@@ -166,10 +217,16 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
     setFormError(null);
     if (!name.trim()) return setFormError('Escribe tu nombre.');
     if (phone.trim().length < 7) return setFormError('Escribe un teléfono válido.');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setFormError('Escribe un correo válido.');
     if (pideCedula && idNumber.replace(/\D/g, '').length < 5) {
       return setFormError('Escribe tu cédula: es tu clave para entrar al Wallet.');
     }
-    if (mode === 'DELIVERY' && !address.trim()) return setFormError('Escribe la dirección de entrega.');
+    if (!paymentMethod) return setFormError('Escoge un método de pago.');
+    if (mode === 'DELIVERY' && !address.trim() && !locationUrl) return setFormError('Escribe o marca la dirección de entrega.');
+    if (mode === 'DELIVERY' && shop.deliveryPricingMode !== 'DISABLED' && !locationCoords) {
+      return setFormError('Marca la ubicación para calcular el envío.');
+    }
+    if (deliveryQuoteError || quotingFee) return setFormError(deliveryQuoteError ?? 'Espera mientras calculamos el envío.');
     if (pideComprobante && !proofUrl) return setFormError('Adjunta el comprobante de tu pago.');
 
     setSubmitting(true);
@@ -180,6 +237,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
         ...(plan ? { installments: plan.installments } : {}),
         items: cart.map((l) => ({
           productId: l.product.id,
+          variantId: l.variant.id,
           v1: l.variant.v1,
           v2: l.variant.v2,
           qty: l.qty,
@@ -187,14 +245,20 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
         customer: {
           name: name.trim(),
           phone: phone.trim(),
+          email: email.trim(),
           ...(pideCedula ? { idNumber: idNumber.trim() } : {}),
-          ...(mode === 'DELIVERY' ? { address: address.trim() } : {}),
-          ...(paymentMethod ? { paymentMethod } : {}),
+          ...(mode === 'DELIVERY' ? {
+            address: address.trim(),
+            ...(locationUrl ? { locationUrl } : {}),
+            ...(locationCoords ? { latitude: locationCoords.lat, longitude: locationCoords.lng } : {}),
+          } : {}),
+          paymentMethod,
           ...(proofUrl ? { proofImageUrl: proofUrl } : {}),
+          ...(note.trim() ? { note: note.trim() } : {}),
         },
       });
       const order = res.data.data;
-      setPlaced({ orderNumber: order.orderNumber, total: aPagarAhora });
+      setPlaced({ orderNumber: order.orderNumber, total: aPagarAhora, showWallet: pideCedula });
       onChangeCart([]);
     } catch (err: any) {
       setFormError(err.response?.data?.error ?? 'No pudimos enviar tu pedido. Intenta de nuevo.');
@@ -218,16 +282,16 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
             <Check className="h-7 w-7 text-emerald-600" />
           </div>
           <h2 className="text-lg font-semibold text-brand-950">¡Pedido enviado!</h2>
-          <p className="mt-1 text-sm font-light text-brand-950/60">
+          <p className="mt-1 font-light text-brand-950/60 text-base">
             Es el pedido <span className="font-semibold text-brand-950">#{placed.orderNumber}</span>
             {plan ? ', con una inicial de ' : ' por '}
             {totalLabel.primary}
             {totalLabel.secondary ? ` (${totalLabel.secondary})` : ''}.
           </p>
           {proofUrl && (
-            <p className="mt-2 text-sm font-light text-brand-950/60">Ya recibimos tu comprobante.</p>
+            <p className="mt-2 font-light text-brand-950/60 text-base">Ya recibimos tu comprobante.</p>
           )}
-          <p className="mt-3 text-sm font-light text-brand-950/60">
+          <p className="mt-3 font-light text-brand-950/60 text-base">
             {shop.whatsappBotConnected
               ? 'En un momento te escribimos por WhatsApp con los datos para pagar.'
               : 'La tienda se comunicará contigo por WhatsApp para coordinar el pago y la entrega.'}
@@ -241,20 +305,17 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
                 </TextureButton>
               </a>
             )}
-            {/* El siguiente paso natural del comprador: su pedido (entrada, cuotas, QR) vive
-                en el Wallet, así que se le lleva directo en vez de dejarlo "seguir viendo".
-                El wordmark es blanco: solo funciona sobre este fondo oscuro. */}
-            <a href="/wallet" target="_blank" rel="noreferrer" className="block">
-              <button
-                type="button"
-                className="wallet-tap flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-950 py-2.5"
-              >
-                <span className="text-sm font-semibold text-white">Ir a</span>
-                {/* El arte del wordmark carga el peso visual abajo (las ondas suben), así que
-                    centrado "de verdad" se ve hundido junto al texto: se sube un pelo a ojo. */}
-                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-4 w-auto -translate-y-[1.5px]" />
-              </button>
-            </a>
+            {placed.showWallet && (
+              <a href="/wallet" target="_blank" rel="noreferrer" className="block">
+                <button
+                  type="button"
+                  className="wallet-tap flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-950 py-2.5 active:scale-[0.98]"
+                >
+                  <span className="text-sm font-semibold text-white">Ir a</span>
+                  <img src="/logo/wallet.png?v=20261002-wallet" alt="QuickTap Wallet" className="h-4 w-auto -translate-y-[1.5px]" />
+                </button>
+              </a>
+            )}
           </div>
         </div>
       </ShopSheet>
@@ -269,7 +330,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
 
         <ul className="space-y-3">
           {cart.map((line, index) => {
-            const lineTotal = publicPriceLabel(line.product.price * line.qty, shop);
+            const lineTotal = publicPriceLabel(storefrontLinePrice(line) * line.qty, shop);
             const label = [line.variant.v1, line.variant.v2].filter(Boolean).join(' · ');
             const inc = stepFor(line.variant);
             return (
@@ -277,13 +338,13 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
                 {line.product.photoUrl ? (
                   <img src={line.product.photoUrl} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" />
                 ) : (
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-950/[0.06] text-xl">
-                    {line.product.isService ? '✂️' : '🛍️'}
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-950/[0.06]">
+                    <PackageOpen className="h-6 w-6 text-brand-950/30" strokeWidth={1.5} />
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-brand-950">{line.product.name}</p>
-                  {label && <p className="text-xs font-light text-brand-950/50">{label}</p>}
+                  <p className="truncate font-semibold text-brand-950 text-base">{line.product.name}</p>
+                  {label && <p className="font-light text-brand-950/50 text-xs">{label}</p>}
                   <div className="mt-1.5 flex items-center gap-2">
                     <button
                       onClick={() => setQty(index, Number((line.qty - inc).toFixed(3)))}
@@ -297,14 +358,15 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
                     </span>
                     <button
                       onClick={() => setQty(index, Number((line.qty + inc).toFixed(3)))}
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950/[0.06] text-brand-950/70"
+                      disabled={line.variant.stockRemaining != null && line.qty + inc > line.variant.stockRemaining + 0.0001}
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950/[0.06] text-brand-950/70 active:scale-95 disabled:opacity-35"
                       aria-label="Agregar uno"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
-                <p className="shrink-0 text-sm font-semibold text-brand-950">{lineTotal.primary}</p>
+                <p className="shrink-0 font-semibold text-brand-950 text-base">{lineTotal.primary}</p>
               </li>
             );
           })}
@@ -324,7 +386,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
             </div>
           </div>
           {shop.deliveryFee > 0 && (
-            <p className="pt-1 text-xs font-light text-brand-950/40">
+            <p className="pt-1 font-light text-brand-950/40 text-xs">
               El envío ({publicPriceLabel(shop.deliveryFee, shop).primary}) se suma si eliges delivery.
             </p>
           )}
@@ -352,7 +414,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
     return (
       <ShopSheet onClose={onClose}>
         <h2 className="text-lg font-semibold text-brand-950">¿Cómo vas a pagar?</h2>
-        <p className="mt-1 text-[13px] font-light text-brand-950/50">
+        <p className="mt-1 font-light text-brand-950/50 text-base">
           {plan ? 'Hoy pagas solo la inicial de tu plan.' : 'Elige el método y te mostramos los datos de la cuenta.'}
         </p>
 
@@ -386,22 +448,10 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
             );
           })}
 
-          <button
-            type="button"
-            onClick={() => setPaymentMethod('')}
-            className={`wallet-tap w-full rounded-2xl border px-4 py-3 text-left transition-colors ${
-              paymentMethod === '' ? 'border-brand-500 bg-brand-500/[0.07]' : 'border-brand-950/10 hover:border-brand-950/25'
-            }`}
-          >
-            <span className="block text-sm font-semibold text-brand-950">Lo coordino con la tienda</span>
-            <span className="block text-[11.5px] font-light text-brand-950/50">
-              Te escriben por WhatsApp para acordar el pago.
-            </span>
-          </button>
         </div>
 
         <div className="mt-5 space-y-2">
-          <TextureButton variant="brand" size="default" onClick={() => setStep('checkout')}>
+          <TextureButton variant="brand" size="default" disabled={!paymentMethod} className="disabled:opacity-40" onClick={() => setStep('checkout')}>
             Continuar
           </TextureButton>
           <button onClick={() => setStep('cart')} className="w-full py-2 text-sm font-medium text-brand-950/50">
@@ -419,8 +469,8 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
 
       {!allTickets && (
         <div className="grid grid-cols-2 gap-2">
-          <ModeTile active={mode === 'PICKUP'} onClick={() => setMode('PICKUP')} emoji="🏬" label="Retiro en tienda" />
-          <ModeTile active={mode === 'DELIVERY'} onClick={() => setMode('DELIVERY')} emoji="🛵" label="Delivery" />
+          <ModeTile active={mode === 'PICKUP'} onClick={() => setMode('PICKUP')} icon={<Store className="h-5 w-5" />} label="Retiro en tienda" />
+          <ModeTile active={mode === 'DELIVERY'} onClick={() => setMode('DELIVERY')} icon={<Bike className="h-5 w-5" />} label="Delivery" />
         </div>
       )}
 
@@ -437,6 +487,9 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
             placeholder="04141234567"
           />
         </Field>
+        <Field label="Correo electrónico *">
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT} placeholder="tu@correo.com" />
+        </Field>
         {pideCedula && (
           <Field label="Cédula *">
             <input
@@ -446,30 +499,57 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
               placeholder="12345678"
               inputMode="numeric"
             />
-            <p className="mt-1 text-[11px] leading-tight text-brand-950/50">
+            <p className="mt-1 leading-tight text-brand-950/50 text-xs">
               Con tu cédula y tu teléfono entras a tu QuickTap Wallet a ver la entrada.
             </p>
           </Field>
         )}
         {mode === 'DELIVERY' && (
           <Field label="Dirección de entrega *">
-            <textarea
+            <AddressAutocomplete
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              rows={2}
+              onChange={setAddress}
+              onSelect={(selection) => {
+                setAddress(selection.displayName);
+                setLocationCoords({ lat: selection.lat, lng: selection.lng });
+                setLocationUrl(`https://www.google.com/maps?q=${selection.lat},${selection.lng}`);
+              }}
               className={INPUT}
               placeholder="Calle, edificio, piso, punto de referencia…"
             />
+            <button
+              type="button"
+              onClick={useCurrentLocation}
+              disabled={gettingLocation}
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-500 active:scale-[0.98] disabled:opacity-50"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              {gettingLocation ? 'Obteniendo ubicación…' : locationUrl ? 'Actualizar ubicación' : 'Usar mi ubicación actual'}
+            </button>
+            {locationUrl && !gettingLocation && <p className="mt-1 font-medium text-emerald-600 text-xs">Ubicación agregada</p>}
+            {locationError && <p className="mt-1 text-red-600 text-xs">{locationError}</p>}
+            {quotingFee && <p className="mt-1 text-brand-950/50 text-xs">Calculando costo de envío…</p>}
+            {deliveryQuoteError && <p className="mt-1 text-red-600 text-xs">{deliveryQuoteError}</p>}
           </Field>
         )}
+
+        <Field label="Nota para la tienda (opcional)">
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value.slice(0, 300))}
+            rows={2}
+            className={INPUT}
+            placeholder="Indicaciones, referencia o detalle del pedido…"
+          />
+        </Field>
 
         {methodConfig && (
           <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.02] px-4 py-3">
             <div className="mb-2 flex items-baseline justify-between gap-2 border-b border-brand-950/[0.07] pb-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-950/50">
+              <p className="font-semibold uppercase tracking-wide text-brand-950/50 text-xs">
                 {PAYMENT_LABELS[paymentMethod]} · {plan ? 'inicial' : 'a pagar'}
               </p>
-              <p className="shrink-0 text-sm font-bold tabular-nums text-brand-950">{montoLabel(aPagarAhora).primary}</p>
+              <p className="shrink-0 font-bold tabular-nums text-brand-950 text-base">{montoLabel(aPagarAhora).primary}</p>
             </div>
             {Object.keys(PAYMENT_FIELD_LABELS).map((field) => {
               const value = methodConfig[field];
@@ -551,7 +631,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
         </div>
       </div>
 
-      {formError && <p className="mt-3 text-sm text-red-600">{formError}</p>}
+      {formError && <p className="mt-3 text-red-600 text-base">{formError}</p>}
 
       <div className="mt-4 space-y-2">
         <TextureButton
@@ -576,7 +656,7 @@ const INPUT =
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1 block text-[13px] font-medium text-brand-950/70">{label}</span>
       {children}
     </label>
@@ -592,7 +672,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ModeTile({ active, onClick, emoji, label }: { active: boolean; onClick: () => void; emoji: string; label: string }) {
+function ModeTile({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
     <button
       onClick={onClick}
@@ -600,8 +680,9 @@ function ModeTile({ active, onClick, emoji, label }: { active: boolean; onClick:
         active ? 'border-brand-500 bg-brand-500/[0.06]' : 'border-brand-950/15 bg-white hover:border-brand-500'
       }`}
     >
-      <span className="block text-2xl">{emoji}</span>
+      <span className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-brand-950/[0.055] text-brand-950/65">{icon}</span>
       <span className="mt-1 block text-xs font-medium text-brand-950">{label}</span>
     </button>
   );
 }
+import { storefrontLinePrice } from './shopStorefront';

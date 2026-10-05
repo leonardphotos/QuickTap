@@ -1,44 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Download, DollarSign, Receipt, Wallet } from 'lucide-react';
+import { OrderDeliveryNoteButton } from './OrderDeliveryNoteButton';
+import PaymentProofReview from '@/components/PaymentProofReview';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
-import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 import { MetricCard } from '@/components/admin/MetricCard';
+import { OrderCorrectionPanel } from './OrderCorrectionPanel';
+import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog.shared';
 import { TextureButton } from '@/components/ui/texture-button';
-
-// -----------------------------------------------------------------------------
-//  Historial de pedidos — compartido por Administración → Historial y por
-//  Delivery → Historial (mismos filtros, métricas, exportación y detalle).
-// -----------------------------------------------------------------------------
-
-export type Range = 'day' | 'week' | 'month' | 'year' | 'all';
-export type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
-export type HistoryPaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { PaymentMethod as AnyPaymentMethod } from '@/types';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
+import { ChevronDown,DollarSign,Download,Receipt,Wallet } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { type Channel,CHANNEL_ROW_LABELS,HISTORY_PAYMENT_LABELS,type HistoryPaymentMethod,type Range,RANGE_LABELS } from './OrderHistorySection.shared';
 /** Quién cargó el pedido: personal, el propio cliente desde su teléfono o la tablet de autoservicio. */
 export type OrderSource = 'STAFF' | 'CUSTOMER' | 'KIOSK';
-
-export const RANGE_LABELS: Record<Range, string> = {
-  day: 'Hoy',
-  week: 'Semana',
-  month: 'Este mes',
-  year: 'Este año',
-  all: 'Todo',
-};
-export const CHANNEL_ROW_LABELS: Record<Channel, string> = {
-  DINE_IN: 'Mesa',
-  DELIVERY: 'Delivery',
-  PICKUP: 'Pickup',
-  BAR: 'Barra',
-  EXPRESS: 'Express',
-};
-export const HISTORY_PAYMENT_LABELS: Record<HistoryPaymentMethod, string> = {
-  MOBILE_PAYMENT: 'Pago Móvil',
-  ZELLE: 'Zelle',
-  CASH: 'Efectivo',
-  CARD: 'Tarjeta',
-};
 const SOURCE_LABELS: Record<OrderSource, string> = {
   STAFF: 'Personal',
   CUSTOMER: 'Cliente',
@@ -64,6 +38,9 @@ export interface HistoryOrderPayment {
 }
 
 export interface HistoryOrder {
+  adminCorrectedAt?: string | null;
+  adminVoidedAt?: string | null;
+  correctionBalance?: {pendingCollectionBase:string;pendingRefundBase:string} | null;
   id: string;
   orderNumber: number;
   channel: Channel;
@@ -84,6 +61,11 @@ export interface HistoryOrder {
   createdAt: string;
   items: HistoryOrderItem[];
   payments: HistoryOrderPayment[];
+  refunds?: {
+    id: string; amountBase: string; amountBs: string | null; method: string;
+    reason: string; referenceNumber: string | null; fiscalCreditNoteRef: string | null;
+    createdByName: string; createdAt: string;
+  }[];
 }
 
 export interface HistoryResult {
@@ -110,6 +92,9 @@ export function OrderDetailRow({
   /** Si se pasa, el detalle permite editar la propina del pedido. */
   onTipSaved?: () => void;
 }) {
+  const {user}=useAuth();
+  const canCorrect=user?.role==='OWNER'||user?.role==='ADMIN'||user?.role==='CASHIER';
+  const [correcting,setCorrecting]=useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editingTip, setEditingTip] = useState(false);
   const [tipDraft, setTipDraft] = useState('');
@@ -131,11 +116,16 @@ export function OrderDetailRow({
     <div className="px-5 py-3">
       <button onClick={() => setExpanded((e) => !e)} className="flex w-full items-center justify-between gap-3 text-left">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-brand-950">
+          <p className="font-medium text-brand-950 text-base">
             #{order.orderNumber}
+            {order.adminVoidedAt && <span className="ml-2 text-red-600">Anulado · registro conservado</span>}
             {order.customerName && <span className="font-normal text-brand-950/60"> · {order.customerName}</span>}
           </p>
-          <p className="text-xs text-brand-950/40">
+          {order.correctionBalance && <p className="text-amber-700 text-xs">
+            {Number(order.correctionBalance.pendingCollectionBase)>0 && `Pendiente por cobrar: ${formatBase(order.correctionBalance.pendingCollectionBase,symbol)}`}
+            {Number(order.correctionBalance.pendingRefundBase)>0 && `Pendiente por devolver: ${formatBase(order.correctionBalance.pendingRefundBase,symbol)}`}
+          </p>}
+          <p className="text-brand-950/40 text-xs">
             {CHANNEL_ROW_LABELS[order.channel]}
             {order.table && ` ${order.table}`} · {new Date(order.createdAt).toLocaleString('es-VE')}
             {order.source === 'KIOSK' && ' · Autoservicio'}
@@ -170,16 +160,16 @@ export function OrderDetailRow({
               <span>Subtotal</span>
               <span>{formatBase(order.subtotalBase, symbol)}</span>
             </div>
-            {Number(order.serviceChargeBase) > 0 && (
-              <div className="flex justify-between">
-                <span>Servicio</span>
-                <span>{formatBase(order.serviceChargeBase, symbol)}</span>
-              </div>
-            )}
             {Number(order.ivaBase) > 0 && (
               <div className="flex justify-between">
                 <span>IVA</span>
                 <span>{formatBase(order.ivaBase, symbol)}</span>
+              </div>
+            )}
+            {Number(order.serviceChargeBase) > 0 && (
+              <div className="flex justify-between">
+                <span>Servicio</span>
+                <span>{formatBase(order.serviceChargeBase, symbol)}</span>
               </div>
             )}
             {Number(order.deliveryFeeBase) > 0 && (
@@ -196,7 +186,7 @@ export function OrderDetailRow({
                     autoFocus
                     value={tipDraft}
                     onChange={(e) => setTipDraft(e.target.value.replace(/[^0-9.]/g, ''))}
-                    className="w-16 rounded border border-brand-950/15 px-1.5 py-0.5 text-xs"
+                    className="w-16 rounded border border-brand-950/15 px-1.5 py-0.5 text-base"
                   />
                   <button onClick={saveTip} className="text-xs font-medium text-brand-500">
                     Guardar
@@ -216,7 +206,7 @@ export function OrderDetailRow({
                 <span>{formatBase(order.tipBase, symbol)}</span>
               )}
             </div>
-            {tipError && <p className="text-red-600">{tipError}</p>}
+            {tipError && <p className="text-red-600 text-base">{tipError}</p>}
             <div className="flex justify-between font-semibold text-brand-950">
               <span>Total</span>
               <span>{formatBase(order.totalBase, symbol)}</span>
@@ -230,7 +220,7 @@ export function OrderDetailRow({
             <div className="space-y-2 pt-1">
               {order.payments.map((p, i) => (
                 <div key={i} className="space-y-1">
-                  <p className="text-xs text-brand-950/50">
+                  <p className="text-brand-950/50 text-xs">
                     {ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}
                     {p.referenceNumber && ` · Ref: ${p.referenceNumber}`}
                     {order.payments.length > 1 && ` · ${formatBase(p.amountBase, symbol)}`}
@@ -238,6 +228,7 @@ export function OrderDetailRow({
                   {/* El comprobante va acá dentro, junto a su pago: verificar un cobro dudoso
                       es justo lo que se viene a hacer a esta pantalla, y hasta ahora había que
                       pedirle la foto a quien cobró. Se abre a tamaño completo en otra pestaña. */}
+                  {p.proofImageUrl&&<PaymentProofReview fileKey={p.proofImageUrl}/>}
                   {p.proofImageUrl && (
                     <a href={p.proofImageUrl} target="_blank" rel="noreferrer" className="block w-fit">
                       <img
@@ -251,16 +242,31 @@ export function OrderDetailRow({
               ))}
             </div>
           ) : (
-            <p className="text-xs text-brand-950/40">
+            <p className="text-brand-950/40 text-xs">
               {order.paymentMethod
                 ? HISTORY_PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod
                 : 'Sin método de pago registrado'}
             </p>
           )}
-          <p className="text-xs text-brand-950/40">
+          {!!order.refunds?.length && (
+            <div className="space-y-1 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-900">
+              <p className="font-semibold text-base">Devoluciones registradas (la venta original se conserva)</p>
+              {order.refunds.map((r) => <p key={r.id}>
+                −{formatBase(r.amountBase, symbol)} · {ALL_PAYMENT_LABELS[r.method as AnyPaymentMethod] ?? r.method} · {r.createdByName} · {new Date(r.createdAt).toLocaleString('es-VE')}
+                {r.referenceNumber && ` · Ref. ${r.referenceNumber}`}{r.fiscalCreditNoteRef && ` · NC ${r.fiscalCreditNoteRef}`}
+                <br />{r.reason}
+              </p>)}
+            </div>
+          )}
+          <p className="text-brand-950/40 text-xs">
             Origen: {SOURCE_LABELS[order.source]}
             {order.source === 'STAFF' && order.placedByName && ` · ${order.placedByName}`}
           </p>
+          <OrderDeliveryNoteButton orderId={order.id} />
+          {canCorrect && order.payments.length>0 && <button type="button" onClick={()=>setCorrecting(v=>!v)} className="rounded-xl bg-brand-500/10 px-4 py-2 text-sm font-semibold text-brand-600">
+            {correcting?'Cerrar corrección':'Corregir pedido'}
+          </button>}
+          {canCorrect && correcting && <OrderCorrectionPanel orderId={order.id} onSaved={()=>onTipSaved?.()} />}
         </div>
       )}
     </div>
@@ -369,7 +375,7 @@ export function OrderHistorySection({
             {RANGE_LABELS[r]}
           </button>
         ))}
-        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+        <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
           Desde
           <input
             type="date"
@@ -380,7 +386,7 @@ export function OrderHistorySection({
             }`}
           />
         </label>
-        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+        <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
           Hasta
           <input
             type="date"
@@ -414,7 +420,7 @@ export function OrderHistorySection({
           <select
             value={channel}
             onChange={(e) => setChannel(e.target.value as Channel | '')}
-            className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+            className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
           >
             <option value="">{channels ? 'Delivery y pickup' : 'Todos los canales'}</option>
             {channelOptions.map((c) => (
@@ -427,7 +433,7 @@ export function OrderHistorySection({
         <select
           value={paymentMethod}
           onChange={(e) => setPaymentMethod(e.target.value as HistoryPaymentMethod | '')}
-          className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+          className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
         >
           <option value="">Todos los métodos de pago</option>
           {(Object.keys(HISTORY_PAYMENT_LABELS) as HistoryPaymentMethod[]).map((p) => (
@@ -439,7 +445,7 @@ export function OrderHistorySection({
         <select
           value={placedBy}
           onChange={(e) => setPlacedBy(e.target.value as 'staff' | 'customer' | 'kiosk' | '')}
-          className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+          className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
         >
           <option value="">Origen: todos</option>
           <option value="staff">Cargado por el personal</option>
@@ -450,7 +456,7 @@ export function OrderHistorySection({
           <select
             value={waiterId}
             onChange={(e) => setWaiterId(e.target.value)}
-            className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+            className="rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
           >
             <option value="">Usuario: todos</option>
             {waiters.map((w) => (
@@ -462,7 +468,7 @@ export function OrderHistorySection({
         )}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {result && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -475,7 +481,7 @@ export function OrderHistorySection({
       )}
 
       <div className="divide-y divide-brand-950/[0.06] rounded-2xl border border-brand-950/10 bg-white shadow-sm">
-        {result?.orders.length === 0 && <p className="p-5 text-sm font-light text-brand-950/40">Sin pedidos en este filtro.</p>}
+        {result?.orders.length === 0 && <p className="p-5 font-light text-brand-950/40 text-base">Sin pedidos en este filtro.</p>}
         {result?.orders.map((o) => (
           <OrderDetailRow key={o.id} order={o} symbol={symbol} onTipSaved={load} />
         ))}

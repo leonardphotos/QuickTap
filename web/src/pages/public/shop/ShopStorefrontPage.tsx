@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePresencia } from '@/hooks/usePresencia';
-import { Search, ShoppingCart } from 'lucide-react';
+import { PackageOpen, Search, ShoppingCart } from 'lucide-react';
 import { api } from '@/api/client';
 import { publicPriceLabel } from '@/utils/format';
 import { ShopCartDrawer } from './ShopCartDrawer';
@@ -32,6 +32,7 @@ export default function ShopStorefrontPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [openProduct, setOpenProduct] = useState<StorefrontProduct | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -47,6 +48,40 @@ export default function ShopStorefrontPage() {
         }
       });
   }, [slug]);
+
+  // El carrito sobrevive una recarga, pero se reconstruye contra el catálogo recién cargado:
+  // así nunca conserva precios viejos, variantes eliminadas ni cantidades mayores al stock.
+  useEffect(() => {
+    if (!data || !slug) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(`quicktap-shop-cart:${slug}`) ?? '[]') as {
+        productId: string;
+        variantId: string;
+        qty: number;
+      }[];
+      const products = data.categories.flatMap((category) => category.products);
+      const restored = saved.flatMap((line) => {
+        const product = products.find((candidate) => candidate.id === line.productId);
+        const variant = product?.variants.find((candidate) => candidate.id === line.variantId);
+        if (!product || !variant?.available || !Number.isFinite(line.qty) || line.qty <= 0) return [];
+        const qty = Math.min(line.qty, variant.stockRemaining ?? line.qty);
+        return qty > 0 ? [{ product, variant, qty }] : [];
+      });
+      setCart(restored);
+    } catch {
+      localStorage.removeItem(`quicktap-shop-cart:${slug}`);
+    } finally {
+      setCartHydrated(true);
+    }
+  }, [data, slug]);
+
+  useEffect(() => {
+    if (!cartHydrated || !slug) return;
+    localStorage.setItem(
+      `quicktap-shop-cart:${slug}`,
+      JSON.stringify(cart.map((line) => ({ productId: line.product.id, variantId: line.variant.id, qty: line.qty }))),
+    );
+  }, [cart, cartHydrated, slug]);
 
   // Los colores del local se aplican como variables CSS en el <html>, no en un div local: las
   // hojas de producto y carrito viven en un portal fuera de este árbol y si no heredarían
@@ -88,10 +123,14 @@ export default function ShopStorefrontPage() {
 
   function addToCart(product: StorefrontProduct, variant: StorefrontVariant, qty: number) {
     setCart((prev) => {
-      const index = prev.findIndex((l) => sameLine(l, { productId: product.id, v1: variant.v1, v2: variant.v2 }));
-      if (index === -1) return [...prev, { product, variant, qty }];
+      const index = prev.findIndex((l) => sameLine(l, { productId: product.id, variantId: variant.id }));
+      const cappedQty = Math.min(qty, variant.stockRemaining ?? qty);
+      if (index === -1) return [...prev, { product, variant, qty: cappedQty }];
       const next = [...prev];
-      next[index] = { ...next[index], qty: next[index].qty + qty };
+      next[index] = {
+        ...next[index],
+        qty: Math.min(next[index].qty + qty, variant.stockRemaining ?? next[index].qty + qty),
+      };
       return next;
     });
     setOpenProduct(null);
@@ -100,14 +139,14 @@ export default function ShopStorefrontPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6 text-center">
-        <p className="text-brand-950/60 font-light">{error}</p>
+        <p className="text-brand-950/60 font-light text-base">{error}</p>
       </div>
     );
   }
   if (!data || !shop) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-brand-950/40 font-light">Cargando…</p>
+        <p className="text-brand-950/40 font-light text-base">Cargando…</p>
       </div>
     );
   }
@@ -122,9 +161,10 @@ export default function ShopStorefrontPage() {
   const cartCount = cart.reduce((acc, l) => acc + (l.variant.soldByWeight ? 1 : l.qty), 0);
   const subtotalLabel = publicPriceLabel(cartSubtotal(cart), shop);
   const bannerColor = theme?.bannerColor || '#0597F2';
+  const menuBackground = theme?.backgroundColor || '#F5F5F7';
 
   return (
-    <div className="relative min-h-screen bg-white pb-32 overflow-hidden">
+    <div className="relative min-h-screen pb-32 overflow-hidden" style={{ backgroundColor: menuBackground }}>
       {/* Banner: foto de portada del local o degradado con su color de marca. */}
       <div className="absolute inset-x-0 top-0 h-80 pointer-events-none">
         {theme?.coverImageUrl ? (
@@ -132,7 +172,7 @@ export default function ShopStorefrontPage() {
             <img src={theme.coverImageUrl} alt="" className="h-full w-full object-cover" />
             <div
               className="absolute inset-0"
-              style={{ background: `linear-gradient(to bottom, ${hexToRgba(bannerColor, 0.35)}, #ffffff)` }}
+              style={{ background: `linear-gradient(to bottom, ${hexToRgba(bannerColor, 0.28)}, ${menuBackground})` }}
             />
           </>
         ) : (
@@ -141,7 +181,7 @@ export default function ShopStorefrontPage() {
             style={
               theme?.bannerStyle === 'solid'
                 ? { backgroundColor: bannerColor }
-                : { background: `linear-gradient(to bottom, ${bannerColor}, #ffffff)` }
+                : { background: `linear-gradient(to bottom, ${bannerColor}, ${menuBackground})` }
             }
           />
         )}
@@ -153,15 +193,15 @@ export default function ShopStorefrontPage() {
           alt={shop.name}
           className="w-20 h-20 rounded-full object-cover ring-4 ring-white/40 shadow-lg"
         />
-        <p className="mt-2 text-base font-semibold text-white drop-shadow-sm">{shop.name}</p>
-        {shop.description && (
-          <p className="text-xs font-light max-w-xs" style={{ color: theme?.bioColor ?? 'rgba(255,255,255,0.8)' }}>
-            {shop.description}
-          </p>
-        )}
+        <div className="mt-3 max-w-md rounded-[22px] border border-white/35 bg-white/68 px-5 py-2.5 shadow-[0_12px_36px_-18px_rgba(0,0,0,.35)] backdrop-blur-xl">
+          <p className="font-semibold tracking-[-0.015em] text-brand-950 text-base">{shop.name}</p>
+          {shop.description && (
+            <p className="mt-0.5 leading-relaxed text-brand-950/60 text-xs">{shop.description}</p>
+          )}
+        </div>
       </header>
 
-      <main className="relative max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <main className="relative mx-auto max-w-6xl space-y-7 px-4 py-6 sm:px-6 lg:px-8">
         {!shop.isOpen && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm">
             {shop.closedReason || 'La tienda está cerrada en este momento.'} Puedes ver el catálogo, pero los pedidos se
@@ -174,38 +214,37 @@ export default function ShopStorefrontPage() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2.5 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.1)]">
-          <Search className="h-4 w-4 shrink-0 text-brand-950/40" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar en la tienda…"
-            className="flex-1 min-w-0 bg-transparent text-sm text-brand-950 placeholder:text-brand-950/40 focus:outline-none"
-          />
+        <div className="sticky top-3 z-10 space-y-3 rounded-[28px] border border-white/70 bg-white/72 p-2.5 shadow-[0_12px_40px_-24px_rgba(0,0,0,.35)] backdrop-blur-2xl">
+          <div className="flex items-center gap-2 rounded-full bg-brand-950/[0.045] px-4 py-2.5 ring-1 ring-inset ring-brand-950/[0.045] focus-within:ring-brand-500/35">
+            <Search className="h-4 w-4 shrink-0 text-brand-950/40" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar productos, marcas…"
+              className="min-w-0 flex-1 bg-transparent text-brand-950 placeholder:text-brand-950/40 focus:outline-none text-base"
+            />
+          </div>
+          {data.categories.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <CategoryChip active={activeCategory === null} onClick={() => setActiveCategory(null)}>Todo</CategoryChip>
+              {data.categories.map((c) => (
+                <CategoryChip key={c.name} active={activeCategory === c.name} onClick={() => setActiveCategory(c.name)}>
+                  {c.name}
+                </CategoryChip>
+              ))}
+            </div>
+          )}
         </div>
 
-        {data.categories.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <CategoryChip active={activeCategory === null} onClick={() => setActiveCategory(null)}>
-              Todo
-            </CategoryChip>
-            {data.categories.map((c) => (
-              <CategoryChip key={c.name} active={activeCategory === c.name} onClick={() => setActiveCategory(c.name)}>
-                {c.name}
-              </CategoryChip>
-            ))}
-          </div>
-        )}
-
         {visibleCategories.length === 0 ? (
-          <p className="text-center text-sm text-brand-950/40 font-light py-10">
+          <p className="text-center text-brand-950/40 font-light py-10 text-base">
             {search.trim() ? 'No encontramos nada con esa búsqueda.' : 'Esta tienda todavía no publicó productos.'}
           </p>
         ) : (
           visibleCategories.map((category) => (
             <section key={category.name}>
-              <h2 className="text-base font-semibold text-brand-950 mb-3">{category.name}</h2>
-              <div className="grid grid-cols-2 gap-3">
+              <h2 className="mb-3 text-lg font-semibold tracking-[-0.02em] text-brand-950">{category.name}</h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
                 {category.products.map((product) => (
                   <ShopProductCard
                     key={product.id}
@@ -275,7 +314,7 @@ function CategoryChip({ active, onClick, children }: { active: boolean; onClick:
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-shadow ${
+      className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-[transform,background-color,color,box-shadow] active:scale-[0.96] ${
         active
           ? 'bg-brand-500 text-[color:var(--qt-button-text,white)] shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
           : 'bg-white text-brand-950/60 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.12)]'
@@ -302,7 +341,7 @@ function ShopProductCard({
     <button
       onClick={onOpen}
       disabled={!product.available}
-      className="text-left rounded-3xl bg-white p-2.5 flex flex-col shadow-[0_2px_14px_-4px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.16)] transition-shadow duration-300 disabled:opacity-60"
+      className="group flex flex-col rounded-[26px] border border-black/[0.045] bg-white/90 p-2.5 text-left shadow-[0_8px_30px_-22px_rgba(0,0,0,.4)] transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_-24px_rgba(0,0,0,.45)] active:scale-[0.985] disabled:opacity-60"
     >
       <div className="relative mb-2.5">
         {product.photoUrl ? (
@@ -311,16 +350,16 @@ function ShopProductCard({
             alt={product.name}
             loading="lazy"
             decoding="async"
-            className="aspect-[4/5] w-full rounded-2xl object-cover"
+            className="aspect-[4/5] w-full rounded-[20px] object-cover transition-transform duration-500 group-hover:scale-[1.015]"
           />
         ) : (
-          <div className="aspect-[4/5] w-full rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-4xl">
-            {product.isService ? '✂️' : '🛍️'}
+          <div className="flex aspect-[4/5] w-full items-center justify-center rounded-[20px] bg-gradient-to-br from-brand-400/20 to-brand-500/10">
+            <PackageOpen className="h-10 w-10 text-brand-950/25" strokeWidth={1.4} />
           </div>
         )}
         <span className="absolute -bottom-2 right-2 flex items-center gap-1.5 bg-brand-500 text-[color:var(--qt-button-text,white)] text-xs font-semibold px-2.5 py-1 rounded-full shadow">
           {original && <span className="opacity-60 line-through font-normal">{original.primary}</span>}
-          {price.primary}
+          {product.hasVariablePrice ? `Desde ${price.primary}` : price.primary}
         </span>
         {!product.available && (
           <span className="absolute top-1.5 left-1.5 rounded-full bg-brand-950/70 px-2 py-0.5 text-[10px] font-semibold text-white">
@@ -334,11 +373,11 @@ function ShopProductCard({
         )}
       </div>
 
-      <p className="font-semibold text-sm text-brand-950 truncate">{product.name}</p>
+      <p className="truncate px-0.5 font-semibold tracking-[-0.01em] text-brand-950 text-base">{product.name}</p>
       {/* Entrada a un evento: cuándo es y cuánto cupo queda. Es lo que decide la compra, así
           que va antes que la marca/subcategoría. */}
       {product.isEvent ? (
-        <p className="mt-0.5 text-xs font-light text-brand-950/60">
+        <p className="mt-0.5 font-light text-brand-950/60 text-xs">
           {product.eventDate?.split('-').reverse().join('/')}
           {product.eventTime && ` · ${product.eventTime}`}
           {product.seatsLeft != null && product.seatsLeft > 0 && (
@@ -349,7 +388,7 @@ function ShopProductCard({
         </p>
       ) : (
         (product.brand || product.subcategory) && (
-          <p className="text-xs text-brand-950/50 font-light line-clamp-1 mt-0.5">
+          <p className="text-brand-950/50 font-light line-clamp-1 mt-0.5 text-xs">
             {product.brand || product.subcategory}
           </p>
         )

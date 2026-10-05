@@ -54,14 +54,14 @@ export function ZoneDialog({ open, onOpenChange, zones, onChanged }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="ej: Terraza, Salón Principal"
-            className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             required
           />
           <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
         </form>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <ul className="divide-y divide-brand-950/10 rounded-xl border border-brand-950/10 max-h-64 overflow-y-auto">
           {zones.map((z) => (

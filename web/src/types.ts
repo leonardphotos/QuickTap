@@ -13,7 +13,8 @@ export type UserRole =
   | 'NUMERO'
   | 'CANCHA'
   | 'COACH'
-  | 'VERIFICADOR';
+  | 'VERIFICADOR'
+  | 'MOTORIZADO';
 
 export interface ExchangeRateInfo {
   rateBs: string;
@@ -54,6 +55,7 @@ export type PaymentMethodKey = 'CASH' | 'CASH_USD' | 'MOBILE_PAYMENT' | 'ZELLE' 
 /** Una cuenta receptora ADICIONAL de un método (el segundo Zelle, el segundo Pago Móvil…).
  *  `key` es su id estable en la UI; `label` la distingue al elegir en caja ("Zelle Chase"). */
 export interface PaymentMethodExtraAccount {
+  institutionId?: string | null;
   key: string;
   label?: string;
   banco?: string;
@@ -71,6 +73,7 @@ export interface PaymentMethodExtraAccount {
 
 /** Datos propios de cada método de pago (los que apliquen); todos opcionales. */
 export interface PaymentMethodFields {
+  institutionId?: string | null;
   enabled?: boolean;
   label?: string;
   banco?: string;
@@ -89,7 +92,7 @@ export interface PaymentMethodFields {
   extraAccounts?: PaymentMethodExtraAccount[];
 }
 
-export type PaymentMethodsConfig = Partial<Record<PaymentMethodKey, PaymentMethodFields>>;
+export type PaymentMethodsConfig = Partial<Record<PaymentMethodKey, PaymentMethodFields>> & { publicMenu?: PaymentMethodFields & { hidden?: boolean } };
 
 export interface Restaurant {
   id: string;
@@ -133,7 +136,8 @@ export interface Restaurant {
   screenPageIntervalSec?: number;
   screenItemsPerPage?: number;
   /** Si el local cobra envío, el carrito exige la ubicación para poder calcular la zona. */
-  deliveryPricingMode?: 'DISABLED' | 'DISTANCE' | 'ZONE';
+  deliveryPricingMode?: 'DISABLED' | 'DISTANCE' | 'DISTANCE_TIERS' | 'ZONE';
+  deliveryAvailable?: boolean;
   deliveryOriginLat?: number | null;
   deliveryOriginLng?: number | null;
   /** Solo en el menú público: si el restaurante tiene al menos una mesa creada. */
@@ -141,6 +145,7 @@ export interface Restaurant {
 }
 
 export interface Category {
+  kitchenId?: string | null;
   id: string;
   name: string;
   priority: number;
@@ -194,6 +199,8 @@ export interface Modifier {
   preparationId?: string | null;
   /** Consumo en la unidad BASE del insumo/preparación (kg/lt/unidad), como string decimal. */
   inventoryQuantity?: string | null;
+  /** true = el consumo se define individualmente para cada variante/tamaño. */
+  inventoryByVariant?: boolean;
   /** Denormalizados por el backend para pintar "30 gr de Queso" sin cruzar listas. */
   inventoryItemName?: string | null;
   inventoryItemUnit?: string | null;
@@ -358,6 +365,8 @@ export interface StaffMember {
   commissionPercent?: number | null;
   /** Sus propios datos de cobro (Pago Móvil/Zelle) — en barbería el cliente le paga directo. */
   paymentMethodsConfig?: PaymentMethodsConfig | null;
+  /** Motorizado: número usado para su perfil de reparto y contacto operativo. */
+  whatsappPhone?: string | null;
   /** true si ya tiene el PIN de 4 dígitos configurado (Pantalla de bloqueo / segundo inicio
    * de sesión de mesero). No viaja el PIN ni su hash, solo si existe. */
   hasLockPin: boolean;
@@ -390,12 +399,21 @@ export interface PaymentMethodStats {
 }
 
 export interface QuoteItem {
+  unit?: string;
+  productId?: string;
+  variantId?: string;
+  discountPercent?: number;
   name: string;
   qty: number;
   unitPrice: number;
 }
 
 export interface Quote {
+  customerId?: string | null;
+  customerIdNumber?: string | null;
+  customerAddress?: string | null;
+  paymentTerms?: 'CASH' | 'CREDIT';
+  creditDays?: number | null;
   id: string;
   customerName: string | null;
   customerPhone: string | null;
@@ -586,6 +604,8 @@ export interface ComboComponentInfo {
   componentProductId: string;
   name: string;
   quantity: number;
+  /** Si es true, el cliente lo elige dentro del rango del combo; si no, viene fijo. */
+  isChoice?: boolean;
   isAvailable: boolean;
   /** Tamaño fijado por el combo cuando el plato se vende por variantes ("Noodle Bar 16OZ").
    * Lo decide quien arma el combo, no el cliente — el precio del combo no se mueve. */

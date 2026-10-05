@@ -1,27 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Package, Plus, Trash2, TrendingDown } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
-import { TextureButton } from '@/components/ui/texture-button';
 import { InlinePanel } from '@/components/admin/InlinePanel';
 import { MetricCard } from '@/components/admin/MetricCard';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { AlertTriangle,Package,Plus,Trash2,TrendingDown } from 'lucide-react';
+import { useCallback,useEffect,useMemo,useState } from 'react';
+import { WASTE_REASON_LABELS } from './WasteSection.shared';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Histórico' };
-
-export const WASTE_REASON_LABELS: Record<string, string> = {
-  EXPIRED: 'Vencido',
-  DAMAGED: 'Dañado',
-  PREPARATION: 'Error de preparación',
-  CUSTOMER_RETURN: 'Devolución del cliente',
-  SPILLAGE: 'Derrame',
-  THEFT: 'Faltante / robo',
-  // Se genera sola al reabastecer un insumo con "Rendimiento %" < 100 (Inventario → Insumos);
-  // se deja fuera del selector del formulario manual para no duplicarla a mano.
-  YIELD_LOSS: 'Rendimiento (automático)',
-  OTHER: 'Otro',
-};
 const MANUAL_WASTE_REASONS = Object.entries(WASTE_REASON_LABELS).filter(([k]) => k !== 'YIELD_LOSS');
 
 interface WasteRow {
@@ -98,7 +86,7 @@ export function WasteSection() {
     load();
   }
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const m = (v: string) => formatBase(v, symbol);
   const over = stats?.budget.overBudget;
@@ -157,7 +145,7 @@ export function WasteSection() {
       )}
 
       {over === true && (
-        <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-800">
+        <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-amber-800 text-base">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           Tu merma real ({stats!.budget.realPercent}%) supera el {stats!.budget.percent}% que asumiste en la estructura de costo: cada
           plato está costeado por debajo de lo que realmente cuesta.
@@ -167,7 +155,7 @@ export function WasteSection() {
       {/* --- Por motivo --- */}
       {stats && stats.byReason.length > 0 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
-          <p className="mb-3 text-sm font-semibold text-brand-950">Por qué se pierde</p>
+          <p className="mb-3 font-semibold text-brand-950 text-base">Por qué se pierde</p>
           <div className="space-y-2">
             {stats.byReason.map((r) => (
               <div key={r.reason}>
@@ -193,7 +181,7 @@ export function WasteSection() {
 
       {/* --- Indicador por producto / insumo --- */}
       <div>
-        <p className="mb-3 text-sm font-medium text-brand-950/70">Merma por producto e insumo</p>
+        <p className="mb-3 font-medium text-brand-950/70 text-base">Merma por producto e insumo</p>
         <div className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm">
           <div className="hidden items-center gap-3 border-b border-brand-950/[0.06] px-5 py-2 text-[11px] font-medium uppercase tracking-wide text-brand-950/40 sm:flex">
             <span className="flex-1">Producto / insumo</span>
@@ -202,17 +190,17 @@ export function WasteSection() {
             <span className="w-24 text-right">Costo</span>
           </div>
           <div className="divide-y divide-brand-950/[0.06]">
-            {stats?.rows.length === 0 && <p className="p-5 text-sm font-light text-brand-950/40">Sin merma registrada en este período.</p>}
+            {stats?.rows.length === 0 && <p className="p-5 font-light text-brand-950/40 text-base">Sin merma registrada en este período.</p>}
             {stats?.rows.map((r) => (
               <div key={`${r.kind}-${r.id ?? r.name}`} className="flex items-center gap-3 px-5 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-brand-950">
+                  <p className="truncate font-medium text-brand-950 text-base">
                     {r.name}
                     <span className="ml-2 rounded-full bg-brand-950/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-brand-950/60">
                       {r.kind === 'PRODUCT' ? 'Producto' : 'Insumo'}
                     </span>
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {r.records} registro{r.records === 1 ? '' : 's'}
                     {r.soldUnits != null && ` · ${r.soldUnits} vendidos`}
                   </p>
@@ -228,7 +216,7 @@ export function WasteSection() {
             ))}
           </div>
         </div>
-        <p className="mt-2 text-[11px] font-light text-brand-950/45">
+        <p className="mt-2 font-light text-brand-950/45 text-xs">
           "% merma" compara lo perdido contra lo perdido + vendido del mismo producto; para insumos no aplica (no se venden sueltos).
         </p>
       </div>
@@ -236,12 +224,12 @@ export function WasteSection() {
       {/* --- Historial --- */}
       {rows && rows.length > 0 && (
         <div>
-          <p className="mb-3 text-sm font-medium text-brand-950/70">Registros</p>
+          <p className="mb-3 font-medium text-brand-950/70 text-base">Registros</p>
           <div className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
             {rows.map((r) => (
               <div key={r.id} className="flex items-center gap-3 px-5 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-brand-950">
+                  <p className="truncate text-brand-950 text-base">
                     <span className="font-medium">{r.itemName}</span>
                     <span className="text-brand-950/50">
                       {' '}
@@ -249,7 +237,7 @@ export function WasteSection() {
                       {WASTE_REASON_LABELS[r.reason] ?? r.reason}
                     </span>
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {new Date(r.occurredAt).toLocaleDateString('es-VE')}
                     {r.createdByName && ` · ${r.createdByName}`}
                     {r.note && ` · ${r.note}`}
@@ -374,11 +362,11 @@ function WasteForm({ symbol, onClose, onSaved }: { symbol: string; onClose: () =
         </select>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="text-xs text-brand-950/60">
+          <label className="text-brand-950/60 text-sm font-medium">
             Cantidad {selected ? `(${selected.unit})` : ''}
             <input type="number" min={0} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={`mt-1 ${inputCls}`} />
           </label>
-          <label className="text-xs text-brand-950/60">
+          <label className="text-brand-950/60 text-sm font-medium">
             Motivo
             <select value={reason} onChange={(e) => setReason(e.target.value)} className={`mt-1 ${inputCls}`}>
               {MANUAL_WASTE_REASONS.map(([k, label]) => (
@@ -388,22 +376,22 @@ function WasteForm({ symbol, onClose, onSaved }: { symbol: string; onClose: () =
               ))}
             </select>
           </label>
-          <label className="text-xs text-brand-950/60">
+          <label className="text-brand-950/60 text-sm font-medium">
             Fecha (opcional, por defecto hoy)
             <input type="date" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} className={`mt-1 ${inputCls}`} />
           </label>
-          <label className="text-xs text-brand-950/60">
+          <label className="text-brand-950/60 text-sm font-medium">
             Nota (opcional)
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Detalle" className={`mt-1 ${inputCls}`} />
           </label>
         </div>
 
-        <label className="flex cursor-pointer items-start gap-2 text-xs text-brand-950/70">
+        <label className="flex cursor-pointer items-start gap-2 text-brand-950/70 text-sm font-medium">
           <input type="checkbox" checked={adjustStock} onChange={(e) => setAdjustStock(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-500" />
           <span>Descontar la existencia (si se botó, ya no está en la nevera).</span>
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <div className="flex items-center gap-2">
           <TextureButton variant="primary" size="sm" className="!w-auto" onClick={submit} disabled={saving}>

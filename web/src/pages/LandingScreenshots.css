@@ -1,0 +1,18 @@
+.landing-platform-shot {
+  width: min(100%, 260px);
+  aspect-ratio: 390 / 844;
+  border-radius: 24px;
+}
+
+.landing-platform-shot picture {
+  display: block;
+  height: 100%;
+}
+
+@media (min-width: 768px), (orientation: landscape) {
+  .landing-platform-shot {
+    width: 100%;
+    aspect-ratio: 1440 / 1000;
+    border-radius: 14px;
+  }
+}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { TextureButton } from '@/components/ui/texture-button';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
-const LAST_UPDATED = '4 de agosto de 2026';
+const LAST_UPDATED = '4 de octubre de 2026';
 
 const SECTIONS = [
   { id: 'terminos', label: 'Términos y Condiciones' },
@@ -18,7 +18,7 @@ export default function LegalPage() {
       <header className="fixed top-4 inset-x-0 z-30 px-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 rounded-full bg-brand-950/80 backdrop-blur-md border border-white/10 shadow-lg shadow-brand-950/30 px-4 py-2">
           <Link to="/">
-            <img src="/logo/icono-blanco.png" alt="QuickTap" className="h-7 w-7" />
+            <img src="/logo/icono-blanco.png?v=20261002" alt="QuickTap" className="h-7 w-7" />
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
             <Link to="/" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
@@ -40,7 +40,7 @@ export default function LegalPage() {
       <main className="pt-28 pb-20 px-4">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-3xl sm:text-4xl font-bold text-brand-950">Legal</h1>
-          <p className="mt-2 text-sm text-brand-950/50 font-light">Última actualización: {LAST_UPDATED}</p>
+          <p className="mt-2 text-brand-950/50 font-light text-base">Última actualización: {LAST_UPDATED}</p>
 
           {/* Sub-nav entre las dos secciones */}
           <div className="mt-6 sticky top-20 z-20 -mx-4 px-4 py-2 bg-white/90 backdrop-blur-sm border-y border-brand-950/10 flex gap-2">
@@ -60,7 +60,7 @@ export default function LegalPage() {
           {/* ------------------------------------------------------------------ */}
           <section id="terminos" className="scroll-mt-32 mt-10">
             <h2 className="text-2xl font-bold text-brand-950">Términos y Condiciones de Uso</h2>
-            <p className="mt-3 text-brand-950/70 font-light leading-relaxed">
+            <p className="mt-3 text-brand-950/70 font-light leading-relaxed text-base">
               Estos Términos y Condiciones ("Términos") regulan el acceso y uso de QuickTap.club ("QuickTap", "la
               Plataforma", "nosotros"), un software como servicio (SaaS) que permite a restaurantes, tiendas,
               barberías y demás negocios comerciales ("el Negocio", "tú", "el Cliente") gestionar su menú digital,
@@ -89,6 +89,7 @@ export default function LegalPage() {
             <Article title="3. Planes, prueba gratuita y facturación">
               <ul>
                 <li>Toda cuenta nueva inicia con un período de prueba gratuita de 15 días con acceso completo.</li>
+                <li>Las cuentas nuevas de restaurantes registradas con la promoción de bienvenida reciben un 50% de descuento en la primera mensualidad de Esencial, Operación o Control, después de la prueba gratuita. Desde la segunda mensualidad se aplica el precio habitual. No incluye módulos adicionales ni servicios puntuales. No se acumula con cupones: se aplica el descuento más favorable. Un cambio de plan no reinicia el beneficio. Los contratos anteriores conservan sus condiciones.</li>
                 <li>
                   Al finalizar la prueba, debes activar un plan de pago para seguir usando el panel administrativo.
                   El menú público de tu negocio y el inicio de sesión siguen disponibles incluso si tu cuenta queda
@@ -107,6 +108,7 @@ export default function LegalPage() {
                   </Link>
                   y pueden cambiar con aviso previo razonable para renovaciones futuras.
                 </li>
+                <li>No realizamos débitos automáticos por la renovación de tu membresía. Puedes solicitar la cancelación o la no renovación escribiendo a <a href="mailto:soporte@quicktap.club" className="text-brand-500 underline">soporte@quicktap.club</a> desde el correo de tu cuenta e indicando el negocio. Cancelar la renovación no elimina automáticamente tus datos ni devuelve pagos anteriores; cualquier importe ya acordado o pendiente se revisa por separado.</li>
                 <li>Los pagos realizados no son reembolsables salvo que la ley aplicable indique lo contrario.</li>
               </ul>
             </Article>
@@ -193,16 +195,17 @@ export default function LegalPage() {
           {/* ------------------------------------------------------------------ */}
           <section id="privacidad" className="scroll-mt-32 mt-16 pt-10 border-t border-brand-950/10">
             <h2 className="text-2xl font-bold text-brand-950">Aviso Legal y Política de Privacidad</h2>
-            <p className="mt-3 text-brand-950/70 font-light leading-relaxed">
+            <p className="mt-3 text-brand-950/70 font-light leading-relaxed text-base">
               Esta sección explica qué datos recopila QuickTap, con qué fin, y cómo puedes ejercer tus derechos
               sobre ellos. Aplica tanto a los dueños/equipo de un Negocio que usa el panel administrativo como a los
               comensales/clientes finales que hacen un pedido desde un menú público.
             </p>
 
+            {/* Identificación y dirección del titular pendientes de completar; no publicar datos supuestos. */}
             <Article title="1. Identificación del prestador del servicio">
               <p>
-                QuickTap.club es operado como un servicio de software para la gestión de negocios de alimentos y
-                comercio, con actividad en la República Bolivariana de Venezuela. Para consultas legales o de
+                QuickTap.club es un servicio de software para la gestión de negocios de alimentos y
+                comercio. Para consultas legales o de
                 privacidad puedes escribir a{' '}
                 <a href="mailto:legal@quicktap.club" className="text-brand-500 hover:underline">
                   legal@quicktap.club
@@ -215,6 +218,7 @@ export default function LegalPage() {
               <ul>
                 <li><strong>Del dueño/equipo del Negocio:</strong> nombre, correo, teléfono, contraseña (almacenada cifrada), RIF si lo cargas, y la actividad dentro del panel (productos, pedidos, ventas, reportes).</li>
                 <li><strong>Del comensal/cliente final:</strong> nombre, teléfono y, si lo autorizas al usar delivery, tu dirección o ubicación GPS aproximada — se usan únicamente para procesar tu pedido con el Negocio correspondiente.</li>
+                <li><strong>Registro:</strong> medimos la etapa alcanzada y el tipo de negocio con un identificador de sesión. No recogemos el contenido de los campos para contactar a quienes abandonan el formulario. Al crear la cuenta guardamos la fecha y versión de los términos aceptados. Estas métricas no constituyen una grabación de tu pantalla.</li>
                 <li><strong>Datos técnicos:</strong> información básica de la sesión (token de acceso guardado en tu navegador) necesaria para mantenerte conectado al panel o al menú.</li>
                 <li><strong>Comprobantes de pago:</strong> si reportas un pago de suscripción o de un pedido, la imagen del comprobante y el número de referencia que adjuntes.</li>
               </ul>
@@ -224,7 +228,7 @@ export default function LegalPage() {
               <ul>
                 <li>Operar la Plataforma: crear tu cuenta, procesar pedidos, generar reportes, calcular precios y tasas de cambio.</li>
                 <li>Verificar pagos de suscripción y de pedidos.</li>
-                <li>Comunicarnos contigo sobre tu cuenta (avisos de vencimiento, cambios importantes, soporte).</li>
+                <li>Comunicarnos contigo sobre tu cuenta (avisos de vencimiento, cambios importantes, soporte). Estos avisos de servicio se distinguen de las campañas promocionales. Crear una cuenta o facilitar un teléfono no se considera por sí solo autorización para publicidad.</li>
                 <li>Mejorar la Plataforma y prevenir fraude o uso indebido.</li>
               </ul>
             </Article>
@@ -241,6 +245,12 @@ export default function LegalPage() {
               </ul>
             </Article>
 
+            <Article title="Responsabilidad sobre los datos del negocio">
+              <p>El Negocio decide para qué utiliza los datos de sus clientes y equipo y debe informarles de ese uso. QuickTap los trata para prestar el servicio y dar soporte al Negocio; gestiona por separado los datos de contratación y facturación de su propia plataforma. Puedes solicitar información sobre este tratamiento en soporte@quicktap.club.</p>
+            </Article>
+            <Article title="Contenido y derechos de terceros">
+              <p>Publica únicamente imágenes y contenidos propios o que tengas autorización para usar. Para comunicar una posible infracción, escribe a legal@quicktap.club indicando el contenido original, el enlace al contenido cuestionado y un medio de contacto. Revisaremos la solicitud y podremos pedir información para comprobarla. Este canal no se presenta como un registro de agente DMCA.</p>
+            </Article>
             <Article title="5. Aislamiento entre negocios">
               <p>
                 QuickTap es una plataforma multi-negocio: los datos de cada Negocio (productos, pedidos, clientes,
@@ -255,7 +265,7 @@ export default function LegalPage() {
                 Conservamos tus datos mientras tu cuenta esté activa y por el tiempo adicional necesario para cumplir
                 obligaciones legales, contables o de resolución de disputas. Si solicitas la eliminación de tu
                 cuenta, eliminamos o anonimizamos los datos personales asociados salvo que debamos conservar algún
-                registro por obligación legal.
+                registro por obligación legal. Las métricas individuales del registro se eliminan al superar 90 días, mediante una limpieza diaria.
               </p>
             </Article>
 
@@ -296,7 +306,7 @@ export default function LegalPage() {
             </Article>
           </section>
 
-          <p className="mt-16 text-sm text-brand-950/50 font-light">
+          <p className="mt-16 text-brand-950/50 font-light text-base">
             ¿Tienes dudas sobre estos Términos o sobre cómo manejamos tus datos? Escríbenos a{' '}
             <a href="mailto:soporte@quicktap.club" className="text-brand-500 hover:underline">
               soporte@quicktap.club
@@ -310,8 +320,8 @@ export default function LegalPage() {
       <footer className="border-t border-brand-950/10 bg-brand-950/[0.03]">
         <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="/logo/icono.png" alt="" className="h-7 w-7" />
-            <p className="text-sm text-brand-950/60 font-light">
+            <img src="/logo/icono.png?v=20261002" alt="" className="h-7 w-7" />
+            <p className="text-brand-950/60 font-light text-base">
               © {new Date().getFullYear()} QuickTap.club — todo a un toque.
             </p>
           </div>

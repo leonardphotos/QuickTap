@@ -1,5 +1,5 @@
-import type { AuthRestaurant } from '@/context/AuthContext';
 import { VerticalBillingPage } from '@/components/admin/VerticalBillingPage';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 
 const CLUB_DEFAULT_FEATURES = [
   'Calendario de canchas en vivo, con reservas y bloqueos por mantenimiento/clases/torneos',

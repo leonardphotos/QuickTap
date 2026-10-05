@@ -1,23 +1,7 @@
-import { useState } from 'react';
-import { Tag, X } from 'lucide-react';
 import { api } from '@/api/client';
-
-/** Lo que devuelve /promotions/validate: el descuento que otorga el código. */
-export interface AppliedPromo {
-  id: string;
-  name: string;
-  code: string;
-  discountType: 'PERCENT' | 'AMOUNT';
-  discountValue: string;
-  customerName: string | null;
-}
-
-/** El descuento de la promo sobre un saldo, espejo de promotionDiscountOf del backend. */
-export function promoDiscountAmount(promo: AppliedPromo, baseAmount: number): number {
-  const raw =
-    promo.discountType === 'PERCENT' ? (baseAmount * Number(promo.discountValue)) / 100 : Number(promo.discountValue);
-  return Math.min(Math.round((raw + Number.EPSILON) * 100) / 100, baseAmount);
-}
+import { Tag,X } from 'lucide-react';
+import { useState } from 'react';
+import { type AppliedPromo } from './PromoCodeField.shared';
 
 /**
  * "Código de promoción" en caja: valida contra el CRM (lista, vigencia, canjes por
@@ -65,7 +49,7 @@ export function PromoCodeField({
     return (
       <div className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2">
         <Tag className="h-4 w-4 shrink-0 text-emerald-600" />
-        <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-emerald-800">
+        <p className="min-w-0 flex-1 truncate font-semibold text-emerald-800 text-base">
           {applied.code} · {label} de descuento
           {applied.customerName && <span className="font-normal"> · {applied.customerName}</span>}
         </p>
@@ -83,7 +67,7 @@ export function PromoCodeField({
 
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium text-brand-950/50">Código de promoción</p>
+      <p className="mb-1.5 font-medium text-brand-950/50 text-xs">Código de promoción</p>
       <div className="flex gap-2">
         <input
           value={code}
@@ -101,7 +85,7 @@ export function PromoCodeField({
           // código promocional lleva letras y guiones ("PROMO-ABC12") y el teclado numérico de
           // la pantalla solo tiene dígitos. Bloquearlo acá lo volvería imposible de escribir.
           placeholder="Ej. PROMO-ABC12"
-          className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 font-mono text-sm uppercase focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 font-mono uppercase focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
         />
         <button
           type="button"
@@ -112,7 +96,7 @@ export function PromoCodeField({
           {checking ? '…' : 'Aplicar'}
         </button>
       </div>
-      {error && <p className="mt-1 text-xs font-medium text-red-600">{error}</p>}
+      {error && <p className="mt-1 font-medium text-red-600 text-xs">{error}</p>}
     </div>
   );
 }

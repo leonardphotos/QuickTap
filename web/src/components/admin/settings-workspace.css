@@ -1,0 +1,50 @@
+.settings-workspace { width:100%; max-width:1280px; margin-inline:auto; color:var(--color-brand-950,#082247); }
+.settings-heading { margin-bottom:24px; }
+.settings-eyebrow { font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#748094; }
+.settings-heading h1 { margin:6px 0; font-size:30px; font-weight:650; letter-spacing:-.035em; }
+.settings-heading > p:last-child, .settings-detail-heading p { font-size:16px; line-height:1.6; color:#69778b; }
+.settings-groups { display:flex; gap:4px; padding:4px; width:fit-content; max-width:100%; margin-bottom:20px; border:1px solid #e4e8ee; border-radius:12px; background:#fff; }
+.settings-groups button { min-height:42px; padding:10px 18px; display:flex; align-items:center; justify-content:center; gap:8px; border-radius:8px; font-size:13px; font-weight:500; color:#64748b; }
+.settings-groups button[aria-current] { background:#edf7ff; color:#05a5f5; }
+.settings-surface { display:grid; grid-template-columns:218px minmax(0,1fr); border:1px solid #e4e8ee; border-radius:18px; background:white; overflow:hidden; }
+.settings-options { padding:24px 12px; border-right:1px solid #edf0f4; background:#fcfdfe; }
+.settings-options > p { padding:0 12px; margin-bottom:14px; }
+.settings-options button { width:100%; min-height:46px; display:flex; align-items:center; gap:10px; padding:10px 12px; text-align:left; border-radius:9px; font-size:13px; margin-bottom:4px; color:#59677b; }
+.settings-options button > span:nth-child(2) { flex:1; }
+.settings-option-icon { display:flex; flex-shrink:0; }
+.settings-options button > svg:last-child { opacity:0; }
+.settings-options button[aria-current] { background:#eaf6ff; color:#05a5f5; font-weight:600; }
+.settings-options button[aria-current] > svg:last-child { opacity:1; }
+[data-settings-panel] [data-slot="texture-button"] { display:inline-flex; align-self:start; border-radius:9px; box-shadow:none; }
+[data-settings-panel] [data-slot="texture-button"] > div { height:auto; min-height:40px; border-radius:9px; }
+.settings-groups button, .settings-options button { cursor:pointer; transition:background-color 140ms ease,color 140ms ease; }
+@media (hover:hover) and (pointer:fine) { .settings-groups button:not([aria-current]):hover, .settings-options button:not([aria-current]):hover { background:#f1f6fa; } }
+.settings-workspace button:focus-visible { outline:2px solid #05a5f5; outline-offset:3px; }
+.settings-detail { min-width:0; padding:28px 32px; }
+.settings-detail-heading { display:flex; align-items:center; gap:14px; padding-bottom:24px; border-bottom:1px solid #edf0f4; margin-bottom:8px; }
+.settings-detail-heading h2 { font-size:20px; font-weight:600; letter-spacing:-.025em; margin-bottom:3px; }
+.settings-detail-icon { width:42px; height:42px; border:1px solid #d9edfa; background:#f2faff; color:#05a5f5; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+[data-settings-panel]:not([hidden]) { display:grid; grid-template-columns:minmax(0,1fr); gap:0; }
+[data-settings-panel] > * { min-width:0; padding-block:20px; }
+[data-settings-panel] > * + * { border-top:1px solid #edf0f4; }
+[data-settings-panel] [data-slot="texture-card"],
+[data-settings-panel] [data-slot="texture-card"] > div,
+[data-settings-panel] [data-slot="texture-card"] > div > div,
+[data-settings-panel] [data-slot="texture-card"] > div > div > div,
+[data-settings-panel] [data-slot="texture-card"] > div > div > div > div { border:0; border-radius:0; background:transparent; box-shadow:none; }
+@media (max-width:767px) {
+  .settings-heading { margin-bottom:16px; }
+  .settings-heading h1 { font-size:26px; }
+  .settings-groups { width:100%; gap:2px; }
+  .settings-groups button { flex:1; padding:10px 5px; gap:5px; font-size:11px; }
+  .settings-groups button svg { width:14px; }
+  .settings-surface { grid-template-columns:minmax(0,1fr); border-radius:14px; }
+  .settings-options { display:flex; flex-wrap:wrap; gap:6px; padding:12px; border-right:0; border-bottom:1px solid #edf0f4; }
+  .settings-options > p { display:none; }
+  .settings-options button { flex:1 1 130px; width:auto; margin:0; padding:9px; font-size:12px; }
+  .settings-detail { padding:20px 12px; }
+  .settings-detail-heading { gap:10px; padding-bottom:18px; }
+  .settings-detail-heading h2 { font-size:18px; }
+  .settings-detail-heading p { font-size:16px; }
+}
+@media (prefers-reduced-motion:reduce) { .settings-workspace button { transition:none; } }

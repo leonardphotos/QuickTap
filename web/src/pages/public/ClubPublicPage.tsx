@@ -104,7 +104,7 @@ export default function ClubPublicPage() {
   if (notFound) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#0d1b2a] px-6">
-        <p className="text-center font-light text-club-text/60">Este club no existe o no está disponible.</p>
+        <p className="text-center font-light text-club-text/60 text-base">Este club no existe o no está disponible.</p>
       </div>
     );
   }
@@ -226,7 +226,7 @@ function Home({ club, onLive, onBook }: { club: PublicClub | null; onLive: () =>
           </div>
         )}
         <h1 className="mt-7 text-[34px] font-bold leading-tight tracking-tight">{club?.name ?? '…'}</h1>
-        <p className="mt-2 max-w-xs text-[15px] font-light text-club-text/70">
+        <p className="mt-2 max-w-xs font-light text-club-text/70 text-base">
           Mira qué canchas están libres ahora o reserva tu hora.
         </p>
       </div>
@@ -284,11 +284,11 @@ function LiveScreen({
   return (
     <div className="flex-1">
       <h1 className="text-[26px] font-bold tracking-tight">Ahora en el club</h1>
-      <p className="mt-1 text-[13px] font-light text-club-text/65">Toca una cancha para ver sus horas libres de hoy.</p>
+      <p className="mt-1 font-light text-club-text/65 text-base">Toca una cancha para ver sus horas libres de hoy.</p>
 
-      {live === null && <p className="mt-6 font-light text-club-text/50">Cargando…</p>}
+      {live === null && <p className="mt-6 font-light text-club-text/50 text-base">Cargando…</p>}
       {live?.length === 0 && (
-        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center text-[13px] font-light text-club-text/60">
+        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center font-light text-club-text/60 text-base">
           Este club todavía no tiene canchas publicadas.
         </p>
       )}
@@ -327,13 +327,13 @@ function LiveScreen({
                 )}
 
                 {c.current && c.current.kind !== 'BOOKING' && (
-                  <p className="mt-3 text-[13px] font-light text-club-text/70">
+                  <p className="mt-3 font-light text-club-text/70 text-base">
                     {c.current.note ?? 'No disponible'} · hasta {hhmmOf(c.current.endsAt)}
                   </p>
                 )}
 
                 {/* La pregunta que importa al llegar sin reserva. */}
-                <p className="mt-3 flex items-center gap-1.5 text-[12px] font-light text-club-text/60">
+                <p className="mt-3 flex items-center gap-1.5 font-light text-club-text/60 text-xs">
                   <Clock className="h-3.5 w-3.5" />
                   {c.next
                     ? `Después: ${hhmmOf(c.next.startsAt)}${c.next.playerFirstName ? ` · ${c.next.playerFirstName}` : ''}`
@@ -347,7 +347,7 @@ function LiveScreen({
                 <div className="border-t border-white/15 bg-white/10 p-4">
                   {free.length === 0 ? (
                     <div className="text-center">
-                      <p className="text-[13px] font-light text-club-text/60">No quedan horas libres hoy en esta cancha.</p>
+                      <p className="font-light text-club-text/60 text-base">No quedan horas libres hoy en esta cancha.</p>
                       <button onClick={onGoCalendar} className="mt-2 text-[13px] font-bold underline">
                         Ver otros días
                       </button>
@@ -454,11 +454,11 @@ function CalendarScreen({
         })}
       </div>
 
-      <p className="mt-3 text-[13px] font-light capitalize text-club-text/65">{humanDate(date)}</p>
+      <p className="mt-3 font-light capitalize text-club-text/65 text-base">{humanDate(date)}</p>
 
-      {grid === null && <p className="mt-6 font-light text-club-text/50">Cargando horarios…</p>}
+      {grid === null && <p className="mt-6 font-light text-club-text/50 text-base">Cargando horarios…</p>}
       {empty && (
-        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center text-[13px] font-light text-club-text/60">
+        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center font-light text-club-text/60 text-base">
           No quedan horarios libres este día. Prueba con otro.
         </p>
       )}
@@ -499,9 +499,9 @@ function SlotButton({ slot, symbol, onClick }: { slot: PublicSlot; symbol: strin
           : 'border-white/25 bg-white/12 hover:bg-white/22',
       )}
     >
-      <p className="text-[15px] font-bold leading-none">{slot.startTime}</p>
-      <p className="mt-1 text-[10px] font-medium text-club-text/55">a {slot.endTime}</p>
-      <p className="mt-1.5 text-[13px] font-bold">
+      <p className="font-bold leading-none text-base">{slot.startTime}</p>
+      <p className="mt-1 font-medium text-club-text/55 text-xs">a {slot.endTime}</p>
+      <p className="mt-1.5 font-bold text-base">
         {symbol}
         {slot.priceBase}
       </p>

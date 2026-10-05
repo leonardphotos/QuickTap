@@ -63,8 +63,8 @@ export function CostStructureStats({ symbol, onOpenProduct }: { symbol: string; 
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudieron cargar las estadísticas.'));
   }, [range]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!stats) return <p className="text-sm font-light text-brand-950/40">Calculando…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
+  if (!stats) return <p className="font-light text-brand-950/40 text-base">Calculando…</p>;
 
   const avg = stats.averageComposition;
   const p = stats.period;
@@ -147,11 +147,11 @@ export function CostStructureStats({ symbol, onOpenProduct }: { symbol: string; 
       {/* Ranking */}
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-brand-950/70">
+          <p className="font-medium text-brand-950/70 text-base">
             <TrendingUp className="mr-1 inline h-4 w-4 text-brand-500" />
             Productos por margen neto
           </p>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-brand-950/60">
+          <label className="flex cursor-pointer items-center gap-2 text-brand-950/60 text-sm font-medium">
             <input type="checkbox" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} className="h-4 w-4 accent-brand-500" />
             Solo bajo el objetivo
           </label>
@@ -166,7 +166,7 @@ export function CostStructureStats({ symbol, onOpenProduct }: { symbol: string; 
           </div>
           <div className="divide-y divide-brand-950/[0.06]">
             {rows.length === 0 && (
-              <p className="p-5 text-sm font-light text-brand-950/40">
+              <p className="p-5 font-light text-brand-950/40 text-base">
                 {onlyBelow ? 'Ningún producto está por debajo del objetivo.' : 'Sin fichas guardadas todavía.'}
               </p>
             )}
@@ -178,7 +178,7 @@ export function CostStructureStats({ symbol, onOpenProduct }: { symbol: string; 
                 className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-brand-950/[0.02]"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-brand-950">
+                  <p className="truncate font-medium text-brand-950 text-base">
                     {r.name}
                     {r.belowTarget && (
                       <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">bajo objetivo</span>
@@ -189,7 +189,7 @@ export function CostStructureStats({ symbol, onOpenProduct }: { symbol: string; 
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {r.categoryName} · MP {formatBase(r.materialsCostBase, symbol)}
                   </p>
                 </div>
@@ -225,10 +225,10 @@ function CompositionCard({
 }) {
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-brand-950">{title}</p>
-      <p className="mb-4 text-xs font-light text-brand-950/50">{hint}</p>
+      <p className="font-semibold text-brand-950 text-base">{title}</p>
+      <p className="mb-4 font-light text-brand-950/50 text-xs">{hint}</p>
       {empty ? (
-        <p className="text-sm font-light text-brand-950/40">{empty}</p>
+        <p className="font-light text-brand-950/40 text-base">{empty}</p>
       ) : (
         <>
           <div className="flex h-3 w-full overflow-hidden rounded-full bg-brand-950/[0.06]">
@@ -250,7 +250,7 @@ function CompositionCard({
               </div>
             ))}
           </div>
-          {footer && <p className="mt-3 text-xs text-brand-950/50">{footer}</p>}
+          {footer && <p className="mt-3 text-brand-950/50 text-xs">{footer}</p>}
         </>
       )}
     </div>

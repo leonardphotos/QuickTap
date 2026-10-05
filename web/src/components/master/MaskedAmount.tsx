@@ -1,4 +1,4 @@
-import { useMoneyVisibility } from '@/context/MoneyVisibilityContext';
+import { useMoneyVisibility } from '@/context/MoneyVisibilityContext.shared';
 
 /** Envuelve cualquier texto con un monto de dinero: lo pinta o lo cambia por "*****". */
 export function MaskedAmount({ value }: { value: string }) {

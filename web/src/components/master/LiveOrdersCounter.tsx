@@ -20,11 +20,14 @@ export function LiveOrdersCounter({
   initial,
   initialUsd,
   initialBs,
+  initialRestaurantCounts,
 }: {
   initial: number;
   initialUsd: string;
   initialBs: string;
+  initialRestaurantCounts?: { active: number; inactive: number; expiring: number };
 }) {
+  const [restaurantCounts, setRestaurantCounts] = useState(initialRestaurantCounts);
   const [target, setTarget] = useState(initial);
   const [shown, setShown] = useState(initial);
   const [totalUsd, setTotalUsd] = useState(initialUsd);
@@ -41,6 +44,7 @@ export function LiveOrdersCounter({
       masterApi
         .get('/master/summary/live')
         .then((res) => {
+          if (res.data.data.restaurantCounts) setRestaurantCounts(res.data.data.restaurantCounts);
           setTarget(res.data.data.ordersAllTime);
           setTotalUsd(res.data.data.ordersAllTimeUsd);
           setTotalBs(res.data.data.ordersAllTimeBs);
@@ -54,7 +58,7 @@ export function LiveOrdersCounter({
   useEffect(() => {
     const from = shownRef.current;
     if (from === target) return;
-    if (target < from) {
+    if (target < from || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       // No debería pasar (el contador no descuenta cancelados), pero si la cifra baja por
       // cualquier motivo se acepta de una vez en vez de animar hacia atrás.
       setShown(target);
@@ -77,54 +81,51 @@ export function LiveOrdersCounter({
   }, [target]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 to-brand-800 px-6 py-7 text-white shadow-[0_18px_40px_-24px_rgba(0,154,255,0.8)]">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Receipt className="h-4 w-4 text-brand-950/50" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Pedidos procesados</p>
+    <section aria-label="Pedidos procesados" className="h-full min-w-0 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-brand-500"><Receipt size={18}/></span>
+          <h2 className="text-sm font-semibold text-slate-900">Pedidos procesados</h2>
         </div>
-
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          </span>
-          En vivo
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>En vivo
         </span>
+      </header>
+      <div className="mt-6">
+        <p className="font-medium text-gray-500 text-xs">Total de pedidos</p>
+        <p className={`mt-1 text-4xl font-semibold tracking-tight tabular-nums transition-colors motion-reduce:transition-none ${justChanged?'text-brand-500':'text-slate-950'}`}>
+          {shown.toLocaleString('es-VE')}
+        </p>
       </div>
-
-      {/* items-start + leading-none en las dos cifras grandes: así comparten línea base aunque la
-          columna de la derecha lleve una línea más abajo (los Bs). Con items-end se alineaban por
-          abajo y el número de pedidos quedaba hundido respecto al monto. */}
-      <div className="mt-4 flex flex-wrap items-start gap-x-10 gap-y-4">
-        <div className="min-w-0">
-          <p
-            className={`text-5xl font-bold leading-none tabular-nums transition-colors duration-500 ${
-              justChanged ? 'text-emerald-300' : 'text-white'
-            }`}
-          >
-            {shown.toLocaleString('es-VE')}
-          </p>
-          <p className="mt-2.5 text-xs font-light text-brand-950/45">pedidos</p>
-        </div>
-
-        {/* El separador solo cuando las dos cifras van lado a lado: al apilarse en pantalla
-            angosta, una línea vertical a la izquierda del bloque queda suelta y sin sentido. */}
-        <div className="min-w-0 sm:self-stretch sm:border-l sm:border-brand-950/20 sm:pl-10">
-          <p className="text-5xl font-bold leading-none tabular-nums text-white">
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <p className="font-medium text-gray-500 text-xs">Monto procesado</p>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <p className="min-w-0 break-all text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
             ${Number(totalUsd).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className="mt-2.5 text-lg font-semibold leading-none tabular-nums text-brand-950/70">
-            {formatBsAbsolute(totalBs)}
-          </p>
-          <p className="mt-2 text-xs font-light text-brand-950/45">facturado</p>
+          <span className="text-xs text-slate-500">USD</span>
         </div>
+        <p className="mt-1 break-words text-gray-900 tabular-nums text-base">{formatBsAbsolute(totalBs)}</p>
       </div>
-
-      <p className="mt-4 text-xs font-light text-brand-950/45">
-        Total desde que arrancó QuickTap, en todos los locales. No cuenta la cuenta demo. El monto en $ es el
-        equivalente a la tasa de hoy.
-      </p>
-    </div>
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <p className="mb-3 font-medium text-gray-500 text-xs">Estado de los locales</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'Activos', value: restaurantCounts?.active, color: 'bg-blue-50 text-blue-700' },
+            { label: 'Desactivados', value: restaurantCounts?.inactive, color: 'bg-slate-50 text-slate-700' },
+            { label: 'Por vencer', value: restaurantCounts?.expiring, color: 'bg-amber-50 text-amber-800' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className={`min-w-0 rounded-xl px-2 py-3 sm:px-3 ${color}`}>
+              <p className="text-2xl font-semibold tracking-tight tabular-nums">{value?.toLocaleString('es-VE') ?? '—'}</p>
+              <p className="mt-1 font-medium text-xs">{label}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 leading-relaxed text-gray-500 text-xs">Por vencer: locales activos con vencimiento en las próximas 48 horas. No incluye sucursales ni cuentas demo.</p>
+      </div>
+      <footer className="mt-5 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] leading-relaxed text-slate-500">
+        Acumulado de todos los locales, sin la cuenta demo. Equivalente en USD calculado a la tasa de hoy.
+      </footer>
+    </section>
   );
 }

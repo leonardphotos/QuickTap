@@ -16,6 +16,7 @@ export interface RawShopVariant {
 }
 
 export interface RawShopProduct {
+  priceTiers?: { minQty: number; price: number }[];
   id: string;
   name: string;
   category: string;
@@ -57,6 +58,7 @@ export interface RawShopProduct {
 
 export interface RawShopSaleItem {
   productId: string | null;
+  variantId?: string | null;
   v1: string;
   v2: string;
   name: string;
@@ -84,17 +86,20 @@ export interface RawShopServiceSupply {
 
 export interface RawShopSale {
   id: string;
+  receiptNumber: number;
   total: number;
   time: string;
   customerName: string | null;
   customerPhone: string | null;
   returned: boolean;
+  returnedAt: string | null;
   paymentMethod: string | null;
   paymentMeta: PaymentMeta | null;
   creditTerms: CreditTerms | null;
   amountPaidNow: number | null;
   soldByUserId: string | null;
   soldByUserName: string | null;
+  payments: { id: string; amount: number; method: string | null; createdAt: string }[];
   items: RawShopSaleItem[];
   /** Entradas emitidas si la venta llevaba algún evento (ver shop-tickets.service.ts). */
   tickets?: RawShopTicket[];
@@ -231,6 +236,7 @@ export const shopApi = {
   async recordSale(payload: {
     items: {
       productId?: string;
+      variantId?: string;
       v1: string;
       v2: string;
       name: string;
@@ -318,16 +324,30 @@ export const shopApi = {
     await api.post('/shop/adjustments', payload);
   },
 
-  async openTill(opening: number): Promise<void> {
-    await api.post('/shop/till/open', { opening });
+  async openTill(opening: number): Promise<RawShopTill> {
+    const { data } = await api.post('/shop/till/open', { opening });
+    return data.data;
   },
 
-  async closeTill(counted: number): Promise<void> {
-    await api.post('/shop/till/close', { counted });
+  async closeTill(counted: number): Promise<RawShopTill> {
+    const { data } = await api.post('/shop/till/close', { counted });
+    return data.data;
   },
 
   async addCategory(name: string): Promise<void> {
     await api.post('/shop/categories', { name });
+  },
+
+  async renameCategory(category: string, name: string): Promise<void> {
+    await api.patch(`/shop/categories/${encodeURIComponent(category)}`, { name });
+  },
+
+  async deleteCategory(category: string, destination?: string): Promise<void> {
+    await api.delete(`/shop/categories/${encodeURIComponent(category)}`, { data: { destination } });
+  },
+
+  async moveProductsToCategory(productIds: string[], category: string): Promise<void> {
+    await api.patch('/shop/categories/products', { productIds, category });
   },
 
   async addSubcategory(category: string, name: string): Promise<void> {
@@ -337,6 +357,7 @@ export const shopApi = {
 
 export function toShopVariant(v: RawShopVariant): ShopVariant {
   return {
+    id: v.id,
     v1: v.v1,
     v2: v.v2,
     stock: v.stock,
@@ -361,6 +382,7 @@ export function toShopProduct(p: RawShopProduct) {
     minStock: p.minStock,
     variants: p.variants.map(toShopVariant),
     wholesalePrice: p.wholesalePrice ?? undefined,
+    priceTiers: p.priceTiers ?? [],
     wholesaleMinQty: p.wholesaleMinQty ?? undefined,
     promoPrice: p.promoPrice ?? undefined,
     expiryDate: p.expiryDate ?? undefined,

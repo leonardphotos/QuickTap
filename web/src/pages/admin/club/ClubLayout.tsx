@@ -1,11 +1,12 @@
-import { lazy, Suspense, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { CreditCard, GraduationCap, LayoutGrid, QrCode, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
-import { cn } from '@/lib/utils';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { AiReportsButton } from '@/components/admin/AiReportsButton';
+import { useAuth } from '@/context/AuthContext.shared';
+import { cn } from '@/lib/utils';
+import { daysRemaining,graceHoursRemaining } from '@/utils/subscription';
+import { CreditCard,GraduationCap,LayoutGrid,QrCode,Settings,ShoppingBag,Users,Wallet } from 'lucide-react';
+import { lazy,Suspense,useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 const ClubCourtsLivePage = lazy(() => import('./ClubCourtsLivePage'));
 const ClubCourtDetailPage = lazy(() => import('./ClubCourtDetailPage'));
@@ -85,14 +86,14 @@ export default function ClubLayout() {
 
       <header className="sticky top-0 z-20 bg-white pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06]">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-5 sm:px-6">
-          <p className="truncate font-bold text-brand-950">{restaurant.name}</p>
+          <p className="truncate font-bold text-brand-950 text-base">{restaurant.name}</p>
           <span className="shrink-0 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-500">
             Club
           </span>
 
-          <nav className="ml-auto hidden items-center gap-1 rounded-full bg-brand-950/[0.05] p-1 lg:flex">
+          <AnimatedTabs tone="light" wrapperClassName="ml-auto hidden lg:block" className="items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
             {tabs.map((t) => (
-              <button
+              <AnimatedTab active={active === t.id}
                 key={t.id}
                 onClick={() => go(t.id)}
                 className={cn(
@@ -102,9 +103,9 @@ export default function ClubLayout() {
               >
                 <t.icon className="h-4 w-4" />
                 {t.label}
-              </button>
+              </AnimatedTab>
             ))}
-          </nav>
+          </AnimatedTabs>
 
           <DailyRatesBadge className="ml-auto lg:ml-0" />
           <button
@@ -119,7 +120,7 @@ export default function ClubLayout() {
       {/* max-w-7xl y no 6xl: la vertical se lee en tabla, y con seis columnas el
           ancho extra es justo el que evita que se aprieten los encabezados. */}
       <main className="mx-auto max-w-7xl px-5 py-5 pb-28 sm:px-6 lg:py-7 lg:pb-10">
-        <Suspense fallback={<p className="font-light text-brand-950/40">Cargando…</p>}>
+        <Suspense fallback={<p className="font-light text-brand-950/40 text-base">Cargando…</p>}>
           {active === 'canchas' &&
             (openCourtId ? (
               <ClubCourtDetailPage
@@ -147,9 +148,9 @@ export default function ClubLayout() {
 
       {/* Dock móvil: 5 iconos es el máximo cómodo, igual que en Locales. */}
       <nav className="fixed inset-x-0 bottom-5 z-30 px-5 lg:hidden">
-        <div className="mx-auto flex max-w-md items-center justify-around rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
+        <AnimatedTabs tone="brand" wrapperClassName="mx-auto max-w-md" className="flex min-w-full items-center justify-around rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
           {tabs.map((t) => (
-            <button
+            <AnimatedTab active={active === t.id}
               key={t.id}
               onClick={() => go(t.id)}
               className={cn(
@@ -159,9 +160,9 @@ export default function ClubLayout() {
               aria-label={t.label}
             >
               <t.icon className="h-5 w-5" />
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </nav>
     </div>
   );

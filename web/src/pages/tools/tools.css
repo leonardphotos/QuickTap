@@ -1,0 +1,14 @@
+@reference '../../index.css';
+.public-tool .tool-card { @apply rounded-3xl border border-brand-950/10 bg-white p-5 sm:p-6; }
+.tool-form label { display: flex; align-items: end; min-height: 2rem; }
+.public-tool main { max-width: 1200px; }
+@media print {
+  .public-tool header, .public-tool footer, .tool-form, .tool-actions, .tool-conversion { display: none !important; }
+  .public-tool main { padding: 0; max-width: none; }
+  .public-tool main > .grid { display: block; }
+  .tool-results { position: static !important; }
+  .tool-card { break-inside: avoid; box-shadow: none !important; }
+  .tool-intro { margin-bottom: 12px; }
+  .tool-intro h1 { font-size: 20px; }
+  .tool-breakdown > ul { display: block !important; }
+}

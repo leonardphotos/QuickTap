@@ -1,5 +1,5 @@
+import { useAuth } from '@/context/AuthContext.shared';
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
 
 const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -49,8 +49,8 @@ export function WaiterTabletPage() {
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-7 bg-[#141414] text-white">
       <div className="text-center px-6">
         <h1 className="text-2xl sm:text-3xl font-semibold">Tablet de meseros</h1>
-        <p className="text-sm text-white/50 mt-1.5">Ingresa tu clave de 4 dígitos</p>
-        {error && <p className="text-sm text-red-400 mt-1.5">{error}</p>}
+        <p className="text-white/50 mt-1.5 text-base">Ingresa tu clave de 4 dígitos</p>
+        {error && <p className="text-red-400 mt-1.5 text-base">{error}</p>}
       </div>
 
       <div className={`flex gap-4 ${shake ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}>

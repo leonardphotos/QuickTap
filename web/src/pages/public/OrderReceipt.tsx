@@ -263,7 +263,7 @@ export function OrderReceipt(props: Props) {
             <Check className="h-8 w-8 text-white" strokeWidth={3} />
           </span>
           <p
-            className="mt-4 text-[12px] font-semibold uppercase"
+            className="mt-4 font-semibold uppercase text-xs"
             style={{ color: GREEN, letterSpacing: '0.22em' }}
           >
             Pedido confirmado
@@ -306,7 +306,7 @@ export function OrderReceipt(props: Props) {
             <MessageCircle className="h-4 w-4" />
             Enviar por WhatsApp
           </TextureButton>
-          <p className="mt-2.5 text-center text-[12.5px] font-light leading-snug" style={{ color: MUTED }}>
+          <p className="mt-2.5 text-center font-light leading-snug text-base" style={{ color: MUTED }}>
             Para finalizar tu compra envía tu pedido por WhatsApp
           </p>
         </div>

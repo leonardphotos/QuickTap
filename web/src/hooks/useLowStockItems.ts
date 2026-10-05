@@ -37,13 +37,18 @@ export function useLowStockItems(
       return;
     }
     let cancelled = false;
+    const notified = notifiedRef.current;
 
     function load() {
       api
         .get('/inventory')
         .then((res) => {
           if (cancelled) return;
-          const low = (res.data.data as LowStockItem[]).filter((i) => Number(i.quantity) < Number(i.minQuantity));
+          // Mínimo 0 = seguimiento aún no configurado; no debe generar una
+          // alerta solo porque el insumo fue creado o importado sin existencia.
+          const low = (res.data.data as LowStockItem[]).filter(
+            (i) => Number(i.minQuantity) > 0 && Number(i.quantity) <= Number(i.minQuantity),
+          );
           setItems(low);
 
           const lowIds = new Set(low.map((i) => i.id));
@@ -55,7 +60,7 @@ export function useLowStockItems(
           fresh.forEach((i) => notifiedRef.current.add(i.id));
 
           if (primedRef.current && fresh.length > 0) {
-            new Audio('/sounds/notification-admin.mp3').play().catch(() => {});
+            new Audio('/sounds/alerta-inventario.mp3').play().catch(() => {});
             void notifyNative({
               title: fresh.length === 1 ? 'Insumo por agotarse' : 'Insumos por agotarse',
               body:
@@ -76,7 +81,7 @@ export function useLowStockItems(
     return () => {
       cancelled = true;
       primedRef.current = false;
-      notifiedRef.current.clear();
+      notified.clear();
       socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

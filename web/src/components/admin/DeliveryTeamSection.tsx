@@ -46,7 +46,7 @@ export function DeliveryTeamSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Equipo de Delivery</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Repartidores a los que puedes despachar una comanda por WhatsApp desde el Dashboard.
         </p>
       </TextureCardHeader>
@@ -57,10 +57,10 @@ export function DeliveryTeamSection() {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Nombre del repartidor"
             required
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
           <WhatsappPhoneInput value={form.whatsappPhone} onChange={(whatsappPhone) => setForm({ ...form, whatsappPhone })} />
-          {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+          {error && <p className="text-red-600 sm:col-span-2 text-base">{error}</p>}
           <TextureButton
             variant="brand"
             size="default"
@@ -72,12 +72,12 @@ export function DeliveryTeamSection() {
         </form>
 
         <div className="divide-y divide-brand-950/[0.06] border-t border-brand-950/[0.06] pt-2">
-          {couriers.length === 0 && <p className="text-sm text-brand-950/40 font-light py-3">Sin repartidores todavía.</p>}
+          {couriers.length === 0 && <p className="text-brand-950/40 font-light py-3 text-base">Sin repartidores todavía.</p>}
           {couriers.map((c) => (
             <div key={c.id} className="flex items-center justify-between gap-3 py-3">
               <div>
-                <p className="text-sm font-medium text-brand-950">{c.name}</p>
-                <p className="text-xs text-brand-950/50 font-light">{c.whatsappPhone}</p>
+                <p className="font-medium text-brand-950 text-base">{c.name}</p>
+                <p className="text-brand-950/50 font-light text-xs">{c.whatsappPhone}</p>
               </div>
               <button onClick={() => remove(c.id)} className="text-xs text-red-600 hover:text-red-700 shrink-0">
                 Eliminar

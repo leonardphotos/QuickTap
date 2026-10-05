@@ -1,13 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2, X } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { hasFeature } from '@/utils/subscription';
-import type { Category, Kitchen, Modifier, ModifierCategory, Product, ProductVariant } from '@/types';
+import { Dialog,DialogContent,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { Category,Kitchen,Modifier,ModifierCategory,Product,ProductVariant } from '@/types';
+import { hasFeature } from '@/utils/subscription';
+import { ChevronDown,ChevronUp,Eye,EyeOff,Plus,Trash2,X } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { lazy,Suspense,useEffect,useEffectEvent,useState } from 'react';
 import { PhotoUploadField } from './PhotoUploadField';
+import { ModifierVariantPriceField } from './ModifierVariantPriceField';
 
 // Diferido: el editor de receta arrastra la cascada de precios y los diálogos de copiado, y solo
 // lo abre quien de verdad entra a costear. Quien viene a corregir un precio no lo descarga.
@@ -104,7 +106,7 @@ export function ProductFormDialog({
   // Combo armable: los platos que lo componen. Persisten al instante (PUT del set completo),
   // mismo criterio que asociar/quitar categorias de modificadores.
   const [comboRows, setComboRows] = useState<
-    { componentProductId: string; name: string; quantity: number; variantId?: string | null; variantName?: string | null }[]
+    { componentProductId: string; name: string; quantity: number; isChoice?: boolean; variantId?: string | null; variantName?: string | null }[]
   >([]);
   // Pool escogible: "elige entre mín y máx platos de la lista". Vacíos = combo fijo de siempre.
   const [comboMin, setComboMin] = useState('');
@@ -122,7 +124,7 @@ export function ProductFormDialog({
   // dependencias eso rearmaba el formulario entero — te sacaba de la pestaña de Receta en cuanto
   // agregabas un ingrediente (la receta avisa del cambio, y ese aviso dispara la recarga), y de
   // paso descartaba cualquier campo editado y todavía sin guardar.
-  useEffect(() => {
+  const initializeForm = useEffectEvent(() => {
     if (!open) return;
     if (product) {
       setForm({
@@ -168,7 +170,8 @@ export function ProductFormDialog({
     setShowCategoryPicker(false);
     setError(null);
     setTab('general');
-  }, [open, product?.id]);
+  });
+  useEffect(() => { initializeForm(); }, [open, product?.id]);
 
   /** La categoría por defecto de un producto nuevo, en cuanto haya categorías cargadas. */
   useEffect(() => {
@@ -176,11 +179,12 @@ export function ProductFormDialog({
     if (categories[0]) setForm((f) => ({ ...f, categoryId: categories[0].id }));
   }, [open, product, categories, form.categoryId]);
 
-  useEffect(() => {
+  const initializeOptions = useEffectEvent(() => {
     if (!open) return;
-    api.get('/modifier-categories').then((res) => setLibraryCategories(res.data.data));
+    let cancelled = false;
+    api.get('/modifier-categories').then((res) => { if (!cancelled) setLibraryCategories(res.data.data); }).catch(() => undefined);
     if (product) {
-      api.get(`/products/${product.id}/combo`).then((res) => setComboRows(res.data.data)).catch(() => setComboRows([]));
+      api.get(`/products/${product.id}/combo`).then((res) => { if (!cancelled) setComboRows(res.data.data); }).catch(() => { if (!cancelled) setComboRows([]); });
       setComboMin(product.comboMinSelections?.toString() ?? '');
       setComboMax(product.comboMaxSelections?.toString() ?? '');
     } else {
@@ -189,9 +193,11 @@ export function ProductFormDialog({
       setComboMax('');
     }
     if (canLinkPackagingStock) {
-      api.get('/inventory/packaging').then((res) => setPackagingItems(res.data.data));
+      api.get('/inventory/packaging').then((res) => { if (!cancelled) setPackagingItems(res.data.data); }).catch(() => undefined);
     }
-  }, [open, canLinkPackagingStock]);
+    return () => { cancelled = true; };
+  });
+  useEffect(() => initializeOptions(), [open, product?.id, canLinkPackagingStock]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -207,7 +213,8 @@ export function ProductFormDialog({
         costSource: form.costSource,
         costBase: form.costSource === 'MANUAL' && form.costBase ? Number(form.costBase) : undefined,
         photoUrl: form.photoUrl === null ? null : form.photoUrl || undefined,
-        description: form.description || undefined,
+        // Una cadena vacía elimina la descripción; omitirla conserva la anterior.
+        description: form.description.trim(),
         prepTimeMinutes: form.prepTimeMinutes ? Number(form.prepTimeMinutes) : undefined,
         sku: form.sku.trim() || null,
         stockControlEnabled: form.stockControlEnabled,
@@ -357,7 +364,7 @@ export function ProductFormDialog({
   const availableToLink = libraryCategories.filter((c) => !linkedCategories.some((l) => l.id === c.id));
 
   async function persistCombo(
-    rows: { componentProductId: string; name: string; quantity: number; variantId?: string | null }[],
+    rows: { componentProductId: string; name: string; quantity: number; isChoice?: boolean; variantId?: string | null }[],
     pool?: { min: string; max: string },
   ) {
     if (!product) return;
@@ -368,6 +375,7 @@ export function ProductFormDialog({
         components: rows.map((r) => ({
           componentProductId: r.componentProductId,
           quantity: r.quantity,
+          isChoice: r.isChoice ?? false,
           variantId: r.variantId ?? null,
         })),
         // Pool escogible: se mandan siempre — vacíos van como null y el combo vuelve a fijo.
@@ -400,6 +408,23 @@ export function ProductFormDialog({
     setShowComboPicker((v) => !v);
   }
 
+  function toggleComboChoice(
+    row: { componentProductId: string; variantId?: string | null },
+    checked: boolean,
+  ) {
+    const nextRows = comboRows.map((x) =>
+      x.componentProductId === row.componentProductId && (x.variantId ?? null) === (row.variantId ?? null)
+        ? { ...x, isChoice: checked }
+        : x,
+    );
+    const remainingChoices = nextRows.filter((x) => x.isChoice).length;
+    const nextMin = checked && comboMin === '' ? '1' : remainingChoices === 0 ? '' : comboMin;
+    const nextMax = checked && comboMax === '' ? '1' : remainingChoices === 0 ? '' : comboMax;
+    setComboMin(nextMin);
+    setComboMax(nextMax);
+    void persistCombo(nextRows, { min: nextMin, max: nextMax });
+  }
+
   /** Panel activo del lado derecho. La receta solo existe con inventario por receta en el plan. */
   const tabs = [
     { id: 'general' as const, label: 'General' },
@@ -421,7 +446,7 @@ export function ProductFormDialog({
               <DialogTitle className="truncate text-base">
                 {product ? form.name || 'Editar producto' : 'Nuevo producto'}
               </DialogTitle>
-              <p className="truncate text-xs font-light text-brand-950/40">
+              <p className="truncate font-light text-brand-950/40 text-xs">
                 {product
                   ? `${categories.find((c) => c.id === form.categoryId)?.name ?? 'Sin categoría'} · ${currencySymbol}${precioVisible || '0'}`
                   : 'Completa el nombre, la categoría y el precio para poder guardarlo.'}
@@ -443,9 +468,9 @@ export function ProductFormDialog({
             </div>
           </header>
 
-          {error && <p className="shrink-0 bg-red-50 px-5 py-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="shrink-0 bg-red-50 px-5 py-2 text-red-600 text-base">{error}</p>}
           {justCreated && (
-            <p className="shrink-0 bg-emerald-50 px-5 py-2 text-xs font-medium text-emerald-700">
+            <p className="shrink-0 bg-emerald-50 px-5 py-2 font-medium text-emerald-700 text-xs">
               ✅ Producto creado. Ya puedes armar su receta, sus modificadores y sus variantes.
             </p>
           )}
@@ -461,17 +486,17 @@ export function ProductFormDialog({
 
             <aside className="order-3 space-y-4 lg:col-start-1 lg:row-start-2">
               <div className="rounded-xl border border-brand-950/10 p-3">
-                <p className="mb-2 text-sm font-medium text-brand-950/70">Cómo se destaca</p>
+                <p className="mb-2 font-medium text-brand-950/70 text-base">Cómo se destaca</p>
                 <div className="space-y-2 text-sm">
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
                     <input type="checkbox" checked={form.isStar} onChange={(e) => setForm({ ...form, isStar: e.target.checked })} />
                     ⭐ Producto estrella
                   </label>
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
                     <input type="checkbox" checked={form.isPromo} onChange={(e) => setForm({ ...form, isPromo: e.target.checked })} />
                     🔥 Promoción
                   </label>
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
                     <input
                       type="checkbox"
                       checked={form.isHouseSpecial}
@@ -485,7 +510,7 @@ export function ProductFormDialog({
               {/* Vista previa: la misma tarjeta que ve el cliente en el menú público. Sirve para
                   cachar de una que la foto quedó cortada o que la descripción no entra. */}
               <div className="rounded-xl border border-brand-950/10 p-3">
-                <p className="mb-2 text-sm font-medium text-brand-950/70">Así lo ve el cliente</p>
+                <p className="mb-2 font-medium text-brand-950/70 text-base">Así lo ve el cliente</p>
                 <div className="overflow-hidden rounded-xl border border-brand-950/[0.08]">
                   {form.photoUrl ? (
                     <img src={form.photoUrl} alt="" className="h-24 w-full object-cover" />
@@ -496,13 +521,13 @@ export function ProductFormDialog({
                   )}
                   <div className="space-y-1 p-2.5">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="min-w-0 truncate text-sm font-medium text-brand-950">{form.name || 'Nombre del producto'}</p>
+                      <p className="min-w-0 truncate font-medium text-brand-950 text-base">{form.name || 'Nombre del producto'}</p>
                       <span className="shrink-0 text-sm font-semibold text-brand-950">
                         {currencySymbol}
                         {precioVisible || '0'}
                       </span>
                     </div>
-                    {form.description && <p className="line-clamp-2 text-xs font-light text-brand-950/50">{form.description}</p>}
+                    {form.description && <p className="line-clamp-2 font-light text-brand-950/50 text-xs">{form.description}</p>}
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {form.isStar && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">Estrella</span>}
                       {form.isPromo && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-700">Promo</span>}
@@ -519,9 +544,9 @@ export function ProductFormDialog({
                 campos donde nadie encuentra nada. */}
             <section className="order-2 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
               <div className="-mx-1 mb-4 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <nav className="flex w-max gap-1 rounded-full bg-brand-950/[0.05] p-1">
+                <AnimatedTabs tone="light" className="flex  gap-1 rounded-full bg-brand-950/[0.05] p-1">
                   {tabs.map((t) => (
-                    <button
+                    <AnimatedTab active={tab === t.id}
                       key={t.id}
                       type="button"
                       onClick={() => setTab(t.id)}
@@ -530,30 +555,30 @@ export function ProductFormDialog({
                       }`}
                     >
                       {t.label}
-                    </button>
+                    </AnimatedTab>
                   ))}
-                </nav>
+                </AnimatedTabs>
               </div>
 
               {tab === 'general' && (
                 <div className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Nombre</span>
                       <input
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         placeholder="Ej: Hamburguesa clásica"
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                         required
                       />
                     </label>
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Categoría</span>
                       <select
                         value={form.categoryId}
                         onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                         required
                       >
                         <option value="">Categoría…</option>
@@ -569,7 +594,7 @@ export function ProductFormDialog({
                   {/* Precio(s): Simple (un solo precio) o Variantes (el cliente elige entre varias, cada una con su propio precio). */}
                   <div className="space-y-2.5 rounded-xl border border-brand-950/10 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-brand-950/70">Precio(s)</p>
+                      <p className="font-medium text-brand-950/70 text-base">Precio(s)</p>
                       <div className="flex overflow-hidden rounded-full border border-brand-950/15 text-xs font-medium">
                         <button
                           type="button"
@@ -596,11 +621,11 @@ export function ProductFormDialog({
                         type="number"
                         step="0.01"
                         min="0"
-                        className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                        className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                         required
                       />
                     ) : !product ? (
-                      <p className="text-xs text-brand-950/50">Guarda el producto primero para agregar las variantes.</p>
+                      <p className="text-brand-950/50 text-xs">Guarda el producto primero para agregar las variantes.</p>
                     ) : (
                       <div className="space-y-2">
                         {variants.map((v) => (
@@ -617,23 +642,24 @@ export function ProductFormDialog({
                     )}
                   </div>
 
-                  <label className="block text-sm">
+                  <label className="block text-sm font-medium">
                     <span className="text-xs text-brand-950/60">Descripción</span>
                     <textarea
                       value={form.description}
                       onChange={(e) => setForm({ ...form, description: e.target.value })}
                       rows={3}
                       placeholder="Lo que lee el cliente debajo del nombre."
-                      className="mt-1 w-full resize-y rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                      className="mt-1 w-full resize-y rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                     />
                   </label>
 
-                  <label className="block text-sm">
+                  <label className="block text-sm font-medium">
                     <span className="text-xs text-brand-950/60">Cocina</span>
+                    {!form.kitchenId && <span role="status" className="mt-1 block rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Este producto no tiene cocina asignada. Selecciona una aquí para dirigir sus próximas comandas.</span>}
                     <select
                       value={form.kitchenId}
                       onChange={(e) => setForm({ ...form, kitchenId: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                      className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                     >
                       <option value="">Sin cocina asignada</option>
                       {kitchens.map((k) => (
@@ -649,7 +675,7 @@ export function ProductFormDialog({
               {tab === 'receta' && canRecipeCost && (
                 <div className="space-y-3">
                   {!product ? (
-                    <p className="rounded-xl bg-brand-950/[0.04] p-3 text-sm text-brand-950/50">
+                    <p className="rounded-xl bg-brand-950/[0.04] p-3 text-brand-950/50 text-base">
                       Guarda el producto primero: la receta se arma sobre un plato que ya existe.
                     </p>
                   ) : (
@@ -670,7 +696,7 @@ export function ProductFormDialog({
                         </div>
                       )}
                       <Suspense
-                        fallback={<p className="py-8 text-center text-sm font-light text-brand-950/40">Cargando receta…</p>}
+                        fallback={<p className="py-8 text-center font-light text-brand-950/40 text-base">Cargando receta…</p>}
                       >
                         <RecipePanel productId={product.id} onSaved={onSaved} />
                       </Suspense>
@@ -684,7 +710,7 @@ export function ProductFormDialog({
                   {/* Agregar modificadores: categorías reutilizables (armadas en "Modificadores") asociadas a este producto. */}
                   <div className="space-y-2 rounded-xl border border-brand-950/10 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-brand-950/70">
+                      <p className="font-medium text-brand-950/70 text-base">
                         Agregar modificadores {linkedCategories.length > 0 && `(${linkedCategories.length})`}
                       </p>
                       {product && (
@@ -698,7 +724,7 @@ export function ProductFormDialog({
                       )}
                     </div>
                     {!product ? (
-                      <p className="text-xs text-brand-950/50">Guarda el producto primero para agregar modificadores.</p>
+                      <p className="text-brand-950/50 text-xs">Guarda el producto primero para agregar modificadores.</p>
                     ) : (
                       <>
                         {showCategoryPicker && (
@@ -706,7 +732,7 @@ export function ProductFormDialog({
                             autoFocus
                             value=""
                             onChange={(e) => associateCategory(e.target.value)}
-                            className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                            className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                           >
                             <option value="">Elige una categoría de modificadores…</option>
                             {availableToLink.map((c) => (
@@ -717,13 +743,14 @@ export function ProductFormDialog({
                           </select>
                         )}
                         {linkedCategories.length === 0 ? (
-                          <p className="text-xs font-light text-brand-950/40">Ingredientes, sabores, cubiertos…</p>
+                          <p className="font-light text-brand-950/40 text-xs">Ingredientes, sabores, cubiertos…</p>
                         ) : (
                           <ul className="divide-y divide-brand-950/10">
                             {linkedCategories.map((c, i) => (
                               <LinkedCategoryRow
                                 key={c.id}
                                 category={c}
+                                symbol={currencySymbol}
                                 productId={product!.id}
                                 variants={pricingMode === 'VARIANTS' ? variants : []}
                                 onDissociate={() => dissociateCategory(c.id)}
@@ -745,7 +772,7 @@ export function ProductFormDialog({
                       distintos) — tanto el cliente en el menu como el mesonero al tomar el pedido. */}
                   <div className="space-y-2 rounded-xl border border-brand-950/10 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-brand-950/70">
+                      <p className="font-medium text-brand-950/70 text-base">
                         Combo armable {comboRows.length > 0 && `(${comboRows.reduce((a, r) => a + r.quantity, 0)} platos)`}
                       </p>
                       {product && (
@@ -755,7 +782,7 @@ export function ProductFormDialog({
                       )}
                     </div>
                     {!product ? (
-                      <p className="text-xs text-brand-950/50">Guarda el producto primero para convertirlo en combo.</p>
+                      <p className="text-brand-950/50 text-xs">Guarda el producto primero para convertirlo en combo.</p>
                     ) : (
                       <>
                         {showComboPicker && (
@@ -774,12 +801,13 @@ export function ProductFormDialog({
                                   componentProductId: pr.id,
                                   name: pr.name,
                                   quantity: 1,
+                                  isChoice: false,
                                   variantId: variante?.id ?? null,
                                   variantName: variante?.name ?? null,
                                 },
                               ]);
                             }}
-                            className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                            className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                           >
                             <option value="">Elige el plato que compone el combo…</option>
                             {/* Agrupado por categoría, en el mismo orden en que están en la carta:
@@ -857,7 +885,7 @@ export function ProductFormDialog({
                           </select>
                         )}
                         {comboRows.length === 0 ? (
-                          <p className="text-xs font-light text-brand-950/40">
+                          <p className="font-light text-brand-950/40 text-xs">
                             Ej: 2× Pizza mediana + 1× Refresco — cada pizza se arma al pedir con sus propios ingredientes.
                           </p>
                         ) : (
@@ -874,7 +902,7 @@ export function ProductFormDialog({
                                 <span className="flex shrink-0 items-center gap-2">
                                   {/* En pool la cantidad fija no aplica: el cliente decide cuántos
                                       lleva de cada plato, así que el stepper se esconde. */}
-                                  {!(comboMin.trim() !== '' || comboMax.trim() !== '') && (
+                                  {!r.isChoice && (
                                     <>
                                       <button
                                         type="button"
@@ -910,6 +938,14 @@ export function ProductFormDialog({
                                       </button>
                                     </>
                                   )}
+                                  <label className="flex items-center gap-1 text-brand-950/60 text-sm font-medium">
+                                    <input
+                                      type="checkbox"
+                                      checked={r.isChoice === true}
+                                      onChange={(e) => toggleComboChoice(r, e.target.checked)}
+                                    />
+                                    Escogible
+                                  </label>
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -934,10 +970,10 @@ export function ProductFormDialog({
                                 fijas a "platos disponibles" y el cliente elige cuántos (mín–máx)
                                 al precio del combo. Vacíos = combo fijo de siempre. */}
                             <span className="text-[11px] text-brand-950/40">
-                              Platos a escoger (vacío = cantidades fijas)
+                              Cantidad a escoger entre los marcados
                             </span>
                             <div className="mt-1 flex items-center gap-2">
-                              <label className="flex items-center gap-1.5 text-xs text-brand-950/60">
+                              <label className="flex items-center gap-1.5 text-brand-950/60 text-sm font-medium">
                                 Mín.
                                 <input
                                   value={comboMin}
@@ -945,10 +981,10 @@ export function ProductFormDialog({
                                   onBlur={() => void persistCombo(comboRows)}
                                   placeholder="—"
                                   inputMode="numeric"
-                                  className="w-14 rounded-lg border border-brand-950/15 px-2 py-1 text-sm"
+                                  className="w-14 rounded-lg border border-brand-950/15 px-2 py-1 text-base"
                                 />
                               </label>
-                              <label className="flex items-center gap-1.5 text-xs text-brand-950/60">
+                              <label className="flex items-center gap-1.5 text-brand-950/60 text-sm font-medium">
                                 Máx.
                                 <input
                                   value={comboMax}
@@ -956,7 +992,7 @@ export function ProductFormDialog({
                                   onBlur={() => void persistCombo(comboRows)}
                                   placeholder="—"
                                   inputMode="numeric"
-                                  className="w-14 rounded-lg border border-brand-950/15 px-2 py-1 text-sm"
+                                  className="w-14 rounded-lg border border-brand-950/15 px-2 py-1 text-base"
                                 />
                               </label>
                             </div>
@@ -972,12 +1008,12 @@ export function ProductFormDialog({
                 <div className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {canRecipeCost ? (
-                      <label className="block text-sm">
+                      <label className="block text-sm font-medium">
                         <span className="text-xs text-brand-950/60">De dónde sale el costo</span>
                         <select
                           value={form.costSource}
                           onChange={(e) => setForm({ ...form, costSource: e.target.value as 'MANUAL' | 'RECIPE' })}
-                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                         >
                           <option value="MANUAL">Costo por unidad</option>
                           <option value="RECIPE">Desde receta</option>
@@ -987,7 +1023,7 @@ export function ProductFormDialog({
                       <div />
                     )}
                     {form.costSource === 'MANUAL' ? (
-                      <label className="block text-sm">
+                      <label className="block text-sm font-medium">
                         <span className="text-xs text-brand-950/60">Costo en {currencySymbol} (opcional)</span>
                         <input
                           value={form.costBase}
@@ -996,22 +1032,22 @@ export function ProductFormDialog({
                           type="number"
                           step="0.01"
                           min="0"
-                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                         />
                       </label>
                     ) : recipeCascade ? (
-                      <p className="self-center px-1 text-xs text-brand-950/60">
+                      <p className="self-center px-1 text-brand-950/60 text-xs">
                         Costo actual: {currencySymbol}
                         {recipeCascade.costoReceta} · Food cost: {recipeCascade.foodCostReal}%. Ajústalo en la pestaña Receta.
                       </p>
                     ) : (
-                      <p className="self-center px-1 text-xs text-brand-950/50">
+                      <p className="self-center px-1 text-brand-950/50 text-xs">
                         {product?.id
                           ? 'Este producto todavía no tiene receta armada — hazlo en la pestaña Receta.'
                           : 'El costo se toma de la receta, que se arma después de crear el producto.'}
                       </p>
                     )}
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Tiempo de preparación (min)</span>
                       <input
                         value={form.prepTimeMinutes}
@@ -1020,23 +1056,23 @@ export function ProductFormDialog({
                         type="number"
                         step="1"
                         min="0"
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                       />
                     </label>
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">SKU</span>
                       <input
                         value={form.sku}
                         onChange={(e) => setForm({ ...form, sku: e.target.value })}
                         placeholder="Opcional"
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                       />
                     </label>
                   </div>
 
                   {pricingMode === 'SIMPLE' && (
                     <div className="space-y-2.5 rounded-xl border border-brand-950/10 p-3">
-                      <label className="flex items-center justify-between gap-2">
+                      <label className="flex items-center justify-between gap-2 text-sm font-medium">
                         <span className="text-sm font-medium text-brand-950/70">⏰ Promoción por tiempo</span>
                         <input
                           type="checkbox"
@@ -1046,7 +1082,7 @@ export function ProductFormDialog({
                       </label>
                       {form.promoPriceEnabled && (
                         <div className="space-y-2.5">
-                          <p className="text-xs font-light text-brand-950/45">
+                          <p className="font-light text-brand-950/45 text-xs">
                             Precio especial que solo aplica dentro de la ventana que definas abajo (hora, días y/o fechas — las
                             que dejes cargadas deben cumplirse todas a la vez; deja algo vacío para no restringir por ese lado).
                           </p>
@@ -1057,25 +1093,25 @@ export function ProductFormDialog({
                             type="number"
                             step="0.01"
                             min="0"
-                            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                           />
                           <div className="grid grid-cols-2 gap-2">
-                            <label className="block">
+                            <label className="block text-sm font-medium">
                               <span className="text-[11px] text-brand-950/40">Desde la hora</span>
                               <input
                                 value={form.promoStartTime}
                                 onChange={(e) => setForm({ ...form, promoStartTime: e.target.value })}
                                 type="time"
-                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                               />
                             </label>
-                            <label className="block">
+                            <label className="block text-sm font-medium">
                               <span className="text-[11px] text-brand-950/40">Hasta la hora</span>
                               <input
                                 value={form.promoEndTime}
                                 onChange={(e) => setForm({ ...form, promoEndTime: e.target.value })}
                                 type="time"
-                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                               />
                             </label>
                           </div>
@@ -1103,22 +1139,22 @@ export function ProductFormDialog({
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            <label className="block">
+                            <label className="block text-sm font-medium">
                               <span className="text-[11px] text-brand-950/40">Desde la fecha</span>
                               <input
                                 value={form.promoStartDate}
                                 onChange={(e) => setForm({ ...form, promoStartDate: e.target.value })}
                                 type="date"
-                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                               />
                             </label>
-                            <label className="block">
+                            <label className="block text-sm font-medium">
                               <span className="text-[11px] text-brand-950/40">Hasta la fecha</span>
                               <input
                                 value={form.promoEndDate}
                                 onChange={(e) => setForm({ ...form, promoEndDate: e.target.value })}
                                 type="date"
-                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                                className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                               />
                             </label>
                           </div>
@@ -1128,7 +1164,7 @@ export function ProductFormDialog({
                   )}
 
                   <div className="space-y-3 rounded-xl border border-brand-950/10 p-3">
-                    <label className="flex items-center gap-2 text-sm">
+                    <label className="flex items-center gap-2 text-sm font-medium">
                       <input
                         type="checkbox"
                         checked={form.stockControlEnabled}
@@ -1138,7 +1174,7 @@ export function ProductFormDialog({
                     </label>
                     {form.stockControlEnabled && (
                       <div className="grid grid-cols-2 gap-3">
-                        <label className="block text-sm">
+                        <label className="block text-sm font-medium">
                           <span className="text-xs text-brand-950/60">Cantidad en stock</span>
                           <input
                             value={form.stockQuantity}
@@ -1147,10 +1183,10 @@ export function ProductFormDialog({
                             type="number"
                             step="1"
                             min="0"
-                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                           />
                         </label>
-                        <label className="block text-sm">
+                        <label className="block text-sm font-medium">
                           <span className="text-xs text-brand-950/60">Avisar al llegar a</span>
                           <input
                             value={form.stockMinQuantity}
@@ -1159,26 +1195,26 @@ export function ProductFormDialog({
                             type="number"
                             step="1"
                             min="0"
-                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                           />
                         </label>
                       </div>
                     )}
                     {/* Independiente del control de stock: un producto puede caducar aunque
                         no se lleve la cuenta de cuántos quedan. */}
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Fecha de caducidad (opcional)</span>
                       <input
                         value={form.expiryDate}
                         onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
                         type="date"
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                       />
                     </label>
                   </div>
 
                   <div className="space-y-3 rounded-xl border border-brand-950/10 p-3">
-                    <p className="text-sm font-medium text-brand-950">
+                    <p className="font-medium text-brand-950 text-base">
                       Envase <span className="font-normal text-brand-950/40">— solo se cobra en pedidos de Delivery/Pickup</span>
                     </p>
                     <div className="flex flex-wrap gap-2 text-sm">
@@ -1202,7 +1238,7 @@ export function ProductFormDialog({
                         value={form.packagingFeeBase}
                         onChange={(e) => setForm({ ...form, packagingFeeBase: e.target.value.replace(/[^0-9.]/g, '') })}
                         placeholder={`Precio del envase (${currencySymbol})`}
-                        className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                        className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                       />
                     )}
                     {form.packagingMode === 'INVENTORY' &&
@@ -1211,7 +1247,7 @@ export function ProductFormDialog({
                           <select
                             value={form.packagingItemId}
                             onChange={(e) => setForm({ ...form, packagingItemId: e.target.value })}
-                            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                           >
                             <option value="">Elige un insumo de envase…</option>
                             {packagingItems.map((item) => (
@@ -1222,13 +1258,13 @@ export function ProductFormDialog({
                             ))}
                           </select>
                         ) : (
-                          <p className="text-xs font-light text-brand-950/40">
+                          <p className="font-light text-brand-950/40 text-xs">
                             Aún no tienes insumos marcados como envase. Créalos desde Inventario → Insumos, marcando "Es un
                             envase para delivery".
                           </p>
                         )
                       ) : (
-                        <p className="text-xs font-light text-brand-950/40">
+                        <p className="font-light text-brand-950/40 text-xs">
                           Este plan no incluye Inventario — usa "Precio propio" o mejora tu plan para vincular con stock.
                         </p>
                       ))}
@@ -1248,6 +1284,7 @@ export function ProductFormDialog({
  * (ej. la categoría "Salsas" es máx. 4 en general, pero este producto la deja en máx. 2). */
 function LinkedCategoryRow({
   category,
+  symbol,
   productId,
   variants,
   onDissociate,
@@ -1258,6 +1295,7 @@ function LinkedCategoryRow({
   puedeBajar,
 }: {
   category: ModifierCategory;
+  symbol: string;
   productId: string;
   /** Tamaños del producto. Vacío = producto de precio simple, no hay nada que acotar. */
   variants: ProductVariant[];
@@ -1336,7 +1374,7 @@ function LinkedCategoryRow({
       </div>
       {category.allowMultiple && (
         <div className="flex flex-wrap gap-3">
-          <label className="block max-w-[10rem]">
+          <label className="block max-w-[10rem] text-sm font-medium">
             <span className="text-[11px] text-brand-950/40">Límite para este producto</span>
             <input
               value={maxSelections}
@@ -1344,13 +1382,13 @@ function LinkedCategoryRow({
               onBlur={saveOverride}
               placeholder="Usar el de la categoría"
               inputMode="numeric"
-              className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+              className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-2 py-1 text-base"
             />
           </label>
           {/* Incluidos sin costo EN ESTE PLATO: las primeras N unidades del grupo van a $0
               aunque tengan precio, y de la N+1 en adelante se cobran (las gratis se asignan
               a las más baratas — misma regla del servidor). Vacío o 0 = todas se cobran. */}
-          <label className="block max-w-[10rem]">
+          <label className="block max-w-[10rem] text-sm font-medium">
             <span className="text-[11px] text-brand-950/40">Gratis (incluidos)</span>
             <input
               value={freeQuantity}
@@ -1358,7 +1396,7 @@ function LinkedCategoryRow({
               onBlur={saveFreeQuantity}
               placeholder="0 = se cobran todos"
               inputMode="numeric"
-              className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+              className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-2 py-1 text-base"
             />
           </label>
         </div>
@@ -1409,9 +1447,9 @@ function LinkedCategoryRow({
           él, sin tocar al resto del grupo (ej. "Extra tocineta" solo en la Doble/Triple). */}
       {variants.length > 0 && category.modifiers.length > 0 && (
         <div className="space-y-2 pt-1">
-          <span className="text-[11px] text-brand-950/40">Modificadores acotados por tamaño (opcional)</span>
+          <span className="text-[11px] text-brand-950/40">Disponibilidad y precio de cada modificador por tamaño</span>
           {category.modifiers.map((m, index) => (
-            <ModifierVariantRow key={m.id} modifier={m} productId={productId} variants={variants}
+            <ModifierVariantRow key={m.id} modifier={m} productId={productId} variants={variants} symbol={symbol}
               onMover={(direction) => onMoverModificador(index, direction)} onEliminar={() => onEliminarModificador(m.id)} puedeSubir={index > 0} puedeBajar={index < category.modifiers.length - 1} />
           ))}
         </div>
@@ -1422,6 +1460,7 @@ function LinkedCategoryRow({
 
 function ModifierVariantRow({
   modifier,
+  symbol,
   productId,
   variants,
   onMover,
@@ -1430,6 +1469,7 @@ function ModifierVariantRow({
   puedeBajar,
 }: {
   modifier: Modifier;
+  symbol: string;
   productId: string;
   variants: ProductVariant[];
   onMover: (direccion: -1 | 1) => void;
@@ -1441,6 +1481,7 @@ function ModifierVariantRow({
   // criterio que el "¿En qué tamaños?" del grupo, un nivel más abajo.
   const [variantIds, setVariantIds] = useState<string[]>(modifier.variantIds ?? []);
   const [guardando, setGuardando] = useState(false);
+  const [showPrices, setShowPrices] = useState(false);
 
   useEffect(() => setVariantIds(modifier.variantIds ?? []), [modifier.id, modifier.variantIds]);
 
@@ -1485,6 +1526,20 @@ function ModifierVariantRow({
           </button>
         ))}
       </div>
+      <button type="button" onClick={() => setShowPrices(!showPrices)} aria-expanded={showPrices}
+        className="mt-2 text-xs font-medium text-brand-500">
+        {showPrices ? 'Ocultar precios por tamaño' : 'Configurar precios por tamaño'}
+      </button>
+      <div hidden={!showPrices} className="mt-2 rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3">
+        <p className="mb-2 text-brand-950/50 text-xs">Precio por unidad, solo para este producto. Los incluidos gratis conservan su configuración.</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {variants.map((variant) => (
+            <ModifierVariantPriceField key={variant.id} modifierId={modifier.id} variantId={variant.id}
+              variantName={variant.name} symbol={symbol}
+              initialPrice={modifier.variantPrices?.find((price) => price.variantId === variant.id)?.priceBase ?? modifier.priceBase} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1518,7 +1573,7 @@ function VariantRow({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => name.trim() && name !== variant.name && onSave(variant.id, { name: name.trim() })}
-          className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 min-w-0"
+          className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 min-w-0 text-base"
         />
         <div className="flex items-center gap-1">
           <span className="text-xs text-brand-950/40">{symbol}</span>
@@ -1526,7 +1581,7 @@ function VariantRow({
             value={price}
             onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))}
             onBlur={() => onSave(variant.id, { priceBase: Number(price) || 0 })}
-            className="w-16 text-sm border border-brand-950/15 rounded-lg px-2 py-1.5"
+            className="w-16 border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
           />
         </div>
         <button
@@ -1550,13 +1605,13 @@ function VariantRow({
           <Plus className="h-3 w-3" /> Precio de embalaje
         </button>
       ) : (
-        <label className="block text-xs max-w-[10rem]">
+        <label className="block max-w-[10rem] text-sm font-medium">
           <span className="text-brand-950/40">Precio de embalaje ({symbol})</span>
           <input
             value={packagingFee}
             onChange={(e) => setPackagingFee(e.target.value.replace(/[^0-9.]/g, ''))}
             onBlur={() => onSave(variant.id, { packagingFeeBase: packagingFee ? Number(packagingFee) : undefined })}
-            className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+            className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-2 py-1 text-base"
           />
         </label>
       )}

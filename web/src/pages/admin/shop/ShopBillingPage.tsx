@@ -1,5 +1,5 @@
-import type { AuthRestaurant } from '@/context/AuthContext';
 import { VerticalBillingPage } from '@/components/admin/VerticalBillingPage';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 
 // Espejo de DEFAULT_PLAN_CONTENT (platform-settings.service.ts): son solo los valores por
 // defecto mientras carga /public/plans — lo editable desde el Dashboard maestro manda.

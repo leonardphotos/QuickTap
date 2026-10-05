@@ -185,7 +185,7 @@ export default function WalletLoginPage() {
                 <br />
                 <span className="text-[#3d9bff]">{actual.resalte}</span>
               </h1>
-              <p className="mt-3 max-w-[19rem] text-[13.5px] font-light leading-relaxed text-white/55">
+              <p className="mt-3 max-w-[19rem] font-light leading-relaxed text-white/55 text-base">
                 {actual.texto}
               </p>
             </div>
@@ -216,7 +216,7 @@ export default function WalletLoginPage() {
         <form onSubmit={onSubmit} className="mt-8 space-y-2">
           {paso === 'datos' && (
             <div key="datos" className="wallet-slide space-y-2">
-              <label className="block">
+              <label className="block text-sm font-medium">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Teléfono</span>
                 <input
                   value={phone}
@@ -230,7 +230,7 @@ export default function WalletLoginPage() {
               {/* La segunda casilla muta según lo que el servidor sepa del teléfono: cédula la
                   primera vez, clave cuando ya la creó. key por modo: el cambio entra animado. */}
               {tieneClave ? (
-                <label key="clave" className="wallet-slide block">
+                <label key="clave" className="wallet-slide block text-sm font-medium">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Clave</span>
                   <input
                     type="password"
@@ -242,7 +242,7 @@ export default function WalletLoginPage() {
                   />
                 </label>
               ) : (
-                <label key="cedula" className="wallet-slide block">
+                <label key="cedula" className="wallet-slide block text-sm font-medium">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Cédula</span>
                   {/* Solo dígitos: si el cliente escribe la "V" no entra, así que no hace falta
                       aclararlo en la etiqueta. */}
@@ -260,10 +260,10 @@ export default function WalletLoginPage() {
 
           {paso === 'codigo' && (
             <div key="codigo" className="wallet-slide space-y-2">
-              <p className="text-[12.5px] font-light leading-relaxed text-white/55">
+              <p className="font-light leading-relaxed text-white/55 text-base">
                 Te enviamos un código de 4 dígitos por SMS al {phone}.
               </p>
-              <label className="block">
+              <label className="block text-sm font-medium">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Código</span>
                 <input
                   value={codigo}
@@ -286,10 +286,10 @@ export default function WalletLoginPage() {
 
           {paso === 'clave' && (
             <div key="clave-nueva" className="wallet-slide space-y-2">
-              <p className="text-[12.5px] font-light leading-relaxed text-white/55">
+              <p className="font-light leading-relaxed text-white/55 text-base">
                 Teléfono verificado. Crea la clave con la que vas a entrar de ahora en adelante.
               </p>
-              <label className="block">
+              <label className="block text-sm font-medium">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Tu clave</span>
                 <input
                   type="password"
@@ -315,7 +315,7 @@ export default function WalletLoginPage() {
                       />
                     ))}
                   </div>
-                  <p className="mt-1 text-right text-[10px] font-medium" style={{ color: nivelClave(claveNueva).color }}>
+                  <p className="mt-1 text-right font-medium text-xs" style={{ color: nivelClave(claveNueva).color }}>
                     {nivelClave(claveNueva).texto}
                   </p>
                 </div>
@@ -323,7 +323,7 @@ export default function WalletLoginPage() {
             </div>
           )}
 
-          {error && <p className="pt-0.5 text-center text-[11.5px] text-red-300">{error}</p>}
+          {error && <p className="pt-0.5 text-center text-red-300 text-base">{error}</p>}
 
           <button
             type="submit"
@@ -343,7 +343,7 @@ export default function WalletLoginPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-[9px] font-light leading-snug text-white/30">
+        <p className="mt-4 text-center font-light leading-snug text-white/30 text-base">
           {paso === 'datos' && !tieneClave
             ? 'La primera vez verificamos tu teléfono con un código por SMS y creas tu clave.'
             : 'Usa el mismo teléfono con el que compraste. Si no reconoce tus datos, pídele al negocio que verifique tu cédula en su ficha de cliente.'}

@@ -207,11 +207,11 @@ export default function PhotoGallery({
             <div className="mt-5 text-center max-w-sm w-full">
               <h2 className="text-white text-lg font-semibold [text-shadow:0_2px_12px_rgba(0,0,0,0.6)]">{product.name}</h2>
               {product.description && (
-                <p className="text-white/70 text-sm mt-1.5 leading-relaxed line-clamp-3 [text-shadow:0_2px_10px_rgba(0,0,0,0.6)]">
+                <p className="text-white/70 mt-1.5 leading-relaxed line-clamp-3 [text-shadow:0_2px_10px_rgba(0,0,0,0.6)] text-base">
                   {product.description}
                 </p>
               )}
-              <p className="text-white text-base font-semibold mt-2.5 [text-shadow:0_2px_10px_rgba(0,0,0,0.6)]">
+              <p className="text-white font-semibold mt-2.5 [text-shadow:0_2px_10px_rgba(0,0,0,0.6)] text-base">
                 {price.primary}
                 {price.secondary && <span className="text-white/60 font-normal"> · {price.secondary}</span>}
               </p>
@@ -370,7 +370,7 @@ export default function PhotoGallery({
                     <div className="flex flex-col gap-5">
                       {modifierCategories.map((category) => (
                         <div key={category.id}>
-                          <p className="text-white/50 text-[11px] font-medium tracking-wide">
+                          <p className="text-white/50 font-medium tracking-wide text-xs">
                             {category.name}
                             {category.isRequired && <span className="text-amber-300"> · Obligatorio</span>}
                           </p>

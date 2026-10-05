@@ -57,7 +57,7 @@ export default function ClubTournamentScreen({ courtNames, onExit, initialPlayer
   }
 
   if (tournament === undefined) {
-    return <Shell onExit={onExit} title="Torneo"><p className="font-light text-brand-950/40">Cargando…</p></Shell>;
+    return <Shell onExit={onExit} title="Torneo"><p className="font-light text-brand-950/40 text-base">Cargando…</p></Shell>;
   }
 
   if (tournament === null) {
@@ -96,7 +96,7 @@ export default function ClubTournamentScreen({ courtNames, onExit, initialPlayer
         </div>
       </div>
 
-      {error && <p className="mb-3 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</p>}
+      {error && <p className="mb-3 rounded-xl bg-red-50 px-4 py-2.5 text-red-700 text-base">{error}</p>}
 
       {tab === 'ronda' ? (
         <>
@@ -117,7 +117,7 @@ export default function ClubTournamentScreen({ courtNames, onExit, initialPlayer
           </div>
 
           {tournament.resting.length > 0 && (
-            <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-900">
+            <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 font-medium text-amber-900 text-base">
               Descansan esta ronda: {tournament.resting.map((p) => p.name).join(', ')}
             </p>
           )}
@@ -139,7 +139,7 @@ export default function ClubTournamentScreen({ courtNames, onExit, initialPlayer
             </button>
           </div>
           {!tournament.roundComplete && (
-            <p className="mt-2 text-[13px] font-light text-brand-950/45">
+            <p className="mt-2 font-light text-brand-950/45 text-base">
               Carga el resultado de todos los partidos para pasar a la siguiente ronda.
             </p>
           )}
@@ -217,7 +217,7 @@ function RoundTimer({ minutes, round }: { minutes: number; round: number }) {
       <p className="text-4xl font-bold tabular-nums tracking-tight">
         {mm}:{ss}
       </p>
-      <p className="text-sm font-light text-white/70">{over ? '¡Se acabó la ronda!' : 'de esta ronda'}</p>
+      <p className="font-light text-white/70 text-base">{over ? '¡Se acabó la ronda!' : 'de esta ronda'}</p>
       <div className="ml-auto flex gap-2">
         <button
           onClick={() => setRunning((v) => !v)}
@@ -289,7 +289,7 @@ function MatchCard({
       )}
     >
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13px] font-bold uppercase tracking-wide text-brand-500">{match.courtName}</p>
+        <p className="font-bold uppercase tracking-wide text-brand-500 text-base">{match.courtName}</p>
         {saved && (
           <span className="flex items-center gap-1 text-[12px] font-semibold text-emerald-600">
             <Check className="h-3.5 w-3.5" /> Cargado
@@ -299,8 +299,8 @@ function MatchCard({
 
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold text-brand-950">{nameOf(match.teamA[0])}</p>
-          <p className="truncate text-[15px] font-bold text-brand-950">{nameOf(match.teamA[1])}</p>
+          <p className="truncate font-bold text-brand-950 text-base">{nameOf(match.teamA[0])}</p>
+          <p className="truncate font-bold text-brand-950 text-base">{nameOf(match.teamA[1])}</p>
         </div>
         <input
           value={a}
@@ -318,8 +318,8 @@ function MatchCard({
           className="w-16 rounded-xl border border-brand-950/15 py-2.5 text-center text-2xl font-bold text-brand-950 outline-none focus:border-brand-500"
         />
         <div className="min-w-0 flex-1 text-right">
-          <p className="truncate text-[15px] font-bold text-brand-950">{nameOf(match.teamB[0])}</p>
-          <p className="truncate text-[15px] font-bold text-brand-950">{nameOf(match.teamB[1])}</p>
+          <p className="truncate font-bold text-brand-950 text-base">{nameOf(match.teamB[0])}</p>
+          <p className="truncate font-bold text-brand-950 text-base">{nameOf(match.teamB[1])}</p>
         </div>
       </div>
 
@@ -412,14 +412,14 @@ function NewTournamentForm({
   return (
     <div className="max-w-3xl space-y-5">
       <div>
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="font-medium text-brand-950/70">Nombre del torneo</span>
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
         </label>
       </div>
 
       <div>
-        <p className="mb-1.5 text-sm font-medium text-brand-950/70">Formato</p>
+        <p className="mb-1.5 font-medium text-brand-950/70 text-base">Formato</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {(['AMERICANO', 'MEXICANO'] as TournamentFormat[]).map((f) => (
             <button
@@ -430,15 +430,15 @@ function NewTournamentForm({
                 format === f ? 'border-brand-500 bg-brand-500/[0.06]' : 'border-brand-950/[0.1] bg-white',
               )}
             >
-              <p className="text-[15px] font-bold text-brand-950">{FORMAT_LABELS[f]}</p>
-              <p className="mt-0.5 text-[13px] font-light text-brand-950/55">{FORMAT_HINTS[f]}</p>
+              <p className="font-bold text-brand-950 text-base">{FORMAT_LABELS[f]}</p>
+              <p className="mt-0.5 font-light text-brand-950/55 text-base">{FORMAT_HINTS[f]}</p>
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <p className="mb-1.5 text-sm font-medium text-brand-950/70">¿Cómo termina cada partido?</p>
+        <p className="mb-1.5 font-medium text-brand-950/70 text-base">¿Cómo termina cada partido?</p>
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setScoring('POINTS')}
@@ -459,7 +459,7 @@ function NewTournamentForm({
             Por tiempo
           </button>
           {scoring === 'POINTS' ? (
-            <label className="flex items-center gap-2 text-sm text-brand-950/70">
+            <label className="flex items-center gap-2 text-brand-950/70 text-sm font-medium">
               se reparten
               <input
                 type="number"
@@ -467,12 +467,12 @@ function NewTournamentForm({
                 max={100}
                 value={pointsPerMatch}
                 onChange={(e) => setPointsPerMatch(Number(e.target.value))}
-                className="w-20 rounded-xl border border-brand-950/15 px-3 py-2 text-center outline-none focus:border-brand-500"
+                className="w-20 rounded-xl border border-brand-950/15 px-3 py-2 text-center outline-none focus:border-brand-500 text-base"
               />
               puntos
             </label>
           ) : (
-            <label className="flex items-center gap-2 text-sm text-brand-950/70">
+            <label className="flex items-center gap-2 text-brand-950/70 text-sm font-medium">
               cada ronda dura
               <input
                 type="number"
@@ -480,7 +480,7 @@ function NewTournamentForm({
                 max={90}
                 value={minutesPerRound}
                 onChange={(e) => setMinutesPerRound(Number(e.target.value))}
-                className="w-20 rounded-xl border border-brand-950/15 px-3 py-2 text-center outline-none focus:border-brand-500"
+                className="w-20 rounded-xl border border-brand-950/15 px-3 py-2 text-center outline-none focus:border-brand-500 text-base"
               />
               min
             </label>
@@ -489,7 +489,7 @@ function NewTournamentForm({
       </div>
 
       <div>
-        <p className="mb-1.5 text-sm font-medium text-brand-950/70">Canchas donde se juega</p>
+        <p className="mb-1.5 font-medium text-brand-950/70 text-base">Canchas donde se juega</p>
         <div className="flex flex-wrap gap-2">
           {courtNames.map((c) => {
             const on = courts.includes(c);
@@ -507,7 +507,7 @@ function NewTournamentForm({
             );
           })}
         </div>
-        <p className="mt-1.5 text-[13px] font-light text-brand-950/45">
+        <p className="mt-1.5 font-light text-brand-950/45 text-base">
           Se juegan {courts.length} {courts.length === 1 ? 'partido' : 'partidos'} por ronda: hacen falta al menos{' '}
           {courts.length * 4} jugadores.
         </p>
@@ -515,7 +515,7 @@ function NewTournamentForm({
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <p className="text-sm font-medium text-brand-950/70">Jugadores ({clean.length})</p>
+          <p className="font-medium text-brand-950/70 text-base">Jugadores ({clean.length})</p>
           <button
             onClick={() => setPlayers((p) => [...p, '', '', '', ''])}
             className="flex items-center gap-1.5 rounded-full bg-brand-950/[0.05] px-3.5 py-1.5 text-[13px] font-semibold text-brand-950"
@@ -524,7 +524,7 @@ function NewTournamentForm({
           </button>
         </div>
         {initialPlayers && initialPlayers.length > 0 && (
-          <p className="mb-1.5 text-[12px] font-light text-emerald-600">
+          <p className="mb-1.5 font-light text-emerald-600 text-xs">
             Cargados desde la reserva de la cancha — revísalos antes de empezar.
           </p>
         )}
@@ -535,7 +535,7 @@ function NewTournamentForm({
                 value={p}
                 onChange={(e) => setPlayers((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
                 placeholder={`Jugador ${i + 1}`}
-                className="min-w-0 flex-1 rounded-xl border border-brand-950/15 px-3 py-2.5 text-[15px] outline-none focus:border-brand-500"
+                className="min-w-0 flex-1 rounded-xl border border-brand-950/15 px-3 py-2.5 outline-none focus:border-brand-500 text-base"
               />
               {players.length > 4 && (
                 <button
@@ -551,7 +551,7 @@ function NewTournamentForm({
         </div>
       </div>
 
-      {error && <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-xl bg-red-50 px-4 py-2.5 text-red-700 text-base">{error}</p>}
 
       <button
         onClick={() =>
@@ -563,7 +563,7 @@ function NewTournamentForm({
         <Trophy className="h-5 w-5" /> {busy ? 'Armando cruces…' : 'Empezar torneo'}
       </button>
       {!enough && (
-        <p className="text-[13px] font-light text-brand-950/45">
+        <p className="font-light text-brand-950/45 text-base">
           Faltan jugadores o canchas: hacen falta al menos {Math.max(4, courts.length * 4)} jugadores para{' '}
           {courts.length} {courts.length === 1 ? 'cancha' : 'canchas'}.
         </p>

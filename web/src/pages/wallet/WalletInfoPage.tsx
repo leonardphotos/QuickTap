@@ -97,7 +97,7 @@ export default function WalletInfoPage() {
           <br />
           <span className="text-[#3d9bff]">en tu bolsillo.</span>
         </h1>
-        <p className="mt-4 max-w-[24rem] text-[14px] font-light leading-relaxed text-white/55 lg:max-w-md lg:text-[15.5px]">
+        <p className="mt-4 max-w-[24rem] font-light leading-relaxed text-white/55 lg:max-w-md lg:text-[15.5px] text-base">
           QuickTap Wallet es tu portal como cliente: lo que llevas a crédito, tus cuotas, tus
           entradas y tu historial en cualquier negocio QuickTap — tiendas, restaurantes y
           canchas.
@@ -124,8 +124,10 @@ export default function WalletInfoPage() {
               el overflow-hidden del contenedor raíz recorta lo que sobre. */}
           <div className="relative hidden h-[460px] w-[430px] lg:block">
             <img
-              src="/images/wallet-conoce.png"
+              src="/images/wallet-conoce.webp"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
+              loading="lazy"
+              decoding="async"
               className="absolute right-4 top-1/2 w-[640px] max-w-none -translate-y-[51%] drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
             />
           </div>
@@ -173,7 +175,7 @@ export default function WalletInfoPage() {
         {/* ---------- Cierre: la descarga ---------- */}
         <div className="mt-14 rounded-3xl bg-white/[0.045] p-6 text-center ring-1 ring-white/[0.06] lg:mx-auto lg:mt-24 lg:max-w-xl lg:p-10">
           <img src={WALLET_WORDMARK_URL} alt="" className="mx-auto h-7 w-auto" />
-          <p className="mt-3 text-[13px] font-light leading-relaxed text-white/55">
+          <p className="mt-3 font-light leading-relaxed text-white/55 text-base">
             Instala la app en tu Android y recibe el recordatorio de cada cuota antes de que
             venza.
           </p>
@@ -184,7 +186,7 @@ export default function WalletInfoPage() {
           >
             <Download className="h-4 w-4" /> Descargar para Android (APK)
           </a>
-          <p className="mt-3 text-[10.5px] font-light text-white/30">
+          <p className="mt-3 font-light text-white/30 text-base">
             Gratis · también puedes usarlo desde el navegador en quicktap.club/wallet
           </p>
         </div>

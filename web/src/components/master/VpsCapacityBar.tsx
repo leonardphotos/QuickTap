@@ -64,7 +64,7 @@ export function VpsCapacityBar() {
   if (!health) {
     return (
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-        <p className="text-xs text-brand-950/40 font-light">Cargando capacidad del VPS…</p>
+        <p className="text-brand-950/40 font-light text-xs">Cargando capacidad del VPS…</p>
       </div>
     );
   }
@@ -76,7 +76,7 @@ export function VpsCapacityBar() {
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
       <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-medium text-brand-950/70">Capacidad del VPS</p>
+        <p className="font-medium text-brand-950/70 text-base">Capacidad del VPS</p>
         <span className="text-xs font-medium" style={{ color }}>
           {statusText(sustained.percent)}
         </span>
@@ -103,7 +103,7 @@ export function VpsCapacityBar() {
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-brand-950/40 font-light">
+      <p className="mt-2 text-brand-950/40 font-light text-xs">
         {warmingUp
           ? 'Calentando el promedio (el proceso acaba de arrancar) · '
           : `Promedio de los últimos ${sustained.windowMinutes} min · `}

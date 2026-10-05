@@ -25,7 +25,7 @@ class MiniGl {
     this.gl = gl;
 
     const context = this.gl;
-    const _miniGl = this;
+    const getMiniGl = () => this;
 
     this.Uniform = class {
       type: string = 'float';
@@ -132,7 +132,6 @@ ${fields}
       program!: WebGLProgram;
 
       constructor(vertexShaders: string, fragments: string, uniforms: any = {}) {
-        const material = this;
 
         function getShader(type: number, source: string): WebGLShader {
           const shader = context.createShader(type)!;
@@ -151,7 +150,7 @@ ${fields}
             .join('\n');
         }
 
-        material.uniforms = uniforms;
+        this.uniforms = uniforms;
         const prefix = 'precision highp float;';
 
         const vertexSource = `
@@ -159,31 +158,31 @@ ${fields}
           attribute vec4 position;
           attribute vec2 uv;
           attribute vec2 uvNorm;
-          ${getUniformDeclarations(_miniGl.commonUniforms, 'vertex')}
+          ${getUniformDeclarations(getMiniGl().commonUniforms, 'vertex')}
           ${getUniformDeclarations(uniforms, 'vertex')}
           ${vertexShaders}
         `;
 
         const fragmentSource = `
           ${prefix}
-          ${getUniformDeclarations(_miniGl.commonUniforms, 'fragment')}
+          ${getUniformDeclarations(getMiniGl().commonUniforms, 'fragment')}
           ${getUniformDeclarations(uniforms, 'fragment')}
           ${fragments}
         `;
 
-        material.program = context.createProgram()!;
-        context.attachShader(material.program, getShader(context.VERTEX_SHADER, vertexSource));
-        context.attachShader(material.program, getShader(context.FRAGMENT_SHADER, fragmentSource));
-        context.linkProgram(material.program);
+        this.program = context.createProgram()!;
+        context.attachShader(this.program, getShader(context.VERTEX_SHADER, vertexSource));
+        context.attachShader(this.program, getShader(context.FRAGMENT_SHADER, fragmentSource));
+        context.linkProgram(this.program);
 
-        if (!context.getProgramParameter(material.program, context.LINK_STATUS)) {
-          console.error(context.getProgramInfoLog(material.program));
+        if (!context.getProgramParameter(this.program, context.LINK_STATUS)) {
+          console.error(context.getProgramInfoLog(this.program));
           throw new Error('Program linking error');
         }
 
-        context.useProgram(material.program);
-        material.attachUniforms(undefined, _miniGl.commonUniforms);
-        material.attachUniforms(undefined, material.uniforms);
+        context.useProgram(this.program);
+        this.attachUniforms(undefined, getMiniGl().commonUniforms);
+        this.attachUniforms(undefined, this.uniforms);
       }
 
       attachUniforms(name: string | undefined, uniforms: any): void {
@@ -212,10 +211,10 @@ ${fields}
 
       constructor() {
         this.attributes = {
-          position: new _miniGl.Attribute({ target: context.ARRAY_BUFFER, size: 3 }),
-          uv: new _miniGl.Attribute({ target: context.ARRAY_BUFFER, size: 2 }),
-          uvNorm: new _miniGl.Attribute({ target: context.ARRAY_BUFFER, size: 2 }),
-          index: new _miniGl.Attribute({
+          position: new (getMiniGl().Attribute)({ target: context.ARRAY_BUFFER, size: 3 }),
+          uv: new (getMiniGl().Attribute)({ target: context.ARRAY_BUFFER, size: 2 }),
+          uvNorm: new (getMiniGl().Attribute)({ target: context.ARRAY_BUFFER, size: 2 }),
+          index: new (getMiniGl().Attribute)({
             target: context.ELEMENT_ARRAY_BUFFER,
             size: 3,
             type: context.UNSIGNED_SHORT,
@@ -299,7 +298,7 @@ ${fields}
           });
         });
 
-        _miniGl.meshes.push(this);
+        getMiniGl().meshes.push(this);
       }
 
       draw(): void {
@@ -613,7 +612,9 @@ export function GradientWave({
   const gradientRef = useRef<Gradient | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+    let activeGradient: Gradient | null = null;
 
     const canvas = document.createElement('canvas');
     Object.assign(canvas.style, {
@@ -624,10 +625,11 @@ export function GradientWave({
       height: '100%',
       display: 'block',
     });
-    containerRef.current.appendChild(canvas);
+    container.appendChild(canvas);
 
     try {
       const gradient = new Gradient(canvas, colors);
+      activeGradient = gradient;
       gradientRef.current = gradient;
 
       // apply props to uniforms
@@ -648,9 +650,9 @@ export function GradientWave({
     }
 
     return () => {
-      gradientRef.current?.stop();
-      if (containerRef.current?.contains(canvas)) {
-        containerRef.current.removeChild(canvas);
+      activeGradient?.stop();
+      if (container.contains(canvas)) {
+        container.removeChild(canvas);
       }
     };
   }, [colors, isPlaying, shadowPower, darkenTop, noiseSpeed, noiseFrequency, deform]);
