@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Info, Layers, PackageMinus, Scale } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
 import { MetricCard } from '@/components/admin/MetricCard';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { AlertTriangle,Info,Layers,PackageMinus,Scale } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Histórico' };
@@ -59,7 +59,7 @@ export function CostAnalysisSection() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el análisis de costo.'));
   }, [range]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const m = (v: string) => formatBase(v, symbol);
   const rows = data ? (showAll ? data.rows : data.rows.slice(0, 10)) : [];
@@ -80,7 +80,7 @@ export function CostAnalysisSection() {
       </div>
 
       {!data ? (
-        <p className="text-sm font-light text-brand-950/40">Calculando…</p>
+        <p className="font-light text-brand-950/40 text-base">Calculando…</p>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -123,7 +123,7 @@ export function CostAnalysisSection() {
           </div>
 
           <div className="rounded-2xl border border-brand-950/10 bg-brand-50/40 px-4 py-3 text-[11px] text-brand-950/60">
-            <p className="flex items-start gap-1.5">
+            <p className="flex items-start gap-1.5 text-base">
               <Info className="mt-0.5 h-3 w-3 shrink-0" />
               <span>
                 Desviación = costo real − costo teórico − merma. El costo real son las compras del período (base de caja): si compraste
@@ -134,7 +134,7 @@ export function CostAnalysisSection() {
           </div>
 
           {noCost && (
-            <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-800">
+            <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-amber-800 text-base">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               El {data.coverage.percentWithoutCost}% de tus ventas ({m(data.coverage.revenueWithoutCostBase)}) viene de productos sin costo
               cargado: su food cost sale en 0 % y el costo teórico está subestimado. Cárgales el costo o su receta.
@@ -144,7 +144,7 @@ export function CostAnalysisSection() {
           {/* --- Por categoría --- */}
           {data.categories.length > 0 && (
             <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
-              <p className="mb-3 text-sm font-semibold text-brand-950">Dónde se concentra el costo</p>
+              <p className="mb-3 font-semibold text-brand-950 text-base">Dónde se concentra el costo</p>
               <div className="space-y-2.5">
                 {data.categories.map((c) => (
                   <div key={c.name}>
@@ -170,7 +170,7 @@ export function CostAnalysisSection() {
 
           {/* --- Producto por producto --- */}
           <div>
-            <p className="mb-3 text-sm font-medium text-brand-950/70">Costo y margen por producto</p>
+            <p className="mb-3 font-medium text-brand-950/70 text-base">Costo y margen por producto</p>
             <div className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm">
               <div className="hidden items-center gap-3 border-b border-brand-950/[0.06] px-5 py-2 text-[11px] font-medium uppercase tracking-wide text-brand-950/40 sm:flex">
                 <span className="flex-1">Producto</span>
@@ -181,17 +181,17 @@ export function CostAnalysisSection() {
                 <span className="w-24 text-right">Margen</span>
               </div>
               <div className="divide-y divide-brand-950/[0.06]">
-                {rows.length === 0 && <p className="p-5 text-sm font-light text-brand-950/40">Sin ventas en este período.</p>}
+                {rows.length === 0 && <p className="p-5 font-light text-brand-950/40 text-base">Sin ventas en este período.</p>}
                 {rows.map((r) => (
                   <div key={`${r.name}-${r.categoryName}`} className="flex items-center gap-3 px-5 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-brand-950">
+                      <p className="truncate font-medium text-brand-950 text-base">
                         {r.name}
                         {!r.hasCost && (
                           <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">sin costo</span>
                         )}
                       </p>
-                      <p className="text-xs text-brand-950/40">{r.categoryName}</p>
+                      <p className="text-brand-950/40 text-xs">{r.categoryName}</p>
                     </div>
                     <span className="w-20 text-right text-sm text-brand-950/70">{r.quantity}</span>
                     <span className="hidden w-24 text-right text-sm text-brand-950/70 sm:block">{m(r.revenueBase)}</span>

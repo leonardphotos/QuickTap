@@ -1,10 +1,13 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, PackageX, PanelLeftClose, Plus, Share2 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { AiReportsButton } from '@/components/admin/AiReportsButton';
-import { ROLE_LABELS } from '@/utils/roles';
-import { PLAN_LABELS, type AdminNavLink } from '@/pages/admin/nav-links';
+import { BounceNavigation } from '@/components/ui/bounce-navigation';
+import { primaryRestaurantLinks, restaurantLinkActive } from './RestaurantModuleNav';
+import { BusinessVoiceAssistant } from '@/components/admin/BusinessVoiceAssistant';
+import { useAuth } from '@/context/AuthContext.shared';
 import type { LowStockItem } from '@/hooks/useLowStockItems';
+import { PLAN_LABELS,type AdminNavLink } from '@/pages/admin/nav-links';
+import { ROLE_LABELS } from '@/utils/roles';
+import { Menu,PackageX,PanelLeftClose,Plus,Share2 } from 'lucide-react';
+import { Link,useLocation } from 'react-router-dom';
 
 interface AdminSidebarProps {
   navLinks: AdminNavLink[];
@@ -50,13 +53,13 @@ export function AdminSidebar({
       // animar la entrada/salida, y `inert` la saca del tab order y de lectores de pantalla
       // mientras está oculta — si no, quedaría "viva" pero invisible.
       inert={hidden || undefined}
-      className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-[264px] bg-gradient-to-b from-brand-950 to-brand-900 px-4 py-6 overflow-y-auto transition-transform duration-300 ease-out motion-reduce:transition-none ${
+      className={`quicktap-glass-sidebar quicktap-restaurant-sidebar hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-[264px] px-4 py-6 overflow-y-auto transition-transform duration-220 ease-out-strong motion-reduce:transition-none ${
         hidden ? '-translate-x-full' : 'translate-x-0'
       }`}
     >
       <div className="flex items-center gap-2 mb-7 shrink-0 min-w-0">
         <Link to="/admin" className="flex items-center gap-3 px-2 min-w-0 flex-1">
-          <img src={restaurant.logoUrl || '/logo/icono.png'} alt="" className="h-10 w-10 rounded-xl object-cover shrink-0" />
+          <img src={restaurant.logoUrl || '/logo/icono.png?v=20261002'} alt="" className="h-10 w-10 rounded-xl object-cover shrink-0" />
           <span className="text-white font-semibold text-[17px] tracking-tight truncate">{restaurant.name}</span>
         </Link>
         <button
@@ -64,7 +67,7 @@ export function AdminSidebar({
           onClick={onHide}
           aria-label="Ocultar menú lateral"
           title="Ocultar menú lateral"
-          className="flex items-center justify-center h-8 w-8 rounded-lg text-white/50 hover:bg-white/[0.08] hover:text-white transition-colors shrink-0"
+          className="flex items-center justify-center h-9 w-9 rounded-xl text-white/50 hover:bg-white/[0.08] hover:text-white transition-[color,background-color,transform] duration-150 ease-out-strong active:scale-95 motion-reduce:transition-none shrink-0"
         >
           <PanelLeftClose className="h-[18px] w-[18px]" />
         </button>
@@ -76,22 +79,28 @@ export function AdminSidebar({
         <button
           type="button"
           onClick={onCreateOrder}
-          className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-[14.5px] font-semibold text-white shadow-[0_8px_20px_-6px_rgba(16,185,129,0.4)] transition-colors hover:bg-emerald-600 shrink-0"
+          className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 py-2.5 text-[14.5px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(0,166,245,0.30)] transition-[background-color,transform,box-shadow] duration-150 ease-out-strong hover:bg-brand-600 active:scale-[0.98] motion-reduce:transition-none shrink-0"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
         </button>
       )}
 
-      <nav className="flex-1 flex flex-col gap-0.5">
-        {navLinks.map((l) => {
-          const active = pathname === l.to;
+      <BounceNavigation aria-label="Menú del restaurante" className="flex-1 flex flex-col gap-0.5">
+        {primaryRestaurantLinks(navLinks).map((l) => {
+          // Conserva la identidad azul de Resumen también al navegar dentro de un módulo
+          // (por ejemplo, Administración → Compras o Inventario → Transferencias).
+          // Antes solo coincidía con la URL exacta y el menú perdía el estado activo.
+          const active = restaurantLinkActive(l.to, pathname);
           const showAlert = l.to === '/admin/reservations' && pendingReservations > 0;
           return (
             <Link
               key={l.to}
               to={l.to}
-              className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium transition-colors ${
-                active ? 'bg-brand-500/20 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium transition-[color,background-color,transform] duration-150 ease-out-strong active:scale-[0.985] motion-reduce:transition-none ${
+                // El estado activo conserva siempre el azul de Resumen. No toma el color
+                // propio del módulo para que la navegación se perciba como un solo sistema.
+                active ? 'bg-brand-500/25 text-white shadow-[inset_3px_0_0_#38bdf8]' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
               }`}
             >
               <l.icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-sky-300' : 'opacity-80'}`} />
@@ -104,15 +113,16 @@ export function AdminSidebar({
             </Link>
           );
         })}
-      </nav>
+      </BounceNavigation>
 
       <AiReportsButton sidebar />
+      <BusinessVoiceAssistant sidebar />
 
       <div className="flex items-center gap-2 mt-2 shrink-0">
         {lowStockItems.length > 0 && (
           <Link
             to="/admin/inventory"
-            className="relative flex items-center justify-center h-9 w-9 rounded-full bg-red-500/15 hover:bg-red-500/25 transition-colors"
+            className="relative flex items-center justify-center h-9 w-9 rounded-full bg-red-500/15 hover:bg-red-500/25 transition-[background-color,transform] duration-150 ease-out-strong active:scale-95 motion-reduce:transition-none"
             aria-label="Insumos por agotarse"
             title={`Insumos por agotarse: ${lowStockItems.map((i) => i.name).join(', ')}`}
           >
@@ -126,7 +136,7 @@ export function AdminSidebar({
           type="button"
           onClick={onShare}
           aria-label="Compartir enlace del menú"
-          className="flex items-center justify-center h-9 w-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
+          className="flex items-center justify-center h-9 w-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-[background-color,transform] duration-150 ease-out-strong active:scale-95 motion-reduce:transition-none"
         >
           <Share2 className="h-4 w-4 text-white/70" />
         </button>
@@ -134,7 +144,7 @@ export function AdminSidebar({
           type="button"
           onClick={onOpenMenu}
           aria-label="Abrir menú"
-          className="flex items-center justify-center h-9 w-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
+          className="flex items-center justify-center h-9 w-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-[background-color,transform] duration-150 ease-out-strong active:scale-95 motion-reduce:transition-none"
         >
           <Menu className="h-4 w-4 text-white/70" />
         </button>
@@ -146,8 +156,8 @@ export function AdminSidebar({
             {user.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-white text-sm font-semibold truncate">{user.name}</p>
-            <p className="text-white/50 text-xs truncate">{ROLE_LABELS[user.role] ?? user.role}{planLabel ? ` · ${planLabel}` : ''}</p>
+            <p className="text-white font-semibold truncate text-base">{user.name}</p>
+            <p className="text-white/50 truncate text-xs">{ROLE_LABELS[user.role] ?? user.role}{planLabel ? ` · ${planLabel}` : ''}</p>
           </div>
         </div>
       )}

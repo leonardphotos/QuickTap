@@ -28,6 +28,7 @@ interface Entrada {
   titular: string | null;
   usada: boolean;
   usadaEl: string | null;
+  estado: 'VALID' | 'USED' | 'VOIDED' | 'REFUNDED';
 }
 
 const fechaLarga = (iso: string) =>
@@ -66,11 +67,11 @@ export default function ShopTicketPage() {
           style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 55%, #001b43 100%)' }}
         >
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">Entrada</p>
+            <p className="font-semibold uppercase tracking-[0.22em] text-white/70 text-xs">Entrada</p>
             {entrada.logoUrl && <img src={entrada.logoUrl} alt="" className="h-6 w-auto rounded" />}
           </div>
           <h1 className="mt-2 text-2xl font-bold leading-tight">{entrada.evento}</h1>
-          <p className="mt-0.5 text-[13px] font-light text-white/75">{entrada.negocio}</p>
+          <p className="mt-0.5 font-light text-white/75 text-base">{entrada.negocio}</p>
         </div>
 
         {/* Datos del pasaje */}
@@ -90,12 +91,17 @@ export default function ShopTicketPage() {
 
         {/* El talón: solo el código, para que el lector lo enfoque sin nada alrededor */}
         <div className="flex flex-col items-center px-5 pb-7 pt-6">
-          {entrada.usada ? (
+          {entrada.estado === 'VOIDED' || entrada.estado === 'REFUNDED' ? (
+            <div className="flex flex-col items-center gap-2 py-4 text-center">
+              <p className="font-bold text-red-300 text-base">Entrada anulada</p>
+              <p className="font-light text-white/40 text-xs">Este código ya no permite el acceso.</p>
+            </div>
+          ) : entrada.usada ? (
             <div className="flex flex-col items-center gap-2 py-4 text-center">
               <CheckCircle2 className="h-12 w-12 text-emerald-400" />
-              <p className="text-[15px] font-bold text-emerald-300">Esta entrada ya se usó</p>
+              <p className="font-bold text-emerald-300 text-base">Esta entrada ya se usó</p>
               {entrada.usadaEl && (
-                <p className="text-[11px] font-light text-white/40">
+                <p className="font-light text-white/40 text-xs">
                   Ingresó el {new Date(entrada.usadaEl).toLocaleString('es-VE')}
                 </p>
               )}
@@ -107,12 +113,12 @@ export default function ShopTicketPage() {
               <div className="rounded-2xl bg-white p-3">
                 <QRCodeSVG value={entrada.accessToken} size={168} />
               </div>
-              <p className="mt-3 text-center text-[11px] font-light leading-snug text-white/40">
+              <p className="mt-3 text-center font-light leading-snug text-white/40 text-xs">
                 Muestra este código en la entrada. Sirve una sola vez.
               </p>
             </>
           )}
-          <p className="mt-4 font-mono text-[10px] tracking-widest text-white/25">{entrada.accessToken}</p>
+          <p className="mt-4 font-mono tracking-widest text-white/25 text-xs">{entrada.accessToken}</p>
         </div>
       </div>
     </div>
@@ -122,8 +128,8 @@ export default function ShopTicketPage() {
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
     <div>
-      <p className="text-[10px] font-medium uppercase tracking-wider text-white/35">{etiqueta}</p>
-      <p className="mt-0.5 text-[13.5px] font-semibold capitalize leading-snug">{valor}</p>
+      <p className="font-medium uppercase tracking-wider text-white/35 text-xs">{etiqueta}</p>
+      <p className="mt-0.5 font-semibold capitalize leading-snug text-base">{valor}</p>
     </div>
   );
 }

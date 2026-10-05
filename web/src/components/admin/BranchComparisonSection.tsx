@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Building2, TrendingDown, TrendingUp } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { MetricCard } from '@/components/admin/MetricCard';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
+import { Building2,TrendingDown,TrendingUp } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año', all: 'Todo' };
@@ -74,7 +74,7 @@ export function BranchComparisonSection() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar la comparativa.'));
   }, [range, from, to]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const rows = data?.branches ?? [];
   const activeMetric = METRICS.find((m) => m.key === metric)!;
@@ -107,7 +107,7 @@ export function BranchComparisonSection() {
             {RANGE_LABELS[r]}
           </button>
         ))}
-        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+        <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
           Desde
           <input
             type="date"
@@ -118,7 +118,7 @@ export function BranchComparisonSection() {
             }`}
           />
         </label>
-        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+        <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
           Hasta
           <input
             type="date"
@@ -168,8 +168,8 @@ export function BranchComparisonSection() {
       <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-medium text-brand-950/70">Comparar por</p>
-            <p className="text-xs font-light text-brand-950/45">{activeMetric.hint}</p>
+            <p className="font-medium text-brand-950/70 text-base">Comparar por</p>
+            <p className="font-light text-brand-950/45 text-xs">{activeMetric.hint}</p>
           </div>
           <div className="flex flex-wrap gap-1 rounded-full bg-brand-950/[0.05] p-1">
             {METRICS.map((m) => (
@@ -186,7 +186,7 @@ export function BranchComparisonSection() {
           </div>
         </div>
 
-        {rows.length === 0 && <p className="text-sm font-light text-brand-950/40">Todavía no hay sucursales que comparar.</p>}
+        {rows.length === 0 && <p className="font-light text-brand-950/40 text-base">Todavía no hay sucursales que comparar.</p>}
 
         <div className="space-y-3">
           {rows.map((r) => {
@@ -196,7 +196,7 @@ export function BranchComparisonSection() {
             return (
               <div key={r.branchId}>
                 <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium text-brand-950">
+                  <p className="font-medium text-brand-950 text-base">
                     {r.name}
                     {r.isMain && <span className="ml-1.5 text-[11px] font-normal text-brand-950/40">Sede principal</span>}
                     {best && r.branchId === best.branchId && rows.length > 1 && (
@@ -217,7 +217,7 @@ export function BranchComparisonSection() {
                 <div className="h-2 overflow-hidden rounded-full bg-brand-950/[0.06]">
                   <div className={`h-full rounded-full ${bad ? 'bg-red-400' : 'bg-brand-500'}`} style={{ width: `${width}%` }} />
                 </div>
-                <p className="mt-1 text-xs font-light text-brand-950/45">
+                <p className="mt-1 font-light text-brand-950/45 text-xs">
                   {r.ordersCount} pedido{r.ordersCount === 1 ? '' : 's'} · ticket {formatBase(r.avgTicketBase, symbol)} ·{' '}
                   {r.sharePercent}% de las ventas del grupo
                 </p>
@@ -266,7 +266,7 @@ export function BranchComparisonSection() {
         </div>
       )}
 
-      <p className="text-xs font-light text-brand-950/45">
+      <p className="font-light text-brand-950/45 text-xs">
         Los gastos son los egresos cargados en cada sede durante {periodLabel}; el costo de lo vendido usa el costo
         actual de cada producto (receta o costo manual), igual que el reporte de Margen de utilidad.
       </p>

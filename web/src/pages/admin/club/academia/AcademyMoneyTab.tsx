@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Send } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { RefreshCw,Send } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import {
-  Cell,
-  ClubBadge,
-  ClubEyebrow,
-  ClubMetric,
-  ClubPanel,
-  ClubRow,
-  ClubTable,
-  PlainCell,
-  type BadgeTone,
-  type ClubColumn,
+Cell,
+ClubBadge,
+ClubEyebrow,
+ClubMetric,
+ClubPanel,
+ClubRow,
+ClubTable,
+PlainCell,
+type BadgeTone,
+type ClubColumn,
 } from '../ClubTable';
 import { academyApi } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
@@ -175,7 +175,7 @@ export default function AcademyMoneyTab({
     }
   }
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando cobros…</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando cobros…</p>;
 
   const pending = charges.filter((c) => c.status === 'PENDING' || c.status === 'OVERDUE');
   const pendingBase = pending.reduce(
@@ -185,8 +185,8 @@ export default function AcademyMoneyTab({
 
   return (
     <div className="flex flex-col gap-3.5">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {notice && <p className="text-sm text-emerald-700">{notice}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
+      {notice && <p className="text-emerald-700 text-base">{notice}</p>}
 
       <ClubEyebrow>Resumen del dinero</ClubEyebrow>
       <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
@@ -275,7 +275,7 @@ export default function AcademyMoneyTab({
           })}
         </ClubTable>
         {charges.length > 40 && (
-          <p className="mt-4 px-1 text-[12px] font-light text-brand-950/40">
+          <p className="mt-4 px-1 font-light text-brand-950/40 text-xs">
             Mostrando las 40 más recientes de {charges.length}.
           </p>
         )}

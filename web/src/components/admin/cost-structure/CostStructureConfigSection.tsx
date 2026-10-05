@@ -105,13 +105,13 @@ export function CostStructureConfigSection({
       <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-brand-950">Elementos del restaurante</p>
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-semibold text-brand-950 text-base">Elementos del restaurante</p>
+            <p className="font-light text-brand-950/50 text-xs">
               Cada % se aplica sobre el precio de venta (base imponible, sin servicio ni IVA) de cada producto.
             </p>
           </div>
           <div className="text-right text-xs">
-            <p className="text-brand-950/50">
+            <p className="text-brand-950/50 text-base">
               Fijos <span className="font-semibold text-brand-950">{fixedTotal.toFixed(2)}%</span> · Variables{' '}
               <span className="font-semibold text-brand-950">{variableTotal.toFixed(2)}%</span>
             </p>
@@ -143,7 +143,7 @@ export function CostStructureConfigSection({
         </div>
 
         <div className="mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-brand-950/[0.06] pt-4">
-          <label className="text-xs text-brand-950/60">
+          <label className="text-brand-950/60 text-sm font-medium">
             Utilidad neta objetivo por producto
             <div className="mt-1 flex items-center gap-1">
               <input
@@ -153,14 +153,14 @@ export function CostStructureConfigSection({
                 step="0.5"
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
-                className="w-24 rounded-xl border border-brand-950/15 px-3 py-2 text-sm font-semibold text-brand-950"
+                className="w-24 rounded-xl border border-brand-950/15 px-3 py-2 font-semibold text-brand-950 text-base"
               />
               <span className="text-sm text-brand-950/50">%</span>
             </div>
           </label>
           <div className="flex items-center gap-3">
-            {error && <p className="text-xs text-red-600">{error}</p>}
-            {savedAt && !dirty && !error && <p className="text-xs text-emerald-600">Guardado</p>}
+            {error && <p className="text-red-600 text-xs">{error}</p>}
+            {savedAt && !dirty && !error && <p className="text-emerald-600 text-xs">Guardado</p>}
             <TextureButton variant="primary" size="sm" className="!w-auto" onClick={save} disabled={saving || !dirty || overhead >= 100}>
               {saving ? 'Guardando…' : 'Guardar elementos'}
             </TextureButton>
@@ -176,12 +176,12 @@ export function CostStructureConfigSection({
               <Lightbulb className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-brand-950">¿Cuánto pesan de verdad tus fijos?</p>
-              <p className="text-xs font-light text-brand-950/60">
+              <p className="font-semibold text-brand-950 text-base">¿Cuánto pesan de verdad tus fijos?</p>
+              <p className="font-light text-brand-950/60 text-xs">
                 Gastos marcados como recurrentes ÷ ventas del período. Es la referencia real para tu % fijo total.
               </p>
               {suggested && (
-                <p className="mt-2 text-sm text-brand-950">
+                <p className="mt-2 text-brand-950 text-base">
                   {suggested.suggestedFixedPercent ? (
                     <>
                       Fijos {symbol}
@@ -222,7 +222,7 @@ export function CostStructureConfigSection({
           </div>
         </div>
         {suggested?.suggestedFixedPercent && Number(suggested.suggestedFixedPercent) + variableTotal >= 100 && (
-          <p className="mt-3 text-xs text-red-600">
+          <p className="mt-3 text-red-600 text-xs">
             Con ese % fijo más tus variables se pasa del 100 % del precio: revisa que las ventas del período estén completas
             o que los gastos recurrentes no incluyan compras de insumos.
           </p>
@@ -255,13 +255,13 @@ function ItemGroup({
     <div>
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div>
-          <p className="text-[13px] font-semibold text-brand-950">{title}</p>
-          <p className="text-[11px] font-light text-brand-950/45">{hint}</p>
+          <p className="font-semibold text-brand-950 text-base">{title}</p>
+          <p className="font-light text-brand-950/45 text-xs">{hint}</p>
         </div>
-        <p className="text-xs font-semibold text-brand-950">{total.toFixed(2)}%</p>
+        <p className="font-semibold text-brand-950 text-xs">{total.toFixed(2)}%</p>
       </div>
       <div className="divide-y divide-brand-950/[0.06] rounded-xl border border-brand-950/10">
-        {rows.length === 0 && <p className="px-3 py-3 text-xs font-light text-brand-950/40">Sin elementos.</p>}
+        {rows.length === 0 && <p className="px-3 py-3 font-light text-brand-950/40 text-xs">Sin elementos.</p>}
         {rows.map((i) => (
           <div key={i.id} className={`flex items-center gap-2 px-3 py-2 ${i.enabled ? '' : 'opacity-50'}`}>
             <button
@@ -272,13 +272,13 @@ function ItemGroup({
               onClick={() => onPatch(i.id, { enabled: !i.enabled })}
               className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${i.enabled ? 'bg-brand-500' : 'bg-brand-950/20'}`}
             >
-              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${i.enabled ? 'left-[18px]' : 'left-0.5'}`} />
+              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-[left] duration-200 ease-out-strong motion-reduce:transition-none ${i.enabled ? 'left-[18px]' : 'left-0.5'}`} />
             </button>
             <input
               value={i.label}
               onChange={(e) => onPatch(i.id, { label: e.target.value })}
               placeholder="Nombre del elemento"
-              className="min-w-0 flex-1 bg-transparent text-sm text-brand-950 outline-none placeholder:text-brand-950/30"
+              className="min-w-0 flex-1 bg-transparent text-brand-950 outline-none placeholder:text-brand-950/30 text-base"
             />
             <div className="flex items-center gap-1">
               <input
@@ -288,7 +288,7 @@ function ItemGroup({
                 step="0.5"
                 value={i.percent}
                 onChange={(e) => onPatch(i.id, { percent: Number(e.target.value) })}
-                className="w-16 rounded-lg border border-brand-950/15 px-2 py-1 text-right text-sm font-semibold text-brand-950"
+                className="w-16 rounded-lg border border-brand-950/15 px-2 py-1 text-right font-semibold text-brand-950 text-base"
               />
               <span className="text-xs text-brand-950/50">%</span>
             </div>

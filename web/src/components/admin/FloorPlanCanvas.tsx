@@ -1,31 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { BellRing, Circle, Link2, Link2Off, Minus, Plus, RectangleHorizontal, Receipt, Save, Square, X } from 'lucide-react';
-import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
-import { seatOffsets } from './seat-layout';
 import type { FloorPlanTable } from '@/types';
-
-/**
- * Planimetría del salón: dibuja las mesas de una zona donde de verdad están en el local.
- *
- * Las posiciones se guardan en PORCENTAJE del lienzo (0-100), no en píxeles: el mismo plano
- * se ve igual en el celular del mesero y en el monitor de caja. En modo edición las mesas se
- * arrastran, cambian de forma (redonda/cuadrada) y de tamaño; en modo normal se comportan
- * como los botones de siempre — un toque abre la mesa.
- *
- * Es un componente CONTROLADO: los cambios sin guardar viven en la pantalla que lo usa, no acá.
- * Así no se pierden al desmontar el lienzo (ej. al cambiar de pestaña de zona) mientras el botón
- * "Guardar plano" sigue marcado como sucio.
- */
-
-export interface FloorPlanPatch {
-  id: string;
-  planX: number | null;
-  planY: number | null;
-  planShape?: 'ROUND' | 'SQUARE' | 'RECTANGLE';
-  planSize?: number;
-  seats?: number;
-}
+import { BellRing,Circle,Link2,Link2Off,Minus,Plus,Receipt,RectangleHorizontal,Save,Square,X } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
+import { type FloorPlanPatch,tableToneKey,type TableToneKey,tableToneLabel } from './FloorPlanCanvas.shared';
+import { seatOffsets } from './seat-layout';
 
 /** Rango de sillas por mesa — mismo tope que valida el backend en saveFloorPlanSchema. */
 export const MIN_SEATS = 1;
@@ -33,33 +11,6 @@ export const MAX_SEATS = 20;
 
 /** Qué está haciendo el lienzo: mirar, reacomodar el plano, o elegir mesas para unirlas. */
 export type FloorPlanMode = 'view' | 'edit' | 'merge';
-
-/** Estado de una mesa, en abstracto. El color concreto lo pone quien la dibuja (claro/oscuro). */
-export type TableToneKey = 'call' | 'multi' | 'occupied' | 'reserved' | 'vacant';
-
-/** Estado de la mesa — mismo criterio que la vista de lista. */
-export function tableToneKey(t: FloorPlanTable): TableToneKey {
-  if (t.serviceRequest) return 'call';
-  if (t.sessions.length > 1) return 'multi';
-  if (t.sessions.length === 1) return 'occupied';
-  if (t.reserved) return 'reserved';
-  return 'vacant';
-}
-
-export function tableToneLabel(t: FloorPlanTable): string {
-  switch (tableToneKey(t)) {
-    case 'call':
-      return 'Cuenta';
-    case 'multi':
-      return `${t.sessions.length} cuentas`;
-    case 'occupied':
-      return 'Ocupada';
-    case 'reserved':
-      return 'Reservada';
-    default:
-      return 'Libre';
-  }
-}
 
 /** Paleta del panel claro (la de siempre). El plano oscuro de Sala usa la suya. */
 const LIGHT_TONES: Record<TableToneKey, { bg: string; fg: string }> = {
@@ -76,6 +27,7 @@ function tableTone(t: FloorPlanTable): { bg: string; fg: string; label: string }
 
 export function FloorPlanCanvas({
   tables,
+  spacious = false,
   mode,
   patches,
   onPatch,
@@ -85,6 +37,7 @@ export function FloorPlanCanvas({
   onUnmerge,
 }: {
   tables: FloorPlanTable[];
+  spacious?: boolean;
   mode: FloorPlanMode;
   /** Cambios sin guardar, por id de mesa — los guarda la pantalla, no el lienzo. */
   patches: Record<string, FloorPlanPatch>;
@@ -199,7 +152,7 @@ export function FloorPlanCanvas({
 
   /** Ancho/alto en píxeles con que se dibuja una mesa (la rectangular es el doble de ancha). */
   function dims(t: FloorPlanTable) {
-    const size = 56 * (t.planSize || 1) * zoom;
+    const size = (spacious ? 68 : 56) * (t.planSize || 1) * zoom;
     return { width: t.planShape === 'RECTANGLE' ? size * 2 : size, height: size };
   }
 
@@ -293,7 +246,7 @@ export function FloorPlanCanvas({
     <div className="space-y-3">
       <div
         ref={canvasRef}
-        className={`relative h-[420px] w-full overflow-hidden rounded-2xl border ${
+        className={`relative ${spacious ? 'h-[clamp(440px,68dvh,860px)]' : 'h-[420px]'} w-full overflow-hidden rounded-2xl border ${
           editing ? 'border-brand-500/40 bg-[repeating-linear-gradient(0deg,rgba(11,21,36,0.04)_0_1px,transparent_1px_28px),repeating-linear-gradient(90deg,rgba(11,21,36,0.04)_0_1px,transparent_1px_28px)]' : 'border-brand-950/10 bg-brand-950/[0.02]'
         }`}
       >
@@ -328,7 +281,7 @@ export function FloorPlanCanvas({
         )}
 
         {placed.length === 0 && (
-          <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-light text-brand-950/40">
+          <p className="absolute inset-0 flex items-center justify-center px-6 text-center font-light text-brand-950/40 text-base">
             {editing
               ? 'Arrastra las mesas de abajo hasta donde están en el local.'
               : 'Esta zona todavía no tiene plano. Toca "Editar plano" para ubicar sus mesas.'}
@@ -536,7 +489,7 @@ export function FloorPlanCanvas({
 
       {unplaced.length > 0 && (
         <div className="rounded-xl border border-dashed border-brand-950/15 px-3 py-2.5">
-          <p className="mb-2 text-xs font-medium text-brand-950/50">
+          <p className="mb-2 font-medium text-brand-950/50 text-xs">
             {editing ? 'Sin ubicar — tócalas para ponerlas en el centro y luego arrástralas' : 'Sin ubicar en el plano'}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -573,12 +526,6 @@ function ShapeButton({ active, onClick, children }: { active: boolean; onClick: 
       {children}
     </button>
   );
-}
-
-/** Guarda en el backend los cambios de plano acumulados de todas las zonas. */
-export async function saveFloorPlan(patches: FloorPlanPatch[]) {
-  if (patches.length === 0) return;
-  await api.patch('/tables/floor-plan', { tables: patches });
 }
 
 /** Botón de guardado que usa la pantalla de Órdenes de Mesa. */

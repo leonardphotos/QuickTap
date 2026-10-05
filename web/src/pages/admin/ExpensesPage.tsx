@@ -1,17 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
+import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
+import { CATEGORY_LABELS,DOCUMENT_TYPE_LABELS,type ExpenseCategory,type ExpenseDocumentType } from '@/components/admin/ExpenseFormDialog.shared';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
-import {
-  ExpenseFormDialog,
-  CATEGORY_LABELS,
-  DOCUMENT_TYPE_LABELS,
-  type ExpenseCategory,
-  type ExpenseDocumentType,
-} from '@/components/admin/ExpenseFormDialog';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
+import { Plus } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 type Range = 'day' | 'week' | 'month' | 'year';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año' };
@@ -86,7 +81,7 @@ export default function ExpensesPage({ embedded = false }: { embedded?: boolean 
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value as ExpenseCategory | '')}
-          className="text-xs font-medium border border-brand-950/15 rounded-full px-2.5 py-1 text-brand-950/60"
+          className="font-medium border border-brand-950/15 rounded-full px-2.5 py-1 text-brand-950/60 text-base"
         >
           <option value="">Todas las categorías</option>
           {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
@@ -101,33 +96,33 @@ export default function ExpensesPage({ embedded = false }: { embedded?: boolean 
         <div className="grid sm:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
             <p className="text-2xl font-semibold text-emerald-600">{formatBase(result.totalIncome, symbol)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Ingresos · {RANGE_LABELS[range]}</p>
+            <p className="text-brand-950/50 font-light mt-1 text-xs">Ingresos · {RANGE_LABELS[range]}</p>
           </div>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
             <p className="text-2xl font-semibold text-red-600">{formatBase(result.totalExpense, symbol)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Egresos · {RANGE_LABELS[range]}</p>
+            <p className="text-brand-950/50 font-light mt-1 text-xs">Egresos · {RANGE_LABELS[range]}</p>
           </div>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
             <p className={`text-2xl font-semibold ${Number(result.net) < 0 ? 'text-red-600' : 'text-brand-950'}`}>
               {formatBase(result.net, symbol)}
             </p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Balance · {RANGE_LABELS[range]}</p>
+            <p className="text-brand-950/50 font-light mt-1 text-xs">Balance · {RANGE_LABELS[range]}</p>
           </div>
         </div>
       )}
 
       {pending.length > 0 && (
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-3">Pendientes con proveedores</p>
+          <p className="font-medium text-brand-950/70 mb-3 text-base">Pendientes con proveedores</p>
           <TextureCard>
             <ul className="divide-y divide-brand-950/10">
               {pending.map((m) => (
                 <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                   <div className="min-w-0">
-                    <p className="font-medium text-brand-950 truncate">
+                    <p className="font-medium text-brand-950 truncate text-base">
                       {m.description} {m.supplier && <span className="text-brand-950/50 font-normal">· {m.supplier.name}</span>}
                     </p>
-                    <p className="text-xs text-brand-950/40">{new Date(m.createdAt).toLocaleDateString('es-VE')}</p>
+                    <p className="text-brand-950/40 text-xs">{new Date(m.createdAt).toLocaleDateString('es-VE')}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="font-semibold text-red-600">{formatBase(m.amountBase, symbol)}</span>
@@ -143,14 +138,14 @@ export default function ExpensesPage({ embedded = false }: { embedded?: boolean 
       )}
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Movimientos · {RANGE_LABELS[range]}</p>
+        <p className="font-medium text-brand-950/70 mb-3 text-base">Movimientos · {RANGE_LABELS[range]}</p>
         <TextureCard>
           <ul className="divide-y divide-brand-950/10">
             {result?.movements.map((m) => (
               <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div className="min-w-0">
-                  <p className="font-medium text-brand-950 truncate">{m.description}</p>
-                  <p className="text-xs text-brand-950/40 truncate">
+                  <p className="font-medium text-brand-950 truncate text-base">{m.description}</p>
+                  <p className="text-brand-950/40 truncate text-xs">
                     {m.category && CATEGORY_LABELS[m.category]}
                     {m.supplier && ` · ${m.supplier.name}`}
                     {m.isCredit && (m.creditPaidAt ? ' · Crédito pagado' : ' · A crédito')}

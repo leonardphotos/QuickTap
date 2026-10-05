@@ -1,41 +1,36 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
-import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode, Receipt } from 'lucide-react';
+import { CheckoutExtrasPicker } from './CheckoutExtrasPicker';
+import type { CheckoutExtra } from './CheckoutExtrasSection';
+import PaymentProofReview from '@/components/PaymentProofReview';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBs, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
-import { canApplyDiscount } from '@/utils/roles';
-import {
-  METHODS_ALLOWING_PROOF,
-  METHODS_REQUIRING_PROOF_OR_REFERENCE,
-  METHODS_WITH_QR,
-  paymentDocumentError,
-  referenceLabel,
-} from '@/utils/payments';
-import type { PaymentMethod } from '@/types';
-import { methodAccountsOf } from '@/utils/payment-accounts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TextureButton } from '@/components/ui/texture-button';
-import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
-import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
-import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
+import { cashPaymentAmount } from '@/utils/cash-payment';
+import { PromoCodeField } from '@/components/admin/crm/PromoCodeField';
+import { promoDiscountAmount,type AppliedPromo } from '@/components/admin/crm/PromoCodeField.shared';
 import { FiscalInvoiceDialog } from '@/components/admin/FiscalInvoiceDialog';
+import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
+import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
+import { PosNumericKeypad,type PosKeypadField } from '@/components/admin/PosNumericKeypad';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useIsLandscapeTablet,useIsTactil } from '@/hooks/useIsLandscapeTablet';
+import type { PaymentMethod } from '@/types';
+import { CURRENCY_SYMBOLS,formatBase,formatBs,formatBsAbsolute,formatModifierLabel } from '@/utils/format';
 import { settledOf } from '@/utils/orderBalance';
-import { useIsLandscapeTablet, useIsTactil } from '@/hooks/useIsLandscapeTablet';
-import { PosNumericKeypad, type PosKeypadField } from '@/components/admin/PosNumericKeypad';
-import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
-
-export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  MOBILE_PAYMENT: 'Pago Móvil',
-  ZELLE: 'Zelle',
-  CASH: 'Efectivo Bs',
-  CASH_USD: 'Efectivo $',
-  CARD: 'Punto de Venta',
-  BINANCE: 'Binance',
-  PAYPAL: 'PayPal',
-  TRANSFER: 'Transferencia',
-  PAYROLL_DEDUCTION: 'Descuento de nómina',
-};
+import { OrderCorrectionPanel } from './OrderCorrectionPanel';
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import {
+METHODS_ALLOWING_PROOF,
+METHODS_REQUIRING_PROOF_OR_REFERENCE,
+METHODS_WITH_QR,
+paymentDocumentError,
+referenceLabel,
+} from '@/utils/payments';
+import { canApplyDiscount } from '@/utils/roles';
+import { ArrowLeft,Camera,Check,Copy,Loader2,QrCode,Receipt } from 'lucide-react';
+import type { ChangeEvent } from 'react';
+import { useEffect,useRef,useState } from 'react';
+import type { LiveOrder,LiveOrderPayment } from './LiveOrdersPanel.shared';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
@@ -64,29 +59,36 @@ function PaymentRow({ payment, symbol }: { payment: LiveOrderPayment; symbol: st
   return (
     <div className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-brand-950/[0.06] last:border-0">
       <div className="min-w-0">
-        <p className="font-medium text-brand-950">{PAYMENT_LABELS[payment.method as PaymentMethod] ?? payment.method}</p>
+        <p className="font-medium text-brand-950 text-base">{PAYMENT_LABELS[payment.method as PaymentMethod] ?? payment.method}</p>
         {payment.referenceNumber && (
-          <p className="text-brand-950/40 truncate">
+          <p className="text-brand-950/40 truncate text-base">
             Ref: {payment.referenceNumber}
             {payment.proofImageUrl && <span className="text-emerald-600"> · ✓ Comprobante</span>}
           </p>
         )}
+        {payment.proofImageUrl&&<PaymentProofReview fileKey={payment.proofImageUrl}/>}
         {Number(payment.discountBase ?? 0) > 0 && (
-          <p className="text-brand-950/40">Descuento: {formatBase(payment.discountBase!, symbol)}</p>
+          <p className="text-brand-950/40 text-base">Descuento: {formatBase(payment.discountBase!, symbol)}</p>
         )}
         {Number(payment.serviceChargeDiscountBase ?? 0) > 0 && (
-          <p className="text-brand-950/40">Servicio ajustado: -{formatBase(payment.serviceChargeDiscountBase!, symbol)}</p>
+          <p className="text-brand-950/40 text-base">Servicio ajustado: -{formatBase(payment.serviceChargeDiscountBase!, symbol)}</p>
         )}
         {Number(payment.changeBase ?? 0) > 0 && (
-          <p className="text-brand-950/40">
+          <p className="text-brand-950/40 text-base">
             Recibido {formatBase(payment.amountReceivedBase!, symbol)} · vuelto {formatBase(payment.changeBase!, symbol)}
             {payment.changeMethod && payment.changeMethod !== payment.method
               ? ` por ${PAYMENT_LABELS[payment.changeMethod as PaymentMethod] ?? payment.changeMethod}`
               : ''}
           </p>
         )}
+        {payment.changeParts?.map((part, index) => (
+          <p key={index} className="text-brand-950/50 text-base">
+            Vuelto: {formatBase(part.amountBase, symbol)} · {PAYMENT_LABELS[part.method as PaymentMethod] ?? part.method}
+            {part.referenceNumber ? ` · Ref: ${part.referenceNumber}` : ''}
+          </p>
+        ))}
       </div>
-      <p className="font-semibold text-brand-950 shrink-0">{formatBase(payment.amountBase, symbol)}</p>
+      <p className="font-semibold text-brand-950 shrink-0 text-base">{formatBase(payment.amountBase, symbol)}</p>
     </div>
   );
 }
@@ -106,7 +108,11 @@ function PosColumn({ isPos, className, children }: { isPos: boolean; className: 
   return isPos ? <div className={className}>{children}</div> : <>{children}</>;
 }
 
-export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
+export function PaymentDialog({ order: originalOrder, mode, onClose, onPaid }: Props) {
+  const [updatedOrder, setUpdatedOrder] = useState<LiveOrder | null>(null);
+  const order = updatedOrder?.id === originalOrder.id ? updatedOrder : originalOrder;
+  const [addingExtra, setAddingExtra] = useState(false);
+  const extraLock = useRef(false);
   const { restaurant, user } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const showDiscount = canApplyDiscount(user?.role);
@@ -119,6 +125,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // `order` viene del padre; el pago recién hecho puede estar ya en `order.payments` y además
   // en `sessionPayments`. Se deduplica por id para no contarlo dos veces.
   const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
+  const needsCustomerAtPayment = ['DINE_IN', 'BAR'].includes(order.channel) && !order.isEmployeeConsumption &&
+    (!order.customerName?.trim() || !order.customerIdNumber?.trim() || !order.customerPhone?.trim());
+  const [customerName, setCustomerName] = useState(order.customerName ?? '');
+  const [customerIdNumber, setCustomerIdNumber] = useState(order.customerIdNumber ?? '');
+  const [customerPhone, setCustomerPhone] = useState(order.customerPhone ?? '');
 
   // Un descuento (y el ajuste de servicio) perdona esa parte de la deuda: cuenta como
   // "saldado" igual que el efectivo cobrado — misma cuenta que hace el backend.
@@ -130,12 +141,16 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // anteriores de esta misma cuenta — se precarga acá, pero el cajero puede ajustarlo o
   // dejarlo en 0 si el cliente no quiere dejar propina en este cobro.
   const tipCollectedSoFar = order.payments.reduce((acc, p) => acc + Number(p.tipBase ?? 0), 0);
-  const tipOutstanding = Math.max(0, Number(order.tipBase ?? 0) - tipCollectedSoFar);
+  // Un consumo interno no admite propina: no hay una venta ni dinero entrando. Algunos pedidos
+  // viejos quedaron con una propina accidental y precargarla impedía cerrar la cuenta.
+  const tipOutstanding = order.isEmployeeConsumption
+    ? 0
+    : Math.max(0, Number(order.tipBase ?? 0) - tipCollectedSoFar);
 
   const paymentConfig = restaurant?.paymentMethodsConfig;
   const hasPaymentConfig = paymentConfig && Object.values(paymentConfig).some((m) => m?.enabled);
   const paymentOptions = order.isEmployeeConsumption
-    ? [...(hasPaymentConfig ? (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter((k) => paymentConfig?.[k]?.enabled) : DEFAULT_PAYMENT_OPTIONS), 'PAYROLL_DEDUCTION' as PaymentMethod]
+    ? ['PAYROLL_DEDUCTION' as PaymentMethod]
     : hasPaymentConfig
     ? (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter((k) => paymentConfig?.[k]?.enabled)
     : DEFAULT_PAYMENT_OPTIONS;
@@ -187,7 +202,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     onFocus: () => setPosField(campo),
     onPointerDown: () => setPosField(campo),
   });
-  const [posField, setPosField] = useState<PosKeypadField>(payMode === 'split' ? 'amount' : 'tip');
+  const [posField, setPosField] = useState<PosKeypadField>(() =>
+    payMode === 'split'
+      ? 'amount'
+      : METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(method)
+        ? 'reference'
+        : 'tip',
+  );
   // El abono, igual que la propina, se escribe en la moneda con la que el cliente paga.
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
   const [tipCurrency, setTipCurrency] = useState<'BASE' | 'BS'>('BS');
@@ -209,6 +230,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [amountReceived, setAmountReceived] = useState('');
   const [changeMethod, setChangeMethod] = useState<PaymentMethod | ''>('');
   const [changeReference, setChangeReference] = useState('');
+  const [splitChange, setSplitChange] = useState(false);
+  const [activeChangePart, setActiveChangePart] = useState(0);
+  const [changeParts, setChangeParts] = useState<{ method: PaymentMethod; amount: string; referenceNumber: string }[]>([]);
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
@@ -266,7 +290,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     return Math.round(n * 100) / 100;
   }
 
-  const canAdjust = showDiscount && splitBy === 'amount';
+  const canAdjust = showDiscount && !order.isEmployeeConsumption && splitBy === 'amount';
   const serviceChargeBaseNum = Number(order.serviceChargeBase);
   // Porcentaje efectivo (0-100, clamped) de cada ajuste — solo tiene sentido en modo 'percent'.
   const discountPct = canAdjust && discountMode === 'percent' ? Math.min(100, Math.max(0, Number(discountValue) || 0)) : 0;
@@ -317,10 +341,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     setAmountCurrency(next);
   }
 
-  const amountToCharge =
-    payMode === 'split' && splitBy === 'items' ? itemsSubtotal : payMode === 'split' ? amountInBase : discountedBalance;
-  const tipValueNum = Math.max(0, Number(tipValue) || 0);
+  const tipValueNum = order.isEmployeeConsumption ? 0 : Math.max(0, Number(tipValue) || 0);
   const tipAmt = tipCurrency === 'BS' && rateBsOfOrder > 0 ? round2(tipValueNum / rateBsOfOrder) : tipValueNum;
+  const isCashMethod = method === 'CASH' || method === 'CASH_USD';
+  const receivedNum = Number(amountReceived) || 0;
+  const splitAmountBase = cashPaymentAmount(amount, amountInBase, isCashMethod, receivedNum, discountedBalance, tipAmt);
+  const amountToCharge =
+    payMode === 'split' && splitBy === 'items' ? itemsSubtotal : payMode === 'split' ? splitAmountBase : discountedBalance;
 
   /** Cambiar Bs <-> $ convierte lo ya escrito, para no perder lo que el cajero tecleó. */
   function onTipCurrencyChange(next: 'BASE' | 'BS') {
@@ -336,11 +363,19 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   // Vuelto: solo con billetes (Efectivo $ / Efectivo Bs). Recibido − a cobrar (venta + propina
   // incluida, si la hay), si es positivo.
-  const isCashMethod = method === 'CASH' || method === 'CASH_USD';
-  const receivedNum = Number(amountReceived) || 0;
-  const changeAmt = isCashMethod && receivedNum > totalWithTip + 0.001 ? round2(receivedNum - totalWithTip) : 0;
+  const changeAmt = isCashMethod && amountToCharge > 0 && receivedNum > totalWithTip + 0.001 ? round2(receivedNum - totalWithTip) : 0;
   const rateBs = restaurant?.exchangeRate?.rateBs;
   const effectiveChangeMethod: PaymentMethod = changeMethod || method;
+  const changeAssignedCents = changeParts.reduce((sum, part) => sum + Math.round((Number(part.amount) || 0) * 100), 0);
+  const changeRemaining = (Math.round(changeAmt * 100) - changeAssignedCents) / 100;
+  const changeOptions = (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter(option => option !== 'PAYROLL_DEDUCTION');
+  function updateChangePart(index: number, patch: Partial<(typeof changeParts)[number]>) {
+    setChangeParts(parts => parts.map((part, i) => i === index ? { ...part, ...patch } : part));
+  }
+  function targetChangePart(index: number, field: 'changePartAmount' | 'changePartReference') {
+    const select = () => { setActiveChangePart(index); setPosField(field); };
+    return { onFocus: select, onPointerDown: select };
+  }
 
   /** Elegir método no abre nada solo: el cajero decide cuándo enseñarle los datos al
    *  cliente con el botón "Mostrar datos". */
@@ -348,6 +383,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     setMethod(next);
     setAccountKey('main');
     setError(null);
+    // En la tablet, al escoger Pago Móvil/Zelle/transferencia, el teclado debe quedar
+    // listo para escribir la referencia; antes saltaba a Propina y causaba cobros erróneos.
+    setPosField(METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(next) ? 'reference' : payMode === 'split' ? 'amount' : 'tip');
   }
 
   const detailLines = order.items.map(
@@ -365,7 +403,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           const value = selectedAccount.fields[f];
           return (
             <div key={f} className="flex items-center justify-between gap-2">
-              <p className="truncate">
+              <p className="truncate text-base">
                 <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
               </p>
               <button
@@ -451,7 +489,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       const form = new FormData();
       form.append('photo', file);
       const { data } = await api.post('/orders/upload-payment-proof', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': 'multipart/form-data' }, timeout:30000,
       });
       setProofUrl(data.data.url);
     } catch (e: any) {
@@ -461,9 +499,36 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     }
   }
 
+  const [moneyReceived,setMoneyReceived]=useState(false);
+  useEffect(()=>setMoneyReceived(false),[method,payMode,amount]);
+  const needsReceiptConfirmation=['DELIVERY','PICKUP'].includes(order.channel);
+  async function addCheckoutExtra(extra: CheckoutExtra) {
+    if (extraLock.current || sending) return;
+    extraLock.current = true; setAddingExtra(true); setError(null);
+    try {
+      const { data } = await api.post(`/orders/${order.id}/items`, { productId: extra.id, quantity: 1 });
+      const fresh = { ...order, ...data.data, payments: data.data.payments ?? allPayments } as LiveOrder;
+      setUpdatedOrder(fresh);
+      setRemainingServer(null);
+      if (payMode === 'full') {
+        const balance = Math.max(0, Number(fresh.totalBase) - settledOf(fresh.payments));
+        setAmount((amountCurrency === 'BS' ? balance * rateBsOfOrder : balance).toFixed(2));
+      }
+      setMoneyReceived(false);
+    } catch (err: any) { setError(err.response?.data?.error ?? 'No se pudo añadir el extra. Revisa el pedido antes de intentarlo nuevamente.'); }
+    finally { extraLock.current = false; setAddingExtra(false); }
+  }
+
   async function submit() {
+    if (extraLock.current) return;
+    if(needsReceiptConfirmation&&!moneyReceived){setError('Confirma que ya recibiste el dinero. Elegir el método no confirma un cobro.');return;}
     const byItems = payMode === 'split' && splitBy === 'items';
-    const amountBase = byItems ? itemsSubtotal : payMode === 'split' ? amountInBase : discountedBalance;
+    const amountBase = amountToCharge;
+    const isInternalClose = method === 'PAYROLL_DEDUCTION';
+    if (splitChange && changeAmt > 0 && (changeRemaining !== 0 || changeParts.some(part => !Number.isFinite(Number(part.amount)) || Number(part.amount) <= 0 || !/^\d+(\.\d{1,2})?$/.test(part.amount)))) {
+      setError('Completa cada parte con un monto positivo. La suma debe coincidir exactamente con el vuelto.');
+      return;
+    }
     if (byItems) {
       if (itemsPickedCount === 0) {
         setError('Elige al menos un ítem a cobrar.');
@@ -482,6 +547,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(docError);
       return;
     }
+    if (needsCustomerAtPayment && (!customerName.trim() || !customerIdNumber.trim() || !customerPhone.trim())) {
+      setError('Para cobrar pedidos de Mesa o Barra, completa nombre, cédula/RIF y teléfono del cliente.');
+      return;
+    }
     setSending(true);
     setError(null);
     try {
@@ -493,19 +562,27 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               .map(([orderItemId, quantity]) => ({ orderItemId, quantity }))
           : undefined,
         method,
-        discountPercent: discountMode === 'percent' && discountPct > 0 ? discountPct : undefined,
-        discountAmount: discountMode === 'amount' && discountAmt > 0 ? discountAmt : undefined,
-        serviceChargeDiscountPercent: serviceMode === 'percent' && servicePct > 0 ? servicePct : undefined,
-        serviceChargeDiscountAmount: serviceMode === 'amount' && serviceAdjAmt > 0 ? serviceAdjAmt : undefined,
-        referenceNumber: needsReference ? referenceNumber.trim() : undefined,
-        proofImageUrl: needsProof ? proofUrl ?? undefined : undefined,
-        bankAccountId: selectedAccount?.bankAccountId ?? undefined,
-        promoCode: promo?.code ?? undefined,
-        tipBase: tipAmt > 0 ? tipAmt : undefined,
+        ...(needsCustomerAtPayment ? {
+          customerName: customerName.trim(),
+          customerIdNumber: customerIdNumber.trim(),
+          customerPhone: customerPhone.trim(),
+        } : {}),
+        discountPercent: !isInternalClose && discountMode === 'percent' && discountPct > 0 ? discountPct : undefined,
+        discountAmount: !isInternalClose && discountMode === 'amount' && discountAmt > 0 ? discountAmt : undefined,
+        serviceChargeDiscountPercent: !isInternalClose && serviceMode === 'percent' && servicePct > 0 ? servicePct : undefined,
+        serviceChargeDiscountAmount: !isInternalClose && serviceMode === 'amount' && serviceAdjAmt > 0 ? serviceAdjAmt : undefined,
+        referenceNumber: !isInternalClose && needsReference ? referenceNumber.trim() : undefined,
+        proofImageUrl: !isInternalClose && needsProof ? proofUrl ?? undefined : undefined,
+        bankAccountId: !isInternalClose ? selectedAccount?.bankAccountId ?? undefined : undefined,
+        promoCode: !isInternalClose ? promo?.code ?? undefined : undefined,
+        tipBase: !isInternalClose && tipAmt > 0 ? tipAmt : undefined,
         // Vuelto: solo se manda si de verdad hubo cambio.
-        amountReceived: changeAmt > 0 ? receivedNum : undefined,
-        changeMethod: changeAmt > 0 ? effectiveChangeMethod : undefined,
-        changeReferenceNumber: changeAmt > 0 && changeReference.trim() ? changeReference.trim() : undefined,
+        amountReceived: !isInternalClose && changeAmt > 0 ? receivedNum : undefined,
+        changeMethod: !isInternalClose && changeAmt > 0 && !splitChange ? effectiveChangeMethod : undefined,
+        changeReferenceNumber: !isInternalClose && changeAmt > 0 && !splitChange && changeReference.trim() ? changeReference.trim() : undefined,
+        changeParts: !isInternalClose && changeAmt > 0 && splitChange
+          ? changeParts.map(part => ({ method: part.method, amountBase: Number(part.amount), referenceNumber: part.referenceNumber.trim() || undefined }))
+          : undefined,
       });
       // El endpoint devuelve el pedido completo (no solo el pago nuevo). Se identifica el/los
       // pago(s) recién creados comparando contra los que ya conocíamos ANTES de este POST — así
@@ -525,7 +602,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       const fullyPaid = remaining <= 0.01;
       setRemainingServer(Math.max(0, remaining));
       onPaid(fullyPaid);
-      if (fullyPaid) {
+      if (fullyPaid && method === 'PAYROLL_DEDUCTION') {
+        onClose();
+      } else if (fullyPaid) {
         setShowPrintPrompt(true);
       } else {
         setPaidNow(amountBase);
@@ -536,6 +615,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         setDiscountValue('');
         setServiceValue('');
         setTipValue('');
+        setAmountReceived('');
+        setSplitChange(false);
+        setChangeParts([]);
       }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
@@ -595,11 +677,19 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     received: { label: 'Efectivo recibido', value: amountReceived, suffix: symbol, set: setAmountReceived },
     reference: { label: referenceLabel(method), value: referenceNumber, suffix: null, set: setReferenceNumber },
     changeReference: { label: 'Referencia del vuelto', value: changeReference, suffix: null, set: setChangeReference },
+    changePartAmount: { label: `Vuelto · parte ${activeChangePart + 1}`, value: changeParts[activeChangePart]?.amount ?? '', suffix: symbol, set: value => updateChangePart(activeChangePart, { amount: value }) },
+    changePartReference: { label: `Referencia · parte ${activeChangePart + 1}`, value: changeParts[activeChangePart]?.referenceNumber ?? '', suffix: null, set: value => updateChangePart(activeChangePart, { referenceNumber: value.slice(0, 60) }) },
   };
   const activePosField = posFields[posField];
   const keypadDigit = (d: string) => activePosField.set(`${activePosField.value ?? ''}${d}`);
   const keypadBackspace = () => activePosField.set(String(activePosField.value ?? '').slice(0, -1));
   const keypadClear = () => activePosField.set('');
+
+  const compactResult = isPos && (showPrintPrompt || paidNow != null);
+
+  if(order.adminCorrectedAt) return <Dialog open onOpenChange={open=>!open&&onClose()}><DialogContent><DialogHeader><DialogTitle>Pedido con corrección administrativa</DialogTitle></DialogHeader>
+    {user?.role==='OWNER'||user?.role==='ADMIN'?<OrderCorrectionPanel orderId={order.id} onSaved={()=>{}}/>:<p className="text-brand-950/70 text-base">El dueño o administrador debe gestionar la diferencia de este pedido desde Administración → Historial de pedidos. Sus cobros anteriores se conservan.</p>}
+  </DialogContent></Dialog>;
 
   return (
     <>
@@ -634,7 +724,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             esa pantalla esté abierta, el diálogo ignora los clics de afuera y el Escape. */}
         <DialogContent
           className={
-            isPos
+            compactResult
+              ? 'w-[calc(100%-3rem)] max-w-[960px] max-h-[90dvh] rounded-3xl p-6 gap-5'
+              : isPos
               ? 'max-w-none w-screen h-screen max-h-screen rounded-none border-0 p-5 gap-3 translate-x-0 translate-y-0 left-0 top-0 grid-rows-[auto_minmax(0,1fr)]'
               : undefined
           }
@@ -658,12 +750,14 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               <ArrowLeft className="h-4 w-4 text-brand-950/70" />
             </button>
           )}
-          <DialogTitle>{payMode === 'full' ? 'Pagar' : 'Pago fraccionado'}</DialogTitle>
+          <DialogTitle className={compactResult ? 'text-center' : undefined}>{compactResult ? (showPrintPrompt ? 'Pago completado' : 'Pago registrado') : payMode === 'full' ? 'Pagar' : 'Pago fraccionado'}</DialogTitle>
         </DialogHeader>
 
         <div
           className={
-            isPos
+            compactResult
+              ? 'grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-5 items-start min-h-0'
+              : isPos
               ? 'grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)_300px] gap-4 items-stretch min-h-0'
               : 'space-y-4'
           }
@@ -673,7 +767,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           <div className={isPos ? 'rounded-2xl bg-brand-950/[0.04] px-5 py-4' : 'rounded-xl bg-brand-950/[0.03] px-3 py-2.5 space-y-1'}>
             {isPos ? (
               <>
-                <p className="text-xs font-medium uppercase tracking-wide text-brand-950/40">Total del pedido</p>
+                <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">Total del pedido</p>
                 <p className="mt-1 text-5xl font-bold tabular-nums leading-none text-brand-950">
                   {formatBase(order.totalBase, symbol)}
                 </p>
@@ -695,7 +789,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
           <details
             className={
-              isPos
+              compactResult
+                ? 'rounded-2xl border border-brand-950/10 px-4 py-3'
+                : isPos
                 ? 'rounded-2xl border border-brand-950/10 px-4 py-3 flex-1 min-h-0 flex flex-col'
                 : 'rounded-xl border border-brand-950/10 px-3 py-2'
             }
@@ -712,7 +808,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </summary>
             <ul
               className={
-                isPos
+                compactResult
+                  ? 'text-sm space-y-2 mt-3 max-h-[min(28dvh,240px)] overflow-y-auto divide-y divide-brand-950/[0.06]'
+                  : isPos
                   ? // Un punto por debajo del resto de la pasarela: el detalle es para repasar la
                     // cuenta, no para leerlo de lejos, y a text-lg empujaba fuera de pantalla los
                     // datos de pago cuando el pedido tenía varias líneas.
@@ -743,6 +841,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </ul>
           </details>
 
+          {!showPrintPrompt && paidNow == null && !order.isEmployeeConsumption && (
+            <CheckoutExtrasPicker symbol={symbol} disabled={sending || addingExtra} onAdd={addCheckoutExtra} />
+          )}
           {paidBase > 0 && (
             <div className="flex items-center justify-between text-sm bg-brand-950/[0.03] rounded-xl px-3 py-2.5 -mt-2">
               <span className="text-brand-950/60">Ya pagado</span>
@@ -751,7 +852,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           )}
           </PosColumn>
 
-          <PosColumn isPos={isPos} className="space-y-4 min-h-0 overflow-y-auto pr-1">
+          <PosColumn isPos={isPos} className={compactResult ? "min-w-0 space-y-4 rounded-2xl border border-brand-950/10 p-4" : "space-y-4 min-h-0 overflow-y-auto pr-1"}>
           {/* Cómo va a pagar: se elige acá mismo, sin volver a la pantalla anterior. */}
           {!showPrintPrompt && paidNow == null && (
             <div className="grid grid-cols-3 gap-2">
@@ -788,8 +889,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </div>
           )}
           {showPrintPrompt ? (
-            <div className="space-y-3 text-center py-2">
-              <p className="text-sm font-medium text-emerald-600">✓ Cuenta saldada</p>
+            <div className={compactResult ? "space-y-4 text-center" : "space-y-3 text-center py-2"}>
+              <p className="font-medium text-emerald-600 text-base">✓ Cuenta saldada</p>
               {allPayments.length > 0 && (
                 <div className="text-left rounded-xl border border-brand-950/10 px-3 py-2">
                   {allPayments.map((p) => (
@@ -800,7 +901,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               {/* Selector de documento. Va antes del botón de imprimir a propósito: primero se
                   decide QUÉ se imprime, y recién entonces aparece esa única acción. */}
               <div className="space-y-1.5">
-                <p className="text-xs text-brand-950/50">¿Qué documento lleva el cliente?</p>
+                <p className="text-brand-950/50 text-xs">¿Qué documento lleva el cliente?</p>
                 <div className="grid grid-cols-2 gap-1 rounded-xl bg-brand-950/[0.05] p-1">
                   {[
                     { fiscal: false, label: 'Nota de entrega' },
@@ -824,7 +925,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-center">
+              <div className={compactResult ? "flex gap-2 justify-center [&>button]:!flex-1 [&>button]:!min-w-0 [&>button]:!w-auto [&>button]:!shadow-none" : "flex gap-2 justify-center"}>
                 {quiereFiscal ? (
                   <TextureButton
                     variant="brand"
@@ -845,15 +946,15 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   {fiscalEmitida ? 'Listo' : 'No'}
                 </TextureButton>
               </div>
-              <p className="text-[11px] font-light text-brand-950/40">
+              <p className="font-light text-brand-950/40 text-xs">
                 {quiereFiscal
                   ? 'Sale por la máquina fiscal. Antes se abre una ventana para confirmar la cédula y el nombre.'
                   : 'Sale por la impresora térmica de caja.'}
               </p>
             </div>
           ) : paidNow != null ? (
-            <div className="space-y-3 text-center py-2">
-              <p className="text-sm font-medium text-emerald-600">
+            <div className={compactResult ? "space-y-4 text-center" : "space-y-3 text-center py-2"}>
+              <p className="font-medium text-emerald-600 text-base">
                 ✓ Pago de {formatBase(paidNow, symbol)} registrado
               </p>
               {allPayments.length > 0 && (
@@ -864,13 +965,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
               {remainingAfter > 0.01 ? (
-                <p className="text-sm text-brand-950/60">
+                <p className="text-brand-950/60 text-base">
                   Aún debe <span className="font-semibold text-brand-950">{formatBase(remainingAfter, symbol)}</span>
                 </p>
               ) : (
-                <p className="text-sm text-brand-950/60">Cuenta saldada.</p>
+                <p className="text-brand-950/60 text-base">Cuenta saldada.</p>
               )}
-              <div className="flex gap-2 justify-center">
+              <div className={compactResult ? "flex gap-2 justify-center [&>button]:!flex-1 [&>button]:!min-w-0 [&>button]:!w-auto [&>button]:!shadow-none" : "flex gap-2 justify-center"}>
                 {/* Mientras quede saldo se puede seguir cobrando, venga de "Fraccionado" o de un
                     "Pagar completo" que terminó siendo un abono: no hay límite de abonos. */}
                 {remainingAfter > 0.01 && (
@@ -922,7 +1023,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
-                      <p className="text-xs font-medium text-brand-950/50 mb-1">Recibido del cliente ({symbol})</p>
+                      <p className="font-medium text-brand-950/50 mb-1 text-xs">Recibido del cliente ({symbol})</p>
                       <input
                         value={amountReceived}
                         onChange={(e) => setAmountReceived(e.target.value.replace(/[^0-9.]/g, ''))}
@@ -930,22 +1031,58 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                         {...posInputProps}
                         inputMode="decimal"
                         placeholder={amountToCharge > 0 ? totalWithTip.toFixed(2) : '0.00'}
-                        className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                        className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                       />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs font-medium text-brand-950/50 mb-1">Vuelto</p>
+                      <p className="font-medium text-brand-950/50 mb-1 text-xs">Vuelto</p>
                       <p className={`text-base font-semibold ${changeAmt > 0 ? 'text-brand-950' : 'text-brand-950/30'}`}>
                         {formatBase(changeAmt, symbol)}
                       </p>
                       {changeAmt > 0 && rateBs && (
-                        <p className="text-[11px] text-brand-950/50">{formatBs(changeAmt, rateBs)} a la tasa de hoy</p>
+                        <p className="text-brand-950/50 text-xs">{formatBs(changeAmt, rateBs)} a la tasa de hoy</p>
                       )}
                     </div>
                   </div>
                   {changeAmt > 0 && (
                     <>
-                      <p className="text-xs font-medium text-brand-950/50">¿Cómo se devuelve el vuelto?</p>
+                      <p className="font-medium text-brand-950/50 text-xs">¿Cómo se devuelve el vuelto?</p>
+                      <label className="flex items-center gap-2 text-brand-950 text-sm font-medium">
+                        <input type="checkbox" checked={splitChange} onChange={event => {
+                          setSplitChange(event.target.checked);
+                          setPosField('received');
+                          if (event.target.checked && !changeParts.length) setChangeParts([
+                            { method, amount: '', referenceNumber: '' },
+                            { method: 'MOBILE_PAYMENT', amount: '', referenceNumber: '' },
+                          ]);
+                        }} />
+                        Dividir vuelto entre varios métodos
+                      </label>
+                      {splitChange ? (
+                        <div className="space-y-3 rounded-xl bg-brand-950/[0.03] p-3">
+                          <p className="text-brand-950/60 text-xs">Escribe cada parte en {symbol}. Registra las entregas realizadas; no envía dinero automáticamente.</p>
+                          {changeParts.map((part, index) => (
+                            <div key={index} className="space-y-2 border-b border-brand-950/10 pb-3">
+                              <div className="flex flex-wrap gap-2">
+                                <select aria-label={`Método del vuelto ${index + 1}`} value={part.method} onChange={event => updateChangePart(index, { method: event.target.value as PaymentMethod })} className="min-w-0 flex-1 rounded-lg border border-brand-950/15 bg-white px-2 py-2 text-base">
+                                  {changeOptions.map(option => <option key={option} value={option}>{option === 'CASH_USD' ? `Efectivo ${symbol}` : PAYMENT_LABELS[option]}</option>)}
+                                </select>
+                                <input aria-label={`Monto del vuelto ${index + 1}`} {...posInputProps} {...targetChangePart(index, 'changePartAmount')} value={part.amount} onChange={event => updateChangePart(index, { amount: event.target.value.replace(',', '.') })} placeholder={`Monto (${symbol})`} className="w-28 rounded-lg border border-brand-950/15 bg-white px-2 py-2 text-base" />
+                                <button type="button" aria-label={`Quitar parte ${index + 1}`} disabled={changeParts.length <= 2} onClick={() => { setChangeParts(parts => parts.filter((_, i) => i !== index)); setPosField('received'); }} className="px-2 text-sm text-red-600 disabled:opacity-30">Quitar</button>
+                              </div>
+                              {['CASH', 'MOBILE_PAYMENT'].includes(part.method) && rateBsOfOrder > 0 && Number(part.amount) > 0 && <p className="text-brand-950/60 text-xs">Entregar {formatBs(Number(part.amount), rateBsOfOrder)} · tasa del pedido</p>}
+                              {!['CASH', 'CASH_USD'].includes(part.method) && <input aria-label={`Referencia del vuelto ${index + 1}`} {...targetChangePart(index, 'changePartReference')} value={part.referenceNumber} maxLength={60} onChange={event => updateChangePart(index, { referenceNumber: event.target.value })} placeholder="Referencia (opcional)" className="w-full rounded-lg border border-brand-950/15 bg-white px-2 py-2 text-base" />}
+                            </div>
+                          ))}
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <button type="button" disabled={changeParts.length >= 10} onClick={() => setChangeParts(parts => [...parts, { method: 'BINANCE', amount: changeRemaining > 0 ? changeRemaining.toFixed(2) : '', referenceNumber: '' }])} className="text-sm font-semibold text-brand-500 disabled:opacity-40">+ Otro método</button>
+                            <p role="status" className={`text-sm font-semibold ${changeRemaining === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              {changeRemaining === 0 ? 'Vuelto completo' : `${changeRemaining > 0 ? 'Falta distribuir' : 'Excede el vuelto'}: ${formatBase(Math.abs(changeRemaining), symbol)}`}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                      <>
                       <div className="flex flex-wrap gap-1.5">
                         {(
                           [
@@ -974,14 +1111,16 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                           onFocus={() => setPosField('changeReference')}
                           {...posInputProps}
                           placeholder="Referencia del pago móvil del vuelto (opcional)"
-                          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                         />
                       )}
-                      <p className="text-[11px] text-brand-950/40 font-light">
+                      <p className="text-brand-950/40 font-light text-xs">
                         {effectiveChangeMethod === method
                           ? `En caja queda el neto: ${formatBase(totalWithTip, symbol)}.`
                           : `En caja entra ${formatBase(receivedNum, symbol)} en ${PAYMENT_LABELS[method]} y sale ${formatBase(changeAmt, symbol)}${rateBs ? ` (${formatBs(changeAmt, rateBs)})` : ''} por ${PAYMENT_LABELS[effectiveChangeMethod]}.`}
                       </p>
+                      </>
+                      )}
                     </>
                   )}
                 </div>
@@ -989,7 +1128,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
               {needsReference && (
                 <div>
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                  <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
                     {referenceLabel(method)}
                     {needsProof && <span className="text-brand-950/40"> — o adjunta el comprobante abajo</span>}
                   </p>
@@ -999,7 +1138,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     {...posTarget('reference')}
                     {...posInputProps}
                     placeholder={referenceLabel(method)}
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                   />
                 </div>
               )}
@@ -1016,35 +1155,36 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     {uploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                     {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
                   </TextureButton>
+                  <p className="text-center text-brand-950/50 text-xs">Puedes elegir una foto o captura de tu galería.</p>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="hidden"
                     onChange={handleProofFileChange}
                   />
                   {proofUrl && (
                     <div className="flex items-center gap-2.5 justify-center">
                       <img src={proofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg object-cover border border-brand-950/10" />
-                      <p className="text-xs font-semibold text-emerald-600">✓ Comprobante adjunto</p>
+                      <p className="font-semibold text-emerald-600 text-xs">✓ Comprobante adjunto</p>
                     </div>
                   )}
-                  {proofError && <p className="text-xs font-semibold text-red-600">{proofError}</p>}
+                  {proofUrl && <PaymentProofReview fileKey={proofUrl}/>}
+                  {proofError && <p className="font-semibold text-red-600 text-xs">{proofError}</p>}
                 </div>
               )}
 
-              {showDiscount && !(payMode === 'split' && splitBy === 'items') && (
+              {showDiscount && !order.isEmployeeConsumption && !(payMode === 'split' && splitBy === 'items') && (
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento</p>
+                    <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Descuento</p>
                     <input
                       value={discountValue}
                       onChange={(e) => onDiscountValueChange(e.target.value)}
                       {...posTarget('discount')}
                       {...posInputProps}
                       placeholder="0"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                     />
                   </div>
                   <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
@@ -1064,10 +1204,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {showDiscount && !(payMode === 'split' && splitBy === 'items') && serviceChargeBaseNum > 0 && (
+              {showDiscount && !order.isEmployeeConsumption && !(payMode === 'split' && splitBy === 'items') && serviceChargeBaseNum > 0 && (
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                    <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
                       Ajuste de servicio <span className="font-normal">(cargo: {formatBase(serviceChargeBaseNum, symbol)})</span>
                     </p>
                     <input
@@ -1076,7 +1216,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       {...posTarget('service')}
                       {...posInputProps}
                       placeholder="0"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                     />
                   </div>
                   <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
@@ -1098,7 +1238,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
               {payMode === 'split' && splitBy === 'items' ? (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-brand-950/50">Elige qué ítems cobra esta persona</p>
+                  <p className="font-medium text-brand-950/50 text-xs">Elige qué ítems cobra esta persona</p>
                   <ul className="space-y-1.5 max-h-56 overflow-y-auto">
                     {order.items.map((it) => {
                       const remaining = remainingQty(it);
@@ -1183,8 +1323,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                         ))}
                       </div>
                     </div>
+                    {!amount.trim() && splitAmountBase > 0 && (
+                      <p className="text-brand-950/60 mt-1 text-xs">
+                        Se abonarán {formatBase(splitAmountBase, symbol)} del efectivo recibido. Escribe un monto si deseas abonar menos.
+                      </p>
+                    )}
                     {amountTyped > 0 && rateBsOfOrder > 0 && (
-                      <p className="text-xs text-brand-950/40 mt-1">
+                      <p className="text-brand-950/40 mt-1 text-xs">
                         ≈ {amountCurrency === 'BS' ? formatBase(amountInBase, symbol) : formatBs(amountInBase, rateBsOfOrder)}
                       </p>
                     )}
@@ -1200,7 +1345,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   >
                     <span className={isPos ? 'text-base text-brand-950/60' : 'text-brand-950/60'}>Restante después del abono</span>
                     <span className={isPos ? 'text-3xl font-bold tabular-nums text-brand-950' : 'font-semibold text-brand-950'}>
-                      {formatBase(Math.max(0, round2(balanceBase - amountInBase - discountAmt - serviceAdjAmt - promoAmt)), symbol)}
+                      {formatBase(Math.max(0, round2(discountedBalance - splitAmountBase)), symbol)}
                     </span>
                   </div>
                 </div>
@@ -1242,9 +1387,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               {/* Propina: aparte de la venta, en su propio segmento — no perdona ni suma saldo del
                   pedido, solo plata extra que entra junto con este cobro (ver orderBalance.ts y
                   cash-session.service.ts, donde se reporta separado de las ventas). */}
-              <div className="flex items-end gap-2">
+              {!order.isEmployeeConsumption && <div className="flex items-end gap-2">
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                  <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
                     Propina {tipOutstanding > 0 && <span className="font-normal">(el cliente eligió {formatBase(tipOutstanding, symbol)})</span>}
                   </p>
                   <input
@@ -1253,7 +1398,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     {...posTarget('tip')}
                     {...posInputProps}
                     placeholder="0.00 — ¿el cliente quiere dejar propina?"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                   />
                 </div>
                 <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
@@ -1270,13 +1415,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     </button>
                   ))}
                 </div>
-              </div>
-              {tipValueNum > 0 && rateBsOfOrder > 0 && (
-                <p className="text-xs text-brand-950/40 -mt-1">
+              </div>}
+              {!order.isEmployeeConsumption && tipValueNum > 0 && rateBsOfOrder > 0 && (
+                <p className="text-brand-950/40 -mt-1 text-xs">
                   ≈ {tipCurrency === 'BS' ? formatBase(tipAmt, symbol) : formatBs(tipAmt, rateBsOfOrder)}
                 </p>
               )}
-              {tipAmt > 0 && (
+              {!order.isEmployeeConsumption && tipAmt > 0 && (
                 <div
                   className={
                     isPos
@@ -1300,14 +1445,48 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               )}
 
               {/* Código de promoción del CRM: valida contra la lista del cliente del pedido. */}
-              <PromoCodeField phone={order.customerPhone} applied={promo} onApplied={setPromo} symbol={symbol} />
+              {!order.isEmployeeConsumption && (
+                <PromoCodeField phone={order.customerPhone} applied={promo} onApplied={setPromo} symbol={symbol} />
+              )}
 
               {/* Método y "Mostrar datos" van juntos y al final, pegados a "Registrar pago":
                   el cajero elige cómo le pagan, se lo enseña al cliente en pantalla completa
                   y recién entonces registra. El QR no va acá — ocupa media pantalla y el
                   cliente no lee este diálogo, lo ve en la pantalla que abre el botón. */}
+              {needsCustomerAtPayment && (
+                <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                  <div>
+                    <p className="font-semibold text-brand-950 text-base">Datos del cliente</p>
+                    <p className="text-brand-950/55 text-xs">Se solicitan al cobrar; no hacen falta para armar el pedido.</p>
+                  </div>
+                  <input
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Nombre y apellido"
+                    autoComplete="name"
+                    className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-base"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={customerIdNumber}
+                      onChange={(e) => setCustomerIdNumber(e.target.value)}
+                      placeholder="Cédula/RIF"
+                      autoComplete="off"
+                      className="min-w-0 w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-base"
+                    />
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Teléfono"
+                      autoComplete="tel"
+                      className="min-w-0 w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-base"
+                    />
+                  </div>
+                </div>
+              )}
               <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Método de pago</p>
+                <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Método de pago</p>
                 <div className="flex flex-wrap gap-1.5">
                   {paymentOptions.map((o) => (
                     <button
@@ -1321,26 +1500,31 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     </button>
                   ))}
                 </div>
-                <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
+                {!order.isEmployeeConsumption && (
+                  <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
+                )}
                 {/* Siempre disponible, tenga o no datos cargados ese método: aunque el
                     restaurante no haya configurado su cuenta, la pantalla del cliente sirve
                     para enseñarle cuánto tiene que pagar (en Bs y en divisa) — antes el
                     botón desaparecía y el cajero se quedaba sin cómo mostrárselo. */}
-                <TextureButton
-                  variant="minimal"
-                  size="default"
-                  className="mt-2 w-full justify-center"
-                  onClick={() => setClientScreenOpen(true)}
-                >
-                  <QrCode className="h-4 w-4" />
-                  Mostrar datos
-                </TextureButton>
+                {!order.isEmployeeConsumption && (
+                  <TextureButton
+                    variant="minimal"
+                    size="default"
+                    className="mt-2 w-full justify-center"
+                    onClick={() => setClientScreenOpen(true)}
+                  >
+                    <QrCode className="h-4 w-4" />
+                    Mostrar datos
+                  </TextureButton>
+                )}
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-red-600 text-base">{error}</p>}
 
-              <TextureButton variant="brand" size="default" disabled={sending} onClick={submit} className="disabled:opacity-50">
-                {sending ? 'Registrando…' : 'Registrar pago'}
+              {needsReceiptConfirmation && <label className="flex items-start gap-2 rounded-xl bg-brand-950/[0.03] p-3 text-sm font-medium"><input type="checkbox" className="mt-1" checked={moneyReceived} onChange={e=>setMoneyReceived(e.target.checked)}/><span>Pago recibido: confirmo que el dinero ya ingresó. Si el cliente pagará después, guarda el método previsto desde el resumen del pedido.</span></label>}
+              <TextureButton variant="brand" size="default" disabled={sending || addingExtra || (needsReceiptConfirmation && !moneyReceived)} onClick={submit} className="disabled:opacity-50">
+                {sending ? 'Registrando…' : method === 'PAYROLL_DEDUCTION' ? 'Cerrar consumo interno' : 'Registrar pago'}
               </TextureButton>
             </>
           )}

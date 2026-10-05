@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Check, FileText, Plus, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
-import { methodAccountsOf } from '@/utils/payment-accounts';
-import { TextureButton } from '@/components/ui/texture-button';
 import {
-  DocumentAttachmentsField,
-  DocumentAttachmentsList,
-  type DocumentAttachment,
+DocumentAttachmentsField,
+DocumentAttachmentsList,
+type DocumentAttachment,
 } from '@/components/admin/DocumentAttachmentsField';
-import { InlinePanel } from './InlinePanel';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase,formatBsAbsolute } from '@/utils/format';
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import { AlertTriangle,Check,FileText,Plus,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { ExpenseForm } from './ExpenseFormDialog';
+import { InlinePanel } from './InlinePanel';
 import { MethodAccountPicker } from './MethodAccountPicker';
 
 interface Payable {
@@ -184,7 +184,7 @@ export function PayablesSection() {
     }
   }
 
-  if (loading) return <p className="text-sm text-brand-950/40 font-light">Cargando cuentas por pagar…</p>;
+  if (loading) return <p className="text-brand-950/40 font-light text-base">Cargando cuentas por pagar…</p>;
 
   // Pagar una orden toma la vista completa (mismo patrón en línea que el resto de Administración).
   if (payingOrder) {
@@ -226,7 +226,7 @@ export function PayablesSection() {
         </TextureButton>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {showExpenseForm && (
         <InlinePanel
@@ -246,7 +246,7 @@ export function PayablesSection() {
       {(overdue > 0 || dueSoon > 0) && (
         <div className="flex items-start gap-2.5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-sm text-amber-800">
+          <p className="text-amber-800 text-base">
             {overdue > 0 && (
               <span className="font-semibold">
                 {overdue} factura{overdue === 1 ? '' : 's'} vencida{overdue === 1 ? '' : 's'}
@@ -265,16 +265,16 @@ export function PayablesSection() {
 
       <div className={`${card} p-5`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-bold text-brand-950">Cuentas por pagar</p>
-          <p className="text-sm font-bold text-brand-950">{formatBase(totalPending, symbol)}</p>
+          <p className="font-bold text-brand-950 text-base">Cuentas por pagar</p>
+          <p className="font-bold text-brand-950 text-base">{formatBase(totalPending, symbol)}</p>
         </div>
-        <p className="mt-0.5 text-xs font-light text-brand-950/50">
+        <p className="mt-0.5 font-light text-brand-950/50 text-xs">
           Gastos que tomaste a crédito y todavía no le pagaste al proveedor. Marca los que vas a pagar
           juntos y crea la orden.
         </p>
 
         {payables.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">
+          <p className="py-6 text-center font-light text-brand-950/40 text-base">
             No tienes cuentas pendientes con proveedores.
           </p>
         ) : (
@@ -331,7 +331,7 @@ export function PayablesSection() {
 
             {selected.size > 0 && (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-brand-950/10 pt-3">
-                <p className="text-sm text-brand-950">
+                <p className="text-brand-950 text-base">
                   {selected.size} seleccionada{selected.size === 1 ? '' : 's'} ·{' '}
                   <span className="font-bold">{formatBase(selectedTotal, symbol)}</span>
                 </p>
@@ -353,14 +353,14 @@ export function PayablesSection() {
 
       <div className={`${card} p-5`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-bold text-brand-950">Órdenes de pago</p>
+          <p className="font-bold text-brand-950 text-base">Órdenes de pago</p>
           {pendingOrders.length > 0 && (
-            <p className="text-xs font-medium text-amber-700">{pendingOrders.length} por pagar</p>
+            <p className="font-medium text-amber-700 text-xs">{pendingOrders.length} por pagar</p>
           )}
         </div>
 
         {orders.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">Todavía no has emitido ninguna orden.</p>
+          <p className="py-6 text-center font-light text-brand-950/40 text-base">Todavía no has emitido ninguna orden.</p>
         ) : (
           <ul className="mt-3 space-y-3">
             {orders.map((o) => (
@@ -371,13 +371,13 @@ export function PayablesSection() {
                       <span className="text-sm font-bold text-brand-950">Orden #{o.orderNumber}</span>
                       <StatusPill status={o.status} />
                     </div>
-                    <p className="mt-0.5 text-xs font-light text-brand-950/50">
+                    <p className="mt-0.5 font-light text-brand-950/50 text-xs">
                       {o.supplier?.name ?? 'Sin proveedor'} · {o.movements.length} cuenta
                       {o.movements.length === 1 ? '' : 's'} ·{' '}
                       {new Date(o.createdAt).toLocaleDateString('es-VE')}
                     </p>
                   </div>
-                  <p className="shrink-0 text-sm font-bold text-brand-950">{formatBase(o.amountBase, symbol)}</p>
+                  <p className="shrink-0 font-bold text-brand-950 text-base">{formatBase(o.amountBase, symbol)}</p>
                 </div>
 
                 <ul className="mt-2 space-y-0.5">
@@ -442,7 +442,7 @@ function PaidOrderDetail({ order: o, symbol }: { order: PaymentOrder; symbol: st
 
   return (
     <div className="mt-2 border-t border-brand-950/[0.06] pt-2">
-      <p className="text-xs font-light text-emerald-700">
+      <p className="font-light text-emerald-700 text-xs">
         Pagada el {new Date(o.paidAt!).toLocaleDateString('es-VE')}
         {o.paymentMethod && ` · ${METHOD_LABEL[o.paymentMethod] ?? o.paymentMethod}`}
         {o.referenceNumber && ` · Ref. ${o.referenceNumber}`}
@@ -542,7 +542,7 @@ function PayOrderPanel({
     >
       <div className="space-y-4">
         <div className="rounded-xl border border-brand-950/10 p-3">
-          <p className="mb-1.5 text-xs font-medium text-brand-950/50">Cuentas incluidas</p>
+          <p className="mb-1.5 font-medium text-brand-950/50 text-xs">Cuentas incluidas</p>
           <ul className="space-y-0.5">
             {order.movements.map((m) => (
               <li key={m.id} className="flex justify-between gap-2 text-xs text-brand-950/60">
@@ -555,7 +555,7 @@ function PayOrderPanel({
 
         <div className="grid grid-cols-3 gap-2">
           <div className="col-span-2">
-            <p className="mb-1 text-[13px] font-medium text-brand-950/70">Monto a pagar</p>
+            <p className="mb-1 font-medium text-brand-950/70 text-base">Monto a pagar</p>
             <input
               value={paidAmount}
               onChange={(e) => setPaidAmount(e.target.value.replace(/[^0-9.]/g, ''))}
@@ -564,7 +564,7 @@ function PayOrderPanel({
             />
           </div>
           <div>
-            <p className="mb-1 text-[13px] font-medium text-brand-950/70">Moneda</p>
+            <p className="mb-1 font-medium text-brand-950/70 text-base">Moneda</p>
             <select value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value as 'BASE' | 'BS')} className={inputCls}>
               <option value="BASE">{symbol}</option>
               <option value="BS">Bs</option>
@@ -572,14 +572,14 @@ function PayOrderPanel({
           </div>
         </div>
         {paidCurrency === 'BS' && (
-          <p className="-mt-2 text-[11px] font-light text-brand-950/40">
+          <p className="-mt-2 font-light text-brand-950/40 text-xs">
             Se convierte a {symbol} con la tasa BCV del momento del pago — por eso puede diferir del monto autorizado al
             emitir la orden.
           </p>
         )}
 
         <div className="grid grid-cols-2 gap-2">
-          <label className="block">
+          <label className="block text-sm font-medium">
             <span className="mb-1 block text-[13px] font-medium text-brand-950/70">¿Con qué pagaste?</span>
             <select
               value={method}
@@ -602,20 +602,20 @@ function PayOrderPanel({
               label="¿De cuál cuenta salió?"
             />
           </label>
-          <label className="block">
+          <label className="block text-sm font-medium">
             <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Referencia (opcional)</span>
             <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Nº de transferencia o recibo" className={inputCls} />
           </label>
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-brand-950/40">Detalle de la factura</p>
+          <p className="mb-1.5 font-semibold uppercase tracking-wide text-brand-950/40 text-xs">Detalle de la factura</p>
           <div className="grid grid-cols-2 gap-2">
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Monto IVA</span>
               <input value={ivaAmount} onChange={(e) => setIvaAmount(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" className={inputCls} />
             </label>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Total con IVA</span>
               <input value={totalWithIva} onChange={(e) => setTotalWithIva(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" className={inputCls} />
             </label>
@@ -623,17 +623,17 @@ function PayOrderPanel({
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-brand-950/40">Retenciones y nota de crédito</p>
+          <p className="mb-1.5 font-semibold uppercase tracking-wide text-brand-950/40 text-xs">Retenciones y nota de crédito</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Retención ISLR</span>
               <input value={islrRetention} onChange={(e) => setIslrRetention(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" className={inputCls} />
             </label>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Retención IVA</span>
               <input value={ivaRetention} onChange={(e) => setIvaRetention(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" className={inputCls} />
             </label>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Nota de crédito</span>
               <input value={creditNote} onChange={(e) => setCreditNote(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" className={inputCls} />
             </label>
@@ -668,7 +668,7 @@ function PayOrderPanel({
           hint="Fotos o PDF: comprobante de la transferencia, planillas de retención, nota de crédito."
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
           {saving ? 'Registrando…' : 'Confirmar pago'}

@@ -38,7 +38,7 @@ function levelColor(value: number, warn: number, danger: number): string {
 }
 
 /** Salud del servidor en vivo (RAM, CPU, latencia de BD, sockets conectados) + botón para forzar el refresh de la tasa BCV. */
-export function ServerHealthCard() {
+export function ServerHealthCard({ canRefresh = false }: { canRefresh?: boolean }) {
   const [health, setHealth] = useState<ServerHealth | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshedMessage, setRefreshedMessage] = useState<string | null>(null);
@@ -81,18 +81,18 @@ export function ServerHealthCard() {
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-medium text-brand-950/70">Salud del servidor</p>
-        <button
+        <p className="font-medium text-brand-950/70 text-base">Salud del servidor</p>
+        {canRefresh && <button
           onClick={refreshCache}
           disabled={refreshing}
           className="text-xs font-medium text-brand-500 hover:text-brand-400 disabled:opacity-50"
         >
           {refreshing ? 'Limpiando…' : 'Limpiar caché (tasa BCV)'}
-        </button>
+        </button>}
       </div>
 
       {!health ? (
-        <p className="text-xs text-brand-950/40 font-light">Cargando…</p>
+        <p className="text-brand-950/40 font-light text-xs">Cargando…</p>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -114,7 +114,7 @@ export function ServerHealthCard() {
             <RateBadge label="Tasa EUR" info={health.exchangeRate.EUR} />
           </div>
 
-          {refreshedMessage && <p className="text-xs text-brand-500 mt-2">{refreshedMessage}</p>}
+          {refreshedMessage && <p className="text-brand-500 mt-2 text-xs">{refreshedMessage}</p>}
         </>
       )}
     </div>
@@ -127,8 +127,8 @@ function Metric({ label, value, sub, color }: { label: string; value: string; su
       <p className="text-xl font-semibold" style={{ color }}>
         {value}
       </p>
-      <p className="text-xs text-brand-950/60 font-medium">{label}</p>
-      <p className="text-[11px] text-brand-950/40 font-light">{sub}</p>
+      <p className="text-brand-950/60 font-medium text-xs">{label}</p>
+      <p className="text-brand-950/40 font-light text-xs">{sub}</p>
     </div>
   );
 }

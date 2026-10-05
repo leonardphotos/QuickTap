@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
 import { balanceOfOrder } from '@/utils/orderBalance';
-import type { LiveOrder } from './LiveOrdersPanel';
+import { ChevronDown } from 'lucide-react';
+import { useEffect,useMemo,useState } from 'react';
+import type { LiveOrder } from './LiveOrdersPanel.shared';
 
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
@@ -79,11 +79,11 @@ export function OpenComandasDialog() {
             <DialogTitle>Comandas y deudas por mesero</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {!orders && !error && <p className="text-sm text-brand-950/40 font-light">Cargando comandas…</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
+            {!orders && !error && <p className="text-brand-950/40 font-light text-base">Cargando comandas…</p>}
 
             {groups && groups.length === 0 && (
-              <p className="text-sm text-brand-950/40 font-light">Todo cobrado — ninguna comanda con saldo pendiente.</p>
+              <p className="text-brand-950/40 font-light text-base">Todo cobrado — ninguna comanda con saldo pendiente.</p>
             )}
 
             {groups && groups.length > 0 && (
@@ -91,7 +91,7 @@ export function OpenComandasDialog() {
                 <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4 flex items-center justify-between">
                   <div>
                     <p className="text-xl font-semibold text-brand-950">{formatBase(totalDebt, symbol)}</p>
-                    <p className="text-xs text-brand-950/50 font-light">
+                    <p className="text-brand-950/50 font-light text-xs">
                       {totalOrders} comanda{totalOrders === 1 ? '' : 's'} con saldo pendiente
                     </p>
                   </div>
@@ -132,11 +132,11 @@ function WaiterGroup({
       >
         <div className="flex items-center gap-2 min-w-0">
           <ChevronDown className={`h-4 w-4 text-brand-950/30 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-          <p className="text-sm font-medium text-brand-950 truncate">{name}</p>
+          <p className="font-medium text-brand-950 truncate text-base">{name}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-sm font-semibold text-brand-950">{formatBase(subtotal, symbol)}</p>
-          <p className="text-xs text-brand-950/50 font-light">
+          <p className="font-semibold text-brand-950 text-base">{formatBase(subtotal, symbol)}</p>
+          <p className="text-brand-950/50 font-light text-xs">
             {rows.length} comanda{rows.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -146,15 +146,15 @@ function WaiterGroup({
           {rows.map(({ order, balance }) => (
             <div key={order.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
               <div className="min-w-0">
-                <p className="font-medium text-brand-950">
+                <p className="font-medium text-brand-950 text-base">
                   #{order.orderNumber} · {CHANNEL_LABELS[order.channel]}
                   {order.table && ` ${order.table.number}`}
                 </p>
-                <p className="text-xs text-brand-950/40">
+                <p className="text-brand-950/40 text-xs">
                   {order.customerName ?? 'Sin nombre'} · {new Date(order.createdAt).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
-              <p className="font-semibold text-amber-600 shrink-0">{formatBase(balance, symbol)}</p>
+              <p className="font-semibold text-amber-600 shrink-0 text-base">{formatBase(balance, symbol)}</p>
             </div>
           ))}
         </div>

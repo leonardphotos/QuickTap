@@ -48,7 +48,7 @@ const CATEGORIAS = ['Primeros pasos', 'Tu carta', 'Inventario y costos', 'Ventas
 const TUTORIALES: Tutorial[] = [
   {
     id: 'configuracion',
-    imagen: '/tutoriales/ajustes.png',
+    imagen: '/tutoriales/ajustes.webp',
     categoria: 'Primeros pasos',
     icono: Settings,
     titulo: 'Configura tu restaurante',
@@ -64,7 +64,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'mesas-qr',
-    imagen: '/tutoriales/mesas-qr.png',
+    imagen: '/tutoriales/mesas-qr.webp',
     categoria: 'Primeros pasos',
     icono: QrCode,
     titulo: 'Crea tus mesas y sus QR',
@@ -80,7 +80,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'producto',
-    imagen: '/tutoriales/producto-nuevo.png',
+    imagen: '/tutoriales/producto-nuevo.webp',
     categoria: 'Tu carta',
     icono: UtensilsCrossed,
     titulo: 'Carga tu primer producto',
@@ -111,7 +111,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'estrellas',
-    imagen: '/tutoriales/productos.png',
+    imagen: '/tutoriales/productos.webp',
     categoria: 'Tu carta',
     icono: Star,
     titulo: 'Destaca tus estrellas y promos',
@@ -126,7 +126,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'insumos',
-    imagen: '/tutoriales/inventario.png',
+    imagen: '/tutoriales/inventario.webp',
     categoria: 'Inventario y costos',
     icono: Boxes,
     titulo: 'Carga tus insumos',
@@ -187,7 +187,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'estructura-costo',
-    imagen: '/tutoriales/administracion.png',
+    imagen: '/tutoriales/administracion.webp',
     categoria: 'Inventario y costos',
     icono: PieChart,
     titulo: 'Calcula tu estructura de costo',
@@ -204,7 +204,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'cobrar',
-    imagen: '/tutoriales/comandas.png',
+    imagen: '/tutoriales/comandas.webp',
     categoria: 'Ventas y caja',
     icono: CreditCard,
     titulo: 'Cobra una comanda',
@@ -250,7 +250,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'administracion',
-    imagen: '/tutoriales/administracion.png',
+    imagen: '/tutoriales/administracion.webp',
     categoria: 'Administración',
     icono: PieChart,
     titulo: 'Lee tu Resumen y Estadísticas',
@@ -294,7 +294,7 @@ export default function TutorialsPage() {
       {/* ---------- Barra superior, misma de la landing ---------- */}
       <nav aria-label="Principal" className="flex items-center justify-between gap-4 px-6 py-6 sm:px-12">
         <Link to="/" className="flex items-center">
-          <img src="/logo/logo-central.png" alt="QuickTap" className="h-6 w-auto" />
+          <img src="/logo/logo-central.png?v=20261002" alt="QuickTap" className="h-6 w-auto" />
         </Link>
         <Link
           to="/empezar"
@@ -306,9 +306,9 @@ export default function TutorialsPage() {
 
       {/* ---------- Encabezado ---------- */}
       <header className="mx-auto max-w-3xl px-6 pt-10 text-center sm:pt-16">
-        <p className="text-xs font-medium tracking-wide text-brand-950/40">Centro de tutoriales</p>
+        <p className="font-medium tracking-wide text-brand-950/40 text-xs">Centro de tutoriales</p>
         <h1 className="mt-3 text-3xl font-bold sm:text-5xl">Aprende QuickTap, un tutorial a la vez.</h1>
-        <p className="mx-auto mt-4 max-w-xl text-base font-light text-brand-950/60">
+        <p className="mx-auto mt-4 max-w-xl font-light text-brand-950/60 text-base">
           Guías cortas, con los nombres reales de cada pantalla y un ejemplo con números. Léelas
           con el panel abierto y ve haciendo.
         </p>
@@ -371,6 +371,7 @@ export default function TutorialsPage() {
                         src={t.imagen}
                         alt={`Pantalla de ${t.titulo} en el panel de QuickTap`}
                         loading="lazy"
+                        decoding="async"
                         className="mb-4 w-full rounded-xl border border-brand-950/10 shadow-sm"
                       />
                     )}
@@ -387,13 +388,13 @@ export default function TutorialsPage() {
 
                     <div className="mt-4 flex gap-3 rounded-xl border-l-2 border-brand-500 bg-brand-500/[0.06] px-4 py-3">
                       <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
-                      <p className="text-[13px] font-light leading-relaxed text-brand-950/75">
+                      <p className="font-light leading-relaxed text-brand-950/75 text-base">
                         <span className="font-semibold text-brand-950">Ejemplo: </span>
                         {t.ejemplo}
                       </p>
                     </div>
 
-                    {t.nota && <p className="mt-3 text-[11.5px] font-medium text-amber-700">{t.nota}</p>}
+                    {t.nota && <p className="mt-3 font-medium text-amber-700 text-base">{t.nota}</p>}
                   </div>
                 </div>
               </div>
@@ -403,7 +404,7 @@ export default function TutorialsPage() {
 
         {/* ---------- Cierre ---------- */}
         <div className="pt-10 text-center">
-          <p className="text-sm font-light text-brand-950/55">
+          <p className="font-light text-brand-950/55 text-base">
             ¿Te quedó una duda que ningún tutorial responde?
           </p>
           <a

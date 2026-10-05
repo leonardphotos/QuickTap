@@ -1,22 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { clearMasterToken, getMasterToken, masterApi, setMasterToken } from '../api/client';
-
-interface MasterAdmin {
-  id: string;
-  name: string;
-  email: string;
-  role: 'ADMIN' | 'MANAGER';
-}
-
-interface MasterAuthState {
-  admin: MasterAdmin | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-}
-
-const MasterAuthContext = createContext<MasterAuthState | null>(null);
+import { useEffect,useState } from 'react';
+import { clearMasterToken,getMasterToken,masterApi,setMasterToken } from '../api/client';
+import { type MasterAdmin,MasterAuthContext } from './MasterAuthContext.shared';
 
 export function MasterAuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<MasterAdmin | null>(null);
@@ -49,10 +34,4 @@ export function MasterAuthProvider({ children }: { children: ReactNode }) {
   }
 
   return <MasterAuthContext.Provider value={{ admin, loading, login, logout }}>{children}</MasterAuthContext.Provider>;
-}
-
-export function useMasterAuth(): MasterAuthState {
-  const ctx = useContext(MasterAuthContext);
-  if (!ctx) throw new Error('useMasterAuth debe usarse dentro de <MasterAuthProvider>');
-  return ctx;
 }

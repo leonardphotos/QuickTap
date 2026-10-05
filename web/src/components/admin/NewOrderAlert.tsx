@@ -1,50 +1,75 @@
-import { useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
-import { Capacitor } from '@capacitor/core';
+import { api,getToken } from '@/api/client';
+import { useAuth } from '@/context/AuthContext.shared';
 import { apiOrigin } from '@/utils/apiOrigin';
-import { Bike, Grid2x2, Martini, ShoppingBag, Zap } from 'lucide-react';
-import { api, getToken } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { isAdminCashier } from '@/utils/roles';
 import { notifyNative } from '@/utils/nativeNotify';
-import { TextureButton } from '@/components/ui/texture-button';
-import type { LiveOrder } from './LiveOrdersPanel';
+import { canManageIncomingOrders } from '@/utils/roles';
+import { Capacitor } from '@capacitor/core';
+import { Bike,Martini,Store,Table2,Zap } from 'lucide-react';
+import type { MouseEvent as ReactMouseEvent,PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect,useRef,useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import type { LiveOrder } from './LiveOrdersPanel.shared';
 
 const CHANNEL_META: Record<LiveOrder['channel'], { label: string; icon: typeof Bike; className: string }> = {
-  DINE_IN: { label: 'Mesa', icon: Grid2x2, className: 'bg-secondary text-brand-950' },
+  DINE_IN: { label: 'Mesa', icon: Table2, className: 'bg-secondary text-brand-950' },
   DELIVERY: { label: 'Delivery', icon: Bike, className: 'bg-accent text-accent-foreground' },
-  PICKUP: { label: 'Pick-up', icon: ShoppingBag, className: 'bg-[#e3f5ec] text-[#0f6e46]' },
+  PICKUP: { label: 'Pick-up', icon: Store, className: 'bg-[#e3f5ec] text-[#0f6e46]' },
   BAR: { label: 'Barra', icon: Martini, className: 'bg-secondary text-brand-950' },
   EXPRESS: { label: 'Express', icon: Zap, className: 'bg-secondary text-brand-950' },
 };
 
+const NEW_ORDER_SOUND = '/sounds/pedido-nuevo.mp3';
+const DELIVERY_ORDER_SOUND = '/sounds/pedido-delivery.mp3';
+
+function soundForOrder(channel: LiveOrder['channel']) {
+  return channel === 'DELIVERY' ? DELIVERY_ORDER_SOUND : NEW_ORDER_SOUND;
+}
+
 interface Props {
-  /** Cambia a la pestaña de Comandas — se llama al tocar la notificación (sin arrastrarla). */
-  onNavigate: () => void;
+  /** Abre en Comandas el pedido concreto mostrado en el aviso. */
+  onNavigate: (orderId: string) => void;
+}
+
+interface AlertEntry {
+  id: string;
+  order: LiveOrder;
+  receivedAt: number;
 }
 
 /** Banner deslizable de pedido nuevo, para que nunca pase desapercibido: suena en bucle
  * hasta que se toca la pantalla, se puede aceptar/rechazar, o deslizar para silenciar. */
 export function NewOrderAlert({ onNavigate }: Props) {
   const { user } = useAuth();
-  const [order, setOrder] = useState<LiveOrder | null>(null);
-  const [shown, setShown] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [dragX, setDragX] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  // Aceptar/Rechazar podían fallar (rol sin permiso, comanda ya tomada por otro, código de
-  // eliminación obligatorio para Mesero) y el banner se cerraba igual: quien lo tocó creía que
-  // la acción se hizo. Ahora el aviso se queda con el motivo.
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [acting, setActing] = useState(false);
-  const dragStartX = useRef(0);
+  const [alerts, setAlerts] = useState<AlertEntry[]>([]);
+  const [now, setNow] = useState(Date.now());
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const startTimeRef = useRef(0);
+  const audioUnlockedRef = useRef(false);
+  const alertsRef = useRef<AlertEntry[]>([]);
 
   useEffect(() => {
-    audioRef.current = new Audio('/sounds/notification.mp3');
+    audioRef.current = new Audio(NEW_ORDER_SOUND);
+    audioRef.current.preload = 'auto';
+
+    // Safari/Chrome móvil no permiten audio iniciado por un socket hasta que el usuario
+    // interactúa con la página. Esta primera interacción prepara el audio para las comandas
+    // siguientes; si ya hay una alerta activa, deja que el sonido continúe normalmente.
+    function unlockAudio() {
+      const audio = audioRef.current;
+      if (!audio || audioUnlockedRef.current) return;
+      audio
+        .play()
+        .then(() => {
+          audioUnlockedRef.current = true;
+          if (alertsRef.current.length === 0) {
+            audio.pause();
+            audio.currentTime = 0;
+          }
+        })
+        .catch(() => undefined);
+    }
+    document.addEventListener('pointerdown', unlockAudio, { capture: true, once: true });
+    document.addEventListener('keydown', unlockAudio, { capture: true, once: true });
 
     const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
     socket.on('order:new', async (payload: { orderId: string }) => {
@@ -68,8 +93,8 @@ export function NewOrderAlert({ onNavigate }: Props) {
           user.role === 'SCREEN' ||
           (fresh.placedByUser?.id !== user.id &&
             (isDeliveryOrPickup
-              ? isAdminCashier(user.role, user.cashierFullAccess)
-              : isAdminCashier(user.role, user.cashierFullAccess) ||
+              ? canManageIncomingOrders(user.role)
+              : canManageIncomingOrders(user.role) ||
                 fresh.acceptedByUserId === user.id ||
                 (fresh.table?.assignedWaiterId
                   ? fresh.table.assignedWaiterId === user.id
@@ -98,159 +123,194 @@ export function NewOrderAlert({ onNavigate }: Props) {
     return () => {
       socket.disconnect();
       audioRef.current?.pause();
+      document.removeEventListener('pointerdown', unlockAudio, true);
+      document.removeEventListener('keydown', unlockAudio, true);
       removeAppListener?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
-    if (!order) return;
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
+    if (alerts.length === 0) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [order]);
+  }, [alerts.length]);
 
   // El sonido se repite hasta que el mesero toque la pantalla en cualquier parte
   // (no solo la notificación) — para que un pedido nunca pase desapercibido.
   useEffect(() => {
-    if (!order) return;
+    if (alerts.length === 0) return;
     function stopLoop() {
       if (audioRef.current) audioRef.current.loop = false;
     }
     document.addEventListener('pointerdown', stopLoop, true);
     return () => document.removeEventListener('pointerdown', stopLoop, true);
-  }, [order]);
+  }, [alerts.length]);
 
   function openBanner(fresh: LiveOrder) {
-    setOrder(fresh);
-    setElapsed(0);
-    setDragX(0);
-    setActionError(null);
-    startTimeRef.current = Date.now();
-    setShown(false);
-    requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+    // No reemplazar un pedido por otro: cada comanda conserva su propia tarjeta y la nueva
+    // entra debajo de las anteriores. El id evita duplicados si Socket.IO reintenta un evento.
+    if (!alertsRef.current.some((entry) => entry.id === fresh.id)) {
+      const next = [...alertsRef.current, { id: fresh.id, order: fresh, receivedAt: Date.now() }];
+      alertsRef.current = next;
+      setAlerts(next);
+    }
     if (audioRef.current) {
-      audioRef.current.loop = true;
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
+      const audio = audioRef.current;
+      const sound = soundForOrder(fresh.channel);
+      // Reutilizamos el mismo elemento que ya fue desbloqueado por la interacción del usuario:
+      // así Safari móvil permite que el siguiente aviso suene aunque venga de un socket.
+      if (new URL(audio.src).pathname !== sound) {
+        audio.pause();
+        audio.src = sound;
+      }
+      audio.loop = true;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
     }
     // En la app de escritorio (Electron) esto además dispara una notificación nativa
     // del sistema operativo — así se ve aunque la ventana esté minimizada o sin foco,
     // algo que el banner de acá (solo visible con la ventana abierta) no puede lograr.
-    const title = fresh.channel === 'DINE_IN' ? (fresh.table?.number ?? '') : fresh.customerName || CHANNEL_META[fresh.channel].label;
+    const title = fresh.channel === 'DINE_IN' ? `Mesa ${fresh.table?.number ?? 'sin número'}` : CHANNEL_META[fresh.channel].label;
     void notifyNative({
       title: `Nuevo pedido — ${title}`,
-      body: fresh.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ') || 'Sin productos',
+      body: [fresh.customerName, fresh.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ')].filter(Boolean).join(' · ') || 'Sin productos',
     });
   }
 
-  function close() {
-    setShown(false);
-    if (audioRef.current) {
+  function removeAlert(orderId: string) {
+    const next = alertsRef.current.filter((entry) => entry.id !== orderId);
+    alertsRef.current = next;
+    setAlerts(next);
+    if (next.length === 0 && audioRef.current) {
       audioRef.current.loop = false;
       audioRef.current.pause();
     }
-    setTimeout(() => {
-      setOrder(null);
-      setDragX(0);
-    }, 260);
   }
 
-  async function accept() {
-    if (!order || acting) return;
-    setActing(true);
-    setActionError(null);
-    try {
-      await api.post(`/orders/${order.id}/accept`);
-      close();
-    } catch (e: any) {
-      setActionError(e?.response?.data?.error ?? 'No se pudo aceptar el pedido. Inténtalo desde Comandas.');
-    } finally {
-      setActing(false);
-    }
+  return (
+    <div className="pointer-events-none fixed inset-x-3 top-3 z-[60] mx-auto flex max-w-sm flex-col gap-2.5">
+      {alerts.map((entry) => (
+        <NewOrderAlertCard
+          key={entry.id}
+          entry={entry}
+          now={now}
+          onDismiss={() => removeAlert(entry.id)}
+          onOpen={(event) => {
+            event.stopPropagation();
+            onNavigate(entry.id);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function NewOrderAlertCard({
+  entry,
+  now,
+  onDismiss,
+  onOpen,
+}: {
+  entry: AlertEntry;
+  now: number;
+  onDismiss: () => void;
+  onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+}) {
+  const [shown, setShown] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartX = useRef(0);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const order = entry.order;
+  const meta = CHANNEL_META[order.channel];
+  const Icon = meta.icon;
+  const elapsed = Math.max(0, Math.floor((now - entry.receivedAt) / 1000));
+  const timeLabel = elapsed < 60 ? `hace ${elapsed}s` : `hace ${Math.floor(elapsed / 60)} min`;
+  const title = order.channel === 'DINE_IN' ? `Mesa ${order.table?.number ?? 'sin número'}` : meta.label;
+  const customerLabel = order.customerName || (order.channel === 'DINE_IN' ? null : 'Cliente sin identificar');
+  const itemsSummary = order.items.map((item) => `${item.quantity}x ${item.productName}`).join(', ');
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => {
+      cancelAnimationFrame(frame);
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    };
+  }, []);
+
+  function dismiss() {
+    setShown(false);
+    closeTimer.current = setTimeout(onDismiss, 260);
   }
 
-  async function reject() {
-    if (!order || acting) return;
-    setActing(true);
-    setActionError(null);
-    try {
-      await api.delete(`/orders/${order.id}`);
-      close();
-    } catch (e: any) {
-      // Un Mesero necesita el código de 6 dígitos para eliminar: acá no hay dónde pedirlo, así
-      // que se manda a Comandas, que sí tiene el diálogo del código.
-      setActionError(e?.response?.data?.error ?? 'No se pudo rechazar el pedido. Inténtalo desde Comandas.');
-    } finally {
-      setActing(false);
-    }
-  }
-
-  function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
-    dragStartX.current = e.clientX;
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if ((event.target as HTMLElement).closest('[data-no-drag]')) return;
+    dragStartX.current = event.clientX;
     setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
   }
-  function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     if (!dragging) return;
-    setDragX(Math.min(0, e.clientX - dragStartX.current));
+    setDragX(Math.min(0, event.clientX - dragStartX.current));
   }
+
   function onPointerUp() {
     if (!dragging) return;
     setDragging(false);
     if (dragX < -80) {
       setDragX(-520);
-      setTimeout(close, 240);
-    } else if (Math.abs(dragX) < 6) {
-      onNavigate();
-      close();
+      dismiss();
     } else {
       setDragX(0);
     }
   }
 
-  if (!order) return null;
-
-  const meta = CHANNEL_META[order.channel];
-  const Icon = meta.icon;
-  const title = order.channel === 'DINE_IN' ? (order.table?.number ?? '') : order.customerName || meta.label;
-  const itemsSummary = order.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
-  const timeLabel = elapsed < 60 ? `hace ${elapsed}s` : `hace ${Math.floor(elapsed / 60)} min`;
-
   return (
     <div
-      className="fixed inset-x-3 top-3 z-[60] mx-auto max-w-sm rounded-[20px] border border-brand-950/[0.06] bg-white p-4 shadow-[0_20px_40px_-12px_rgba(0,27,67,0.35)] cursor-pointer"
+      className="pointer-events-auto cursor-pointer rounded-[20px] border border-emerald-300/35 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-4 shadow-[0_20px_40px_-12px_rgba(3,92,67,0.58)]"
       style={{
         touchAction: 'pan-y',
-        transform: `translateY(${shown ? 0 : -160}%) translateX(${dragX}px)`,
+        transform: `translateY(${shown ? 0 : -24}px) translateX(${dragX}px)`,
         opacity: shown ? 1 : 0,
-        transition: dragging ? 'none' : 'transform 500ms cubic-bezier(0.23,1,0.32,1), opacity 400ms ease',
+        transition: dragging ? 'none' : 'transform 420ms cubic-bezier(0.23,1,0.32,1), opacity 260ms ease',
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      <div className="flex items-center justify-between mb-2">
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${meta.className}`}>
-          <Icon className="h-3.5 w-3.5" /> {meta.label}
+      <div className="mb-2 flex items-center justify-between">
+        <span
+          title={meta.label}
+          aria-label={meta.label}
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 !bg-white/16 !text-white backdrop-blur-sm ${meta.className}`}
+        >
+          <Icon className="h-[18px] w-[18px]" />
         </span>
-        <span className="text-xs text-brand-950/40 tabular-nums">{timeLabel}</span>
+        <span className="text-xs tabular-nums text-white/70">{timeLabel}</span>
       </div>
-      <p className="text-sm font-semibold text-brand-950">{title}</p>
-      <p className="text-xs text-brand-950/50 font-light mb-3">{itemsSummary || 'Sin productos'}</p>
-      {actionError && <p className="mb-2 text-xs font-medium text-red-600">{actionError}</p>}
+      <p className="text-xl font-bold leading-tight tracking-[-0.025em] text-white">{title}</p>
+      {customerLabel && <p className="mt-0.5 font-medium text-white/85 text-xs">{customerLabel}</p>}
+      <p className="mb-3 mt-1 font-light text-white/70 text-xs">{itemsSummary || 'Sin productos'}</p>
       <div className="flex gap-2" data-no-drag>
         <button
           type="button"
-          disabled={acting}
-          className="flex-1 rounded-xl bg-brand-950/5 text-brand-950/60 text-sm font-semibold py-2.5 disabled:opacity-50"
-          onClick={reject}
+          className="flex-1 rounded-xl border border-white/20 bg-white/14 py-2.5 text-sm font-semibold text-white backdrop-blur-sm"
+          onClick={dismiss}
         >
-          Rechazar
+          Minimizar
         </button>
-        <TextureButton variant="brand" size="default" className="flex-1 !w-auto" disabled={acting} onClick={accept}>
-          Aceptar
-        </TextureButton>
+        <button
+          type="button"
+          className="flex-1 rounded-xl bg-white py-2.5 text-sm font-semibold text-emerald-700 shadow-[0_8px_18px_-10px_rgba(0,0,0,0.45)] transition-transform duration-150 active:scale-[0.98]"
+          onClick={(event) => {
+            onOpen(event);
+            dismiss();
+          }}
+        >
+          Abrir
+        </button>
       </div>
     </div>
   );

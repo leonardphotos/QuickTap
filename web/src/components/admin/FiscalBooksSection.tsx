@@ -1,13 +1,21 @@
-import { useEffect, useState } from 'react';
-import { BookOpen, Download, Receipt, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
-import { MetricCard } from './MetricCard';
 import { TextureButton } from '@/components/ui/texture-button';
-import { CATEGORY_LABELS, DOCUMENT_TYPE_LABELS, type ExpenseCategory, type ExpenseDocumentType } from './ExpenseFormDialog';
-import { PAYMENT_LABELS } from './PaymentDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuth } from '@/context/AuthContext.shared';
 import type { PaymentMethod } from '@/types';
+import { formatBase,formatBsAbsolute } from '@/utils/format';
+import { AlertTriangle,BookOpen,Download,LoaderCircle,Printer,Receipt,ShieldCheck,Wallet } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { CATEGORY_LABELS,DOCUMENT_TYPE_LABELS,type ExpenseCategory,type ExpenseDocumentType } from './ExpenseFormDialog.shared';
+import { MetricCard } from './MetricCard';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año', all: 'Todo' };
@@ -40,6 +48,7 @@ interface SaleRow {
   totalBs: string;
   customerName: string | null;
   createdAt: string;
+  saleRecognizedAt: string | null;
 }
 
 interface SalesResult {
@@ -47,7 +56,20 @@ interface SalesResult {
   pageSize: number;
   totalBase: string;
   totalBs: string;
+  totalIvaBase: string;
   orders: SaleRow[];
+}
+
+interface FiscalZStatus {
+  pending: boolean;
+  blocked?: boolean;
+  phase?: string;
+  last: {
+    event: 'FISCAL_Z_REQUESTED' | 'FISCAL_Z_PRINTED' | 'FISCAL_Z_FAILED' | 'FISCAL_Z_UNKNOWN';
+    detail: Record<string, unknown> | null;
+    createdAt: string;
+    actorName: string | null;
+  } | null;
 }
 
 /**
@@ -63,6 +85,45 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
   const [date, setDate] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [fiscalZOpen, setFiscalZOpen] = useState(false);
+  const [fiscalZSending, setFiscalZSending] = useState(false);
+  const [fiscalZError, setFiscalZError] = useState<string | null>(null);
+  const [fiscalZStatus, setFiscalZStatus] = useState<FiscalZStatus | null>(null);
+
+  async function loadFiscalZStatus() {
+    try {
+      const res = await api.get('/orders/fiscal/z-report');
+      setFiscalZStatus(res.data.data);
+    } catch {
+      // El estado es informativo: un fallo al consultarlo no debe impedir ver
+      // ni exportar los libros fiscales.
+    }
+  }
+
+  useEffect(() => {
+    if (only === 'compras') return;
+    void loadFiscalZStatus();
+  }, [only]);
+
+  useEffect(() => {
+    if (!fiscalZStatus?.pending && !fiscalZStatus?.blocked) return;
+    const timer = window.setInterval(() => void loadFiscalZStatus(), 3000);
+    return () => window.clearInterval(timer);
+  }, [fiscalZStatus?.pending, fiscalZStatus?.blocked]);
+
+  async function requestFiscalZ() {
+    setFiscalZSending(true);
+    setFiscalZError(null);
+    try {
+      await api.post('/orders/fiscal/z-report');
+      setFiscalZStatus((current) => ({ pending: true, phase: 'WAITING', last: current?.last ?? null }));
+      setFiscalZOpen(false);
+    } catch (err: any) {
+      setFiscalZError(err.response?.data?.error ?? 'No se pudo enviar la solicitud a la Estación de Impresión.');
+    } finally {
+      setFiscalZSending(false);
+    }
+  }
 
   /** Descarga el libro que se está viendo, con el mismo período que muestra la pantalla.
    * `fiscal` (solo ventas): la versión SENIAT — fecha, RIF, cliente, base, IVA y total en Bs. */
@@ -134,16 +195,36 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
         />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {book === 'ventas' && (
-            <TextureButton
-              variant="secondary"
-              size="sm"
-              className="!w-auto"
-              disabled={downloading}
-              onClick={() => exportBook('fiscal')}
-              title="Solo fecha, RIF, cliente, base imponible, IVA y total en Bs (formato SENIAT)"
-            >
-              <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Exportar fiscal'}
-            </TextureButton>
+            <>
+              <TextureButton
+                variant="success"
+                size="sm"
+                className="!w-auto"
+                disabled={Boolean(fiscalZStatus?.pending || fiscalZStatus?.blocked)}
+                onClick={() => {
+                  setFiscalZError(null);
+                  setFiscalZOpen(true);
+                }}
+                title="Cierra la jornada directamente en la impresora fiscal"
+              >
+                {fiscalZStatus?.pending ? (
+                  <LoaderCircle className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Printer className="mr-1 h-3.5 w-3.5" />
+                )}
+                {fiscalZStatus?.pending ? fiscalZStatus.phase === 'WAITING' ? 'Esperando estación…' : 'Procesando Z…' : 'Generar Z fiscal'}
+              </TextureButton>
+              <TextureButton
+                variant="secondary"
+                size="sm"
+                className="!w-auto"
+                disabled={downloading}
+                onClick={() => exportBook('fiscal')}
+                title="Solo fecha, RIF, cliente, base imponible, IVA y total en Bs (formato SENIAT)"
+              >
+                <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Exportar fiscal'}
+              </TextureButton>
+            </>
           )}
           <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={() => exportBook('full')}>
             <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : book === 'ventas' ? 'Exportar completo' : 'Exportar Excel'}
@@ -151,7 +232,38 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
         </div>
       </div>
 
-      {exportError && <p className="text-sm text-red-600">{exportError}</p>}
+      {exportError && <p className="text-red-600 text-base">{exportError}</p>}
+
+      {book === 'ventas' && fiscalZStatus?.pending && (
+        <div className="flex items-center gap-2 rounded-xl border border-brand-500/20 bg-brand-500/[0.06] px-3 py-2 text-sm text-brand-950/70">
+          <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-brand-500" />
+          {fiscalZStatus.phase === 'WAITING' ? 'Esperando que la estación reciba el cierre (máximo 60 segundos).' : 'La estación recibió el trabajo y está esperando la confirmación de la impresora fiscal.'}
+        </div>
+      )}
+      {book === 'ventas' && fiscalZStatus?.phase === 'NOT_RECEIVED' && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-900 text-base">La estación no recibió el cierre a tiempo. Cierra y abre la Estación de Impresión y revisa si hay una impresión pendiente antes de volver a solicitarlo.</p>}
+      {book === 'ventas' && fiscalZStatus?.blocked && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-900 text-base">No se pudo confirmar el resultado del cierre. Revisa el papel y contacta a soporte; no se enviará otro Z automáticamente.</p>}
+      {book === 'ventas' && !fiscalZStatus?.pending && fiscalZStatus?.last?.event === 'FISCAL_Z_PRINTED' && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-sm text-emerald-800">
+          <ShieldCheck className="h-4 w-4 shrink-0" />
+          Último Z confirmado
+          {fiscalZStatus.last.detail?.numeroReporte ? ` · #${String(fiscalZStatus.last.detail.numeroReporte)}` : ''}
+          {fiscalZStatus.last.detail?.ventasDelDia != null
+            ? ` · ${formatBsAbsolute(String(fiscalZStatus.last.detail.ventasDelDia))}`
+            : ''}
+          {' · '}{new Date(fiscalZStatus.last.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+        </div>
+      )}
+      {book === 'ventas' && !fiscalZStatus?.pending &&
+        (fiscalZStatus?.last?.event === 'FISCAL_Z_FAILED' || fiscalZStatus?.last?.event === 'FISCAL_Z_UNKNOWN') && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {fiscalZStatus.last.event === 'FISCAL_Z_UNKNOWN'
+                ? 'La impresora no confirmó el resultado. Revisa el papel antes de intentar otro cierre.'
+                : String(fiscalZStatus.last.detail?.error ?? 'La impresora no pudo generar el Reporte Z.')}
+            </span>
+          </div>
+        )}
 
       {book === 'compras' ? (
         <PurchasesBook symbol={symbol} range={range} date={date} periodLabel={periodLabel} />
@@ -160,6 +272,33 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
       ) : (
         <SalesBook symbol={symbol} range={range} date={date} periodLabel={periodLabel} />
       )}
+
+      <Dialog open={fiscalZOpen} onOpenChange={(open) => !fiscalZSending && setFiscalZOpen(open)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <DialogTitle>Generar Reporte Z fiscal</DialogTitle>
+            <DialogDescription>
+              Este cierre se imprime directamente en la máquina fiscal y finaliza sus acumulados del día en bolívares. No se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl bg-brand-950/[0.04] px-4 py-3 text-sm leading-relaxed text-brand-950/65">
+            Verifica que la Estación de Impresión 1.9.3 esté abierta en la PC Windows, que la impresora HKA/Aclas tenga papel y que no exista un documento fiscal pendiente. QuickTap comprobará que el RIF de la máquina coincida con el restaurante.
+          </div>
+          {fiscalZError && <p className="text-red-600 text-base">{fiscalZError}</p>}
+          <DialogFooter className="flex-col-reverse sm:flex-row">
+            <TextureButton variant="secondary" className="!w-auto" disabled={fiscalZSending} onClick={() => setFiscalZOpen(false)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton variant="success" className="!w-auto" disabled={fiscalZSending} onClick={requestFiscalZ}>
+              {fiscalZSending ? <LoaderCircle className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />}
+              {fiscalZSending ? 'Enviando…' : 'Sí, generar Reporte Z'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -191,6 +330,7 @@ interface ShopSaleRow {
   customerName: string | null;
   paymentMethod: string | null;
   returned: boolean;
+  returnedAt: string | null;
   creditTerms: string | null;
 }
 
@@ -206,25 +346,47 @@ function ShopSalesBook({ symbol, range, date, periodLabel }: { symbol: string; r
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el libro de ventas.'));
   }, []);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const { from, to } = rangeWindow(range, date);
-  const rows = (sales ?? []).filter((s) => {
-    if (s.returned) return false;
-    const t = new Date(s.time);
-    if (from && t < from) return false;
-    if (to && t >= to) return false;
-    return true;
-  });
-  const total = rows.reduce((acc, s) => acc + s.total, 0);
-  const credit = rows.filter((s) => s.creditTerms).length;
+  const inWindow = (value: string) => {
+    const t = new Date(value);
+    return (!from || t >= from) && (!to || t < to);
+  };
+  const rows = (sales ?? [])
+    .flatMap((sale) => {
+      const activity: Array<ShopSaleRow & { entryId: string; isReturn: boolean; entryTime: string; amount: number }> = [];
+      if (inWindow(sale.time)) {
+        activity.push({ ...sale, entryId: sale.id, isReturn: false, entryTime: sale.time, amount: sale.total });
+      }
+      if (sale.returnedAt && inWindow(sale.returnedAt)) {
+        activity.push({
+          ...sale,
+          entryId: `${sale.id}:return`,
+          isReturn: true,
+          entryTime: sale.returnedAt,
+          amount: -sale.total,
+        });
+      }
+      return activity;
+    })
+    .sort((a, b) => new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime());
+  const total = rows.reduce((acc, row) => acc + row.amount, 0);
+  const saleRows = rows.filter((row) => !row.isReturn);
+  const credit = saleRows.filter((sale) => sale.creditTerms).length;
+  const returns = rows.filter((row) => row.isReturn).length;
 
   return (
     <>
       <div className="grid sm:grid-cols-3 gap-4">
         <MetricCard icon={Wallet} title={`Total ventas · ${periodLabel}`} value={formatBase(total, symbol)} />
-        <MetricCard icon={Receipt} title="Ventas" value={String(rows.length)} caption={credit > 0 ? `${credit} fiadas` : undefined} />
-        <MetricCard icon={BookOpen} title="Ticket promedio" value={rows.length ? formatBase(total / rows.length, symbol) : '—'} />
+        <MetricCard
+          icon={Receipt}
+          title="Ventas"
+          value={String(saleRows.length)}
+          caption={[credit > 0 ? `${credit} fiadas` : '', returns > 0 ? `${returns} devoluciones` : ''].filter(Boolean).join(' · ') || undefined}
+        />
+        <MetricCard icon={BookOpen} title="Ticket promedio" value={saleRows.length ? formatBase(total / saleRows.length, symbol) : '—'} />
       </div>
 
       <div className={`${card} overflow-x-auto`}>
@@ -235,20 +397,23 @@ function ShopSalesBook({ symbol, range, date, periodLabel }: { symbol: string; r
           <span className="w-24 shrink-0 text-right">Total</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-          {rows.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
+          {rows.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin ventas en este período.</p>}
           {rows.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 px-5 py-2.5 text-sm min-w-[560px]">
+            <div key={s.entryId} className="flex items-center gap-3 px-5 py-2.5 text-sm min-w-[560px]">
               <span className="w-32 shrink-0 text-xs text-brand-950/50">
-                {new Date(s.time).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                {new Date(s.entryTime).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
               </span>
               <span className="min-w-0 flex-1 truncate text-brand-950/70">
                 {s.customerName ?? 'Mostrador'}
+                {s.isReturn && <span className="text-red-600"> · Devolución</span>}
                 {s.creditTerms && <span className="text-amber-600"> · Fiada</span>}
               </span>
               <span className="w-28 shrink-0 truncate text-xs text-brand-950/60">
                 {s.paymentMethod ? (PAYMENT_LABELS[s.paymentMethod as PaymentMethod] ?? s.paymentMethod) : '—'}
               </span>
-              <span className="w-24 shrink-0 text-right font-semibold text-brand-950">{formatBase(s.total, symbol)}</span>
+              <span className={`w-24 shrink-0 text-right font-semibold ${s.isReturn ? 'text-red-600' : 'text-brand-950'}`}>
+                {formatBase(s.amount, symbol)}
+              </span>
             </div>
           ))}
         </div>
@@ -268,7 +433,7 @@ function PurchasesBook({ symbol, range, date, periodLabel }: { symbol: string; r
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el libro de compras.'));
   }, [range, date]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const total = rows?.reduce((acc, r) => acc + Number(r.amountBase), 0) ?? 0;
   const fiscal = rows?.filter((r) => r.documentType === 'FISCAL_INVOICE').length ?? 0;
@@ -304,7 +469,7 @@ function PurchasesBook({ symbol, range, date, periodLabel }: { symbol: string; r
           <span className="w-20 shrink-0 text-right">Monto</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-          {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin compras en este período.</p>}
+          {rows?.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin compras en este período.</p>}
           {rows?.map((r) => (
             <div key={r.id} className="flex items-center gap-3 px-5 py-2.5 text-sm min-w-[720px]">
               <span className="w-20 shrink-0 text-xs text-brand-950/50">
@@ -345,10 +510,9 @@ function SalesBook({ symbol, range, date, periodLabel }: { symbol: string; range
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el libro de ventas.'));
   }, [range, date]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
-  // IVA del período sumado sobre lo mostrado — si hay más de 100 ventas, la nota de abajo lo aclara.
-  const ivaShown = result?.orders.reduce((acc, o) => acc + Number(o.ivaBase), 0) ?? 0;
+  const ivaTotal = Number(result?.totalIvaBase ?? 0);
   const truncated = !!result && result.total > result.pageSize;
 
   return (
@@ -363,8 +527,8 @@ function SalesBook({ symbol, range, date, periodLabel }: { symbol: string; range
         <MetricCard icon={Receipt} title="Ventas" value={String(result?.total ?? 0)} />
         <MetricCard
           icon={BookOpen}
-          title={truncated ? 'IVA (últimas 100 ventas)' : 'IVA del período'}
-          value={formatBase(ivaShown, symbol)}
+          title="IVA del período"
+          value={formatBase(ivaTotal, symbol)}
         />
       </div>
 
@@ -379,11 +543,11 @@ function SalesBook({ symbol, range, date, periodLabel }: { symbol: string; range
           <span className="w-20 shrink-0 text-right">Total</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-          {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
+          {result?.orders.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin ventas en este período.</p>}
           {result?.orders.map((o) => (
             <div key={o.id} className="flex items-center gap-3 px-5 py-2.5 text-sm min-w-[680px]">
               <span className="w-24 shrink-0 text-xs text-brand-950/50">
-                {new Date(o.createdAt).toLocaleDateString('es-VE')}
+                {new Date(o.saleRecognizedAt ?? o.createdAt).toLocaleDateString('es-VE')}
               </span>
               <span className="w-16 shrink-0 font-medium text-brand-950">#{o.orderNumber}</span>
               <span className="min-w-0 flex-1 truncate text-brand-950/70">{o.customerName ?? '—'}</span>
@@ -398,7 +562,7 @@ function SalesBook({ symbol, range, date, periodLabel }: { symbol: string; range
         </div>
       </div>
       {truncated && (
-        <p className="text-xs text-brand-950/40 text-center -mt-2">
+        <p className="text-brand-950/40 text-center -mt-2 text-xs">
           Mostrando las {result!.pageSize} ventas más recientes de {result!.total} — los totales de arriba sí cubren todo el período.
         </p>
       )}

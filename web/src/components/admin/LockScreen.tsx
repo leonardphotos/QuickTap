@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
 import type { LockScreenMode } from '@/hooks/useLockScreen';
+import { useEffect,useState } from 'react';
 
 interface Props {
   mode: LockScreenMode;
@@ -135,21 +135,21 @@ export function LockScreen({ mode, onUnlock }: Props) {
         <p className="text-6xl sm:text-7xl font-semibold tracking-tight tabular-nums">
           {now.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
         </p>
-        <p className="text-sm font-medium text-white/60 capitalize">
+        <p className="font-medium text-white/60 capitalize text-base">
           {now.toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
 
       <div
-        className={`flex flex-col items-center gap-7 transition-all ease-out ${
+        className={`flex flex-col items-center gap-7 transition-[opacity,filter] duration-200 ease-out-strong motion-reduce:transition-none ${
           visible ? 'opacity-100 blur-none' : 'opacity-0 blur-md'
         }`}
         style={{ transitionDuration: `${BLUR_TRANSITION_MS}ms` }}
       >
         <div className="text-center px-6">
-          <p className="text-[15px] font-semibold">{title}</p>
-          {subtitle && <p className="text-sm text-white/50 mt-1">{subtitle}</p>}
-          {error && <p className="text-sm text-red-400 mt-1.5">{error}</p>}
+          <p className="font-semibold text-base">{title}</p>
+          {subtitle && <p className="text-white/50 mt-1 text-base">{subtitle}</p>}
+          {error && <p className="text-red-400 mt-1.5 text-base">{error}</p>}
         </div>
 
         <div className={`flex gap-4 ${shake ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}>

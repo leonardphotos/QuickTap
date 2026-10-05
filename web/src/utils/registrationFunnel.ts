@@ -1,15 +1,6 @@
 import { api } from '@/api/client';
 
-/**
- * Seguimiento del embudo de registro (ver src/modules/registration-funnel).
- *
- * Mide cuánta gente entra a la pasarela y no termina de registrarse, y guarda lo que alcanzó a
- * escribir para poder contactarla después. La contraseña NUNCA se manda — no está en ninguna de
- * las llamadas de acá, y no debe agregarse.
- *
- * Todo es "mejor esfuerzo": ningún error de esto puede verse en la pantalla de alguien que se
- * está registrando, por eso cada llamada traga sus errores y nunca se espera con await.
- */
+/** Métricas mínimas por etapa, sin contenido de campos ni parámetros de la URL. */
 
 const KEY = 'quicktap_funnel_session';
 
@@ -33,16 +24,9 @@ export function funnelSessionId(): string {
 export interface FunnelPayload {
   stage?: 'START' | 'FORM';
   businessType?: string;
-  shopRubro?: string;
-  restaurantName?: string;
-  slug?: string;
-  whatsappPhone?: string;
-  ownerName?: string;
-  email?: string;
-  landingQuery?: string;
-  lastError?: string;
+
 }
 
 export function trackFunnel(payload: FunnelPayload): void {
-  void api.post('/public/registration-funnel', { sessionId: funnelSessionId(), ...payload }).catch(() => undefined);
+  void api.post('/public/registration-funnel', { sessionId: funnelSessionId(), stage: payload.stage, businessType: payload.businessType }).catch(() => undefined);
 }

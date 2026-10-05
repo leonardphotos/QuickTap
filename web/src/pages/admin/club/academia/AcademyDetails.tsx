@@ -91,7 +91,7 @@ function ActiveStudentsList({ onClose, onNavigate }: { onClose: () => void; onNa
 
   return (
     <DetailSheet open title="Alumnos activos" subtitle={students ? `${students.length} en total` : undefined} onClose={onClose}>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!students && !error && <EmptyNote>Cargando…</EmptyNote>}
       {students && students.length === 0 && <EmptyNote>No hay alumnos activos.</EmptyNote>}
       {students && students.length > 0 && (
@@ -173,7 +173,7 @@ function PendingChargesList({
       subtitle={charges ? `${charges.length} mensualidad(es) · ${formatBase(total, symbol)}` : undefined}
       onClose={onClose}
     >
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!charges && !error && <EmptyNote>Cargando…</EmptyNote>}
       {charges && charges.length === 0 && <EmptyNote>Nadie debe mensualidad. Bien.</EmptyNote>}
       {charges && charges.length > 0 && (
@@ -198,7 +198,7 @@ function PendingChargesList({
                   </span>
                 </button>
                 <div className="shrink-0 text-right">
-                  <p className="text-[13px] font-bold text-brand-950">{formatBase(balance, symbol)}</p>
+                  <p className="font-bold text-brand-950 text-base">{formatBase(balance, symbol)}</p>
                   <TextureButton variant="minimal" size="sm" className="!w-auto !min-h-0 !py-1" onClick={() => setCollecting(c)}>
                     Cobrar
                   </TextureButton>
@@ -294,7 +294,7 @@ function CollectChargeDialog({
       onClose={onClose}
     >
       <div className="space-y-3">
-        <label className="block">
+        <label className="block text-sm font-medium">
           <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Monto ({symbol})</span>
           <input
             type="number"
@@ -302,16 +302,16 @@ function CollectChargeDialog({
             step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
           />
           <span className="mt-1 block text-[11px] font-light text-brand-950/40">Saldo pendiente: {formatBase(balance, symbol)}</span>
         </label>
-        <label className="block">
+        <label className="block text-sm font-medium">
           <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Cómo pagó</span>
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value as typeof method)}
-            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
           >
             {CHARGE_METHODS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -322,19 +322,19 @@ function CollectChargeDialog({
           {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
               en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
           {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(amount) > 0 && (
-            <p className="mt-1.5 text-[13px] font-bold text-brand-500">Transferir {formatBs(amount, rateBs)}</p>
+            <p className="mt-1.5 font-bold text-brand-500 text-base">Transferir {formatBs(amount, rateBs)}</p>
           )}
         </label>
-        <label className="block">
+        <label className="block text-sm font-medium">
           <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Referencia</span>
           <input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
             placeholder="Opcional"
-            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
           />
         </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
           {saving ? 'Registrando…' : `Cobrar ${formatBase(amount || '0', symbol)}`}
         </TextureButton>
@@ -377,7 +377,7 @@ function SessionDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
 
   return (
     <DetailSheet open title={data?.session.group?.name ?? 'Clase'} subtitle={data ? fmtDateTime(data.session.startsAt) : undefined} onClose={onClose}>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
         <SheetBody>
@@ -413,7 +413,7 @@ function SessionDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
                     title={
                       <>
                         {r.name}
-                        {r.isMakeup && <span className="ml-1.5 text-[11px] font-light text-sky-600">recuperación</span>}
+                        {r.isMakeup && <span className="ml-1.5 text-[11px] font-light text-brand-500">recuperación</span>}
                       </>
                     }
                     subtitle={
@@ -488,7 +488,7 @@ function GroupDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
 
   return (
     <DetailSheet open title={data?.group.name ?? 'Grupo'} subtitle={data?.group.program?.name ?? undefined} onClose={onClose}>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
         <SheetBody>
@@ -621,7 +621,7 @@ function ProgramDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
 
   return (
     <DetailSheet open title={data?.program.name ?? 'Programa'} subtitle={data?.program.description ?? undefined} onClose={onClose}>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
         <SheetBody>
@@ -693,7 +693,7 @@ function CoachDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
 
   return (
     <DetailSheet open title={data?.coach.displayName ?? 'Profesor'} subtitle={data?.coach.phone} onClose={onClose}>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
         <SheetBody>
@@ -733,7 +733,7 @@ function CoachDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
             {data.coach.availability.length === 0 ? (
               <EmptyNote>Sin franjas cargadas — se asume disponible siempre.</EmptyNote>
             ) : (
-              <p className="text-[13px] font-light text-brand-950/70">
+              <p className="font-light text-brand-950/70 text-base">
                 {data.coach.availability.map((a) => `${WEEKDAY_SHORT[a.weekday]} ${a.startTime}–${a.endTime}`).join(' · ')}
               </p>
             )}
@@ -814,7 +814,7 @@ function StudentDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
         ) : undefined
       }
     >
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
         <SheetBody>

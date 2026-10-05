@@ -19,7 +19,7 @@ export function MethodAccountPicker({
   if (accounts.length < 2) return null;
   return (
     <div className="mt-2">
-      <p className="mb-1.5 text-xs font-medium text-brand-950/50">{label}</p>
+      <p className="mb-1.5 font-medium text-brand-950/50 text-xs">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {accounts.map((a) => (
           <button

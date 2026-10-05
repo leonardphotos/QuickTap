@@ -1,20 +1,21 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Copy, Lock, MapPin, MessageCircle } from 'lucide-react';
-import { api } from '../../api/client';
-import type { CartLine, PaymentMethod, Product, Restaurant } from '../../types';
-import { cartLineUnitPrice, formatModifierLabel, publicPriceLabel } from '../../utils/format';
-import { methodAccountsOf } from '../../utils/payment-accounts';
-import { TextureButton } from '@/components/ui/texture-button';
-import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
-import { OrderReceipt, type ReceiptLine, type ReceiptTotal } from './OrderReceipt';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { reverseGeocode } from '@/components/AddressAutocomplete.shared';
 import {
-  FamilyDrawerRoot,
-  FamilyDrawerPortal,
-  FamilyDrawerOverlay,
-  FamilyDrawerContent,
-  FamilyDrawerAnimatedWrapper,
-  FamilyDrawerClose,
+FamilyDrawerAnimatedWrapper,
+FamilyDrawerClose,
+FamilyDrawerContent,
+FamilyDrawerOverlay,
+FamilyDrawerPortal,
+FamilyDrawerRoot,
 } from '@/components/ui/family-drawer';
+import { TextureButton } from '@/components/ui/texture-button';
+import { ArrowLeft,Check,ChevronRight,Copy,Lock,MapPin,MessageCircle,TicketPercent,UserRound } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { api } from '../../api/client';
+import type { CartLine,PaymentMethod,Product,Restaurant } from '../../types';
+import { cartLineUnitPrice,formatModifierLabel,publicPriceLabel } from '../../utils/format';
+import { methodAccountsOf } from '../../utils/payment-accounts';
+import { OrderReceipt,type ReceiptLine,type ReceiptTotal } from './OrderReceipt';
 
 interface Props {
   restaurant: Restaurant;
@@ -73,13 +74,28 @@ export default function CartDrawer({
   onClose,
   onClearAndClose,
 }: Props) {
-  const [step, setStep] = useState<'summary' | 'modeChoice' | 'checkout'>('summary');
-  const [mode, setMode] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
+  const [step, setStep] = useState<'summary' | 'modeChoice' | 'identity' | 'checkout'>('summary');
+  const [mode, setMode] = useState<'DELIVERY' | 'PICKUP'>(restaurant.deliveryAvailable === false ? 'PICKUP' : 'DELIVERY');
   const [dineInName, setDineInName] = useState('');
   const [dineInIdNumber, setDineInIdNumber] = useState('');
   const [dineInPhone, setDineInPhone] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [idNumber, setIdNumber] = useState('');
+  const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
+  const [customerRecognized, setCustomerRecognized] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<
+    { label: string; lat: number | null; lng: number | null; lastUsedAt: string }[]
+  >([]);
+  const [availableCoupons, setAvailableCoupons] = useState<
+    { name: string; code: string; discountType: 'PERCENT' | 'AMOUNT'; discountValue: string; endsAt: string | null }[]
+  >([]);
+  const [appliedCoupon, setAppliedCoupon] = useState<
+    { name: string; code: string; discountType: 'PERCENT' | 'AMOUNT'; discountValue: string; endsAt?: string | null } | null
+  >(null);
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [address, setAddress] = useState('');
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -91,6 +107,7 @@ export default function CartDrawer({
   const [note, setNote] = useState('');
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
   const [quotingFee, setQuotingFee] = useState(false);
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   async function copyField(key: string, value: string) {
@@ -156,6 +173,7 @@ export default function CartDrawer({
   // Métodos de pago habilitados por el restaurante; si nunca los configuró,
   // se usa el set clásico para no dejar el checkout sin opciones.
   const paymentConfig = restaurant.paymentMethodsConfig;
+  const showPublicPayments = !paymentConfig?.publicMenu?.hidden;
   const hasPaymentConfig = paymentConfig && Object.values(paymentConfig).some((m) => m?.enabled);
   const paymentOptions: PaymentMethod[] = hasPaymentConfig
     ? (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter((k) => paymentConfig?.[k]?.enabled)
@@ -179,13 +197,18 @@ export default function CartDrawer({
   useEffect(() => {
     if (mode !== 'DELIVERY' || !locationCoords) {
       setDeliveryFeeBase(null);
+      setDeliveryQuoteError(null);
       return;
     }
     setQuotingFee(true);
+    setDeliveryQuoteError(null);
     api
       .get(`/public/checkout/delivery/${restaurant.slug}/quote`, { params: locationCoords })
       .then((res) => setDeliveryFeeBase(Number(res.data.data.feeBase)))
-      .catch(() => setDeliveryFeeBase(null))
+      .catch((err) => {
+        setDeliveryFeeBase(null);
+        setDeliveryQuoteError(err.response?.data?.error ?? 'No se pudo calcular el envío.');
+      })
       .finally(() => setQuotingFee(false));
   }, [locationCoords, mode, restaurant.slug]);
 
@@ -193,8 +216,9 @@ export default function CartDrawer({
   // validación y es quien congela el monto final del pedido.
   const orderChannel = qrToken ? 'DINE_IN' : mode;
   const appliesServiceCharge = restaurant.serviceChargeEnabled && (restaurant.serviceChargeChannels?.includes(orderChannel) ?? true);
-  const serviceChargeBase = appliesServiceCharge ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant.ivaEnabled ? subtotalBase * 0.16 : 0;
+  // El servicio se cobra sobre el importe ya gravado: IVA primero, servicio después.
+  const serviceChargeBase = appliesServiceCharge ? round2((subtotalBase + ivaBase) * 0.1) : 0;
   // Envase (envase/caja/bolsa por producto): el servidor lo cobra en Delivery y Pickup (nunca en
   // mesa, qrToken != null), así que el checkout tiene que mostrarlo o el cliente ve menos de lo
   // que después realmente se le cobra — ver computeEnvaseFee en order.service.ts.
@@ -202,6 +226,17 @@ export default function CartDrawer({
     ? 0
     : cart.reduce((acc, l) => acc + unitPackagingFee(l.product) * l.quantity, 0);
   const totalBase = subtotalBase + serviceChargeBase + ivaBase + (deliveryFeeBase ?? 0) + envaseFeeBase;
+  const selectedPromoCode = appliedCoupon?.code ?? null;
+  const selectedCoupon = appliedCoupon;
+  const couponDiscountBase = selectedCoupon
+    ? Math.min(
+        totalBase,
+        selectedCoupon.discountType === 'PERCENT'
+          ? round2(totalBase * (Number(selectedCoupon.discountValue) / 100))
+          : Number(selectedCoupon.discountValue),
+      )
+    : 0;
+  const amountDueBase = round2(totalBase - couponDiscountBase);
   const hasCharges = appliesServiceCharge || restaurant.ivaEnabled || Boolean(deliveryFeeBase) || envaseFeeBase > 0;
 
   const tipBase = tipPercent != null ? round2(subtotalBase * (tipPercent / 100)) : Number(tipCustom) || 0;
@@ -219,24 +254,61 @@ export default function CartDrawer({
     note: l.note,
   }));
 
+  async function continueWithCustomer() {
+    // En pedidos QR de mesa el cliente puede enviar primero la comanda. La identificación
+    // queda para cuando el personal registre el cobro; delivery/pick-up conservan su requisito.
+    if (qrToken && (!name.trim() || phone.trim().length < 7)) {
+      setCustomerRecognized(false);
+      setSavedAddresses([]);
+      setAvailableCoupons([]);
+      setAppliedCoupon(null);
+      setCouponCodeInput('');
+      setCouponError(null);
+      setError(null);
+      setStep('checkout');
+      return;
+    }
+    if (!name.trim()) {
+      setError('Escribe tu nombre.');
+      return;
+    }
+    if (phone.trim().length < 7) {
+      setError('Escribe un teléfono válido para identificar tus pedidos y poder contactarte.');
+      return;
+    }
+    setLookingUpCustomer(true);
+    setError(null);
+    try {
+      const { data } = await api.post(`/public/checkout/customer/${restaurant.slug}`, {
+        phone: phone.trim(),
+        idNumber: idNumber.trim() || undefined,
+      });
+      const profile = data.data;
+      if (profile.customer) {
+        setCustomerRecognized(true);
+        setName(profile.customer.name || name.trim());
+        setPhone(profile.customer.phone || phone.trim());
+        setIdNumber(profile.customer.idNumber || idNumber.trim());
+      } else {
+        setCustomerRecognized(false);
+      }
+      setSavedAddresses(profile.addresses ?? []);
+      setAvailableCoupons(profile.coupons ?? []);
+      setAppliedCoupon(null);
+      setCouponCodeInput('');
+      setCouponError(null);
+      setStep('checkout');
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No pudimos consultar tus datos. Intenta de nuevo.');
+    } finally {
+      setLookingUpCustomer(false);
+    }
+  }
+
   async function submitDineIn() {
     if (multipleAccounts) {
       setError('Esta mesa tiene varias cuentas abiertas — pide ayuda al mesero para tu pedido.');
       return;
-    }
-    if (!sessionOpen) {
-      if (!dineInName.trim()) {
-        setError('Escribe tu nombre.');
-        return;
-      }
-      if (!dineInIdNumber.trim()) {
-        setError('Escribe tu cédula.');
-        return;
-      }
-      if (!dineInPhone.trim()) {
-        setError('Escribe tu teléfono.');
-        return;
-      }
     }
     if (sessionOpen && pinRequired && checkoutPin.length !== 4) {
       setError('Escribe la clave de la mesa (4 dígitos).');
@@ -251,9 +323,9 @@ export default function CartDrawer({
         ...(sessionOpen
           ? {}
           : {
-              customerName: dineInName.trim(),
-              customerIdNumber: dineInIdNumber.trim(),
-              customerPhone: dineInPhone.trim(),
+              ...(dineInName.trim() ? { customerName: dineInName.trim() } : {}),
+              ...(dineInIdNumber.trim() ? { customerIdNumber: dineInIdNumber.trim() } : {}),
+              ...(dineInPhone.trim() ? { customerPhone: dineInPhone.trim() } : {}),
             }),
         ...(sessionOpen && pinRequired ? { pin: checkoutPin } : {}),
         ...(tipBase > 0 ? { tipBase } : {}),
@@ -265,6 +337,26 @@ export default function CartDrawer({
       setError(e.response?.data?.error ?? 'No se pudo enviar el pedido a cocina.');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function applyCouponCode() {
+    const code = couponCodeInput.trim().toUpperCase();
+    if (!code) return;
+    if (phone.trim().length < 7) {
+      setCouponError('Escribe primero tu teléfono para validar el cupón.');
+      return;
+    }
+    setValidatingCoupon(true);
+    setCouponError(null);
+    try {
+      const { data } = await api.post(`/public/checkout/coupon/${restaurant.slug}`, { code, phone: phone.trim() });
+      setAppliedCoupon(data.data);
+      setCouponCodeInput('');
+    } catch (e: any) {
+      setCouponError(e.response?.data?.error ?? 'No se pudo validar el cupón.');
+    } finally {
+      setValidatingCoupon(false);
     }
   }
 
@@ -371,6 +463,10 @@ export default function CartDrawer({
       );
       return;
     }
+    if (mode === 'DELIVERY' && deliveryQuoteError) {
+      setError(deliveryQuoteError);
+      return;
+    }
     setSending(true);
     setError(null);
     try {
@@ -380,11 +476,13 @@ export default function CartDrawer({
         customer: {
           name,
           phone,
+          idNumber: idNumber.trim() || undefined,
           address,
           locationUrl: locationUrl ?? undefined,
           lat: locationCoords?.lat,
           lng: locationCoords?.lng,
-          paymentMethod: payment,
+          paymentMethod: showPublicPayments ? payment : undefined,
+          promoCode: selectedPromoCode ?? undefined,
           note,
         },
       });
@@ -400,7 +498,7 @@ export default function CartDrawer({
           orderNumber: data.data.orderNumber,
           whatsappUrl: data.data.whatsappUrl,
           modeLabel: mode === 'DELIVERY' ? 'Delivery' : 'Para llevar',
-          paymentLabel: payment ? PAYMENT_LABELS[payment] : 'Por acordar',
+          paymentLabel: showPublicPayments && payment ? PAYMENT_LABELS[payment] : 'Por acordar después de confirmar el pedido',
           customerName: name.trim(),
           lines: cart.map((l) => ({
             name: l.product.name,
@@ -409,11 +507,11 @@ export default function CartDrawer({
           })),
           totals: [
             { label: 'Subtotal', value: publicPriceLabel(subtotalBase, restaurant).primary },
-            ...(appliesServiceCharge
-              ? [{ label: 'Servicio', value: publicPriceLabel(serviceChargeBase, restaurant).primary }]
-              : []),
             ...(restaurant.ivaEnabled
               ? [{ label: 'IVA', value: publicPriceLabel(ivaBase, restaurant).primary }]
+              : []),
+            ...(appliesServiceCharge
+              ? [{ label: 'Servicio', value: publicPriceLabel(serviceChargeBase, restaurant).primary }]
               : []),
             ...(deliveryFeeBase != null && deliveryFeeBase > 0
               ? [{ label: 'Delivery', value: publicPriceLabel(deliveryFeeBase, restaurant).primary }]
@@ -421,7 +519,17 @@ export default function CartDrawer({
             ...(envaseFeeBase > 0
               ? [{ label: 'Envase', value: publicPriceLabel(envaseFeeBase, restaurant).primary }]
               : []),
-            { label: 'Total', value: publicPriceLabel(totalBase, restaurant).primary, strong: true },
+            ...(Number(data.data.discountBase ?? couponDiscountBase) > 0
+              ? [{
+                  label: `Cupón${selectedPromoCode ? ` ${selectedPromoCode}` : ''}`,
+                  value: `-${publicPriceLabel(Number(data.data.discountBase ?? couponDiscountBase), restaurant).primary}`,
+                }]
+              : []),
+            {
+              label: 'Total',
+              value: publicPriceLabel(Number(data.data.amountDueBase ?? amountDueBase), restaurant).primary,
+              strong: true,
+            },
           ],
         });
       }
@@ -461,10 +569,9 @@ export default function CartDrawer({
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 animate-[bounce_0.6s_ease-in-out]">
                   <MessageCircle className="h-8 w-8 text-emerald-600" />
                 </div>
-                <p className="font-semibold text-brand-950">Tu pedido está siendo procesado</p>
-                <p className="text-sm text-brand-950/60 font-light max-w-xs mx-auto">
-                  En unos segundos te llegará un mensaje por WhatsApp con el monto y los datos para cancelar. Apenas
-                  confirmes el pago, tu pedido entra directo a cocina.
+                <p className="font-semibold text-brand-950 text-base">Tu pedido está siendo procesado</p>
+                <p className="text-brand-950/60 font-light max-w-xs mx-auto text-base">
+                  {showPublicPayments ? 'En unos segundos te llegará un mensaje por WhatsApp con el monto y los datos para cancelar. Apenas confirmes el pago, tu pedido entra directo a cocina.' : 'El restaurante revisará tu pedido y te indicará cómo pagar. Espera su confirmación antes de realizar el pago.'}
                 </p>
                 <TextureButton
                   variant="brand"
@@ -481,11 +588,11 @@ export default function CartDrawer({
             ) : dineInSent ? (
               pinFlow === 'ask' ? (
                 <div className="text-center py-8 space-y-4">
-                  <p className="font-semibold text-brand-950">
+                  <p className="font-semibold text-brand-950 text-base">
                     ¿Deseas colocarle una clave de 4 dígitos a esta mesa, o dejar la cuenta abierta para que puedan
                     pedir sin necesidad de clave?
                   </p>
-                  {pinFlowError && <p className="text-xs text-red-600">{pinFlowError}</p>}
+                  {pinFlowError && <p className="text-red-600 text-xs">{pinFlowError}</p>}
                   <div className="flex flex-col gap-2">
                     <TextureButton variant="brand" size="default" disabled={pinFlowBusy} onClick={startPinEntry}>
                       Colocar clave de 4 dígitos
@@ -503,7 +610,7 @@ export default function CartDrawer({
                 </div>
               ) : pinFlow === 'enter' || pinFlow === 'confirm' ? (
                 <div className="text-center py-8 space-y-4">
-                  <p className="font-semibold text-brand-950">
+                  <p className="font-semibold text-brand-950 text-base">
                     {pinFlow === 'enter' ? 'Elige una clave de 4 dígitos' : 'Confirma la clave'}
                   </p>
                   <input
@@ -520,7 +627,7 @@ export default function CartDrawer({
                     placeholder="••••"
                     className="w-32 mx-auto block text-center text-3xl tracking-[0.5em] font-semibold border border-brand-950/15 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                   />
-                  {pinFlowError && <p className="text-xs text-red-600">{pinFlowError}</p>}
+                  {pinFlowError && <p className="text-red-600 text-xs">{pinFlowError}</p>}
                   <TextureButton
                     variant="brand"
                     size="default"
@@ -536,8 +643,8 @@ export default function CartDrawer({
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-950/[0.06] animate-[bounce_0.6s_ease-in-out]">
                     <Lock className="h-8 w-8 text-brand-500" />
                   </div>
-                  <p className="font-semibold text-brand-950">Mesa protegida</p>
-                  <p className="text-sm text-brand-950/60 font-light">
+                  <p className="font-semibold text-brand-950 text-base">Mesa protegida</p>
+                  <p className="text-brand-950/60 font-light text-base">
                     A partir de ahora hace falta la clave para pedir de nuevo en esta mesa.
                   </p>
                   <TextureButton variant="brand" size="default" onClick={onClearAndClose} className="mt-2 !w-auto mx-auto">
@@ -547,8 +654,8 @@ export default function CartDrawer({
               ) : (
                 <div className="text-center py-8 space-y-2">
                   <p className="text-4xl">✅</p>
-                  <p className="font-semibold text-brand-950">¡Pedido enviado a cocina!</p>
-                  <p className="text-sm text-brand-950/60 font-light">Ya lo están preparando.</p>
+                  <p className="font-semibold text-brand-950 text-base">¡Pedido enviado a cocina!</p>
+                  <p className="text-brand-950/60 font-light text-base">Ya lo están preparando.</p>
                   <TextureButton variant="brand" size="default" onClick={onClearAndClose} className="mt-4 !w-auto mx-auto">
                     Listo
                   </TextureButton>
@@ -559,7 +666,7 @@ export default function CartDrawer({
                 <h3 className="font-semibold text-brand-950 mb-3">Tu pedido</h3>
 
                 {cart.length === 0 ? (
-                  <p className="text-sm text-brand-950/50 py-6 text-center font-light">Tu carrito está vacío.</p>
+                  <p className="text-brand-950/50 py-6 text-center font-light text-base">Tu carrito está vacío.</p>
                 ) : (
                   <ul className="space-y-2 max-h-48 overflow-y-auto">
                     {cart.map((l, i) => {
@@ -567,16 +674,16 @@ export default function CartDrawer({
                       return (
                         <li key={i} className="flex items-start justify-between text-sm border-b border-brand-950/10 pb-2">
                           <div>
-                            <p className="font-medium text-brand-950">
+                            <p className="font-medium text-brand-950 text-base">
                               {l.quantity}x {l.product.name}
                               {l.variantName && <span className="text-brand-950/50"> ({l.variantName})</span>}
                             </p>
                             {l.selectedModifiers.length > 0 && (
-                              <p className="text-xs text-brand-950/50">
+                              <p className="text-brand-950/50 text-xs">
                                 {l.selectedModifiers.map(formatModifierLabel).join(', ')}
                               </p>
                             )}
-                            {l.note && <p className="text-xs text-brand-950/50">📝 {l.note}</p>}
+                            {l.note && <p className="text-brand-950/50 text-xs">📝 {l.note}</p>}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span>{linePrice.primary}</span>
@@ -598,16 +705,16 @@ export default function CartDrawer({
                       <span>Subtotal</span>
                       <span>{publicPriceLabel(subtotalBase, restaurant).primary}</span>
                     </div>
-                    {appliesServiceCharge && (
-                      <div className="flex justify-between">
-                        <span>Servicio (10%)</span>
-                        <span>{publicPriceLabel(serviceChargeBase, restaurant).primary}</span>
-                      </div>
-                    )}
                     {restaurant.ivaEnabled && (
                       <div className="flex justify-between">
                         <span>IVA (16%)</span>
                         <span>{publicPriceLabel(ivaBase, restaurant).primary}</span>
+                      </div>
+                    )}
+                    {appliesServiceCharge && (
+                      <div className="flex justify-between">
+                        <span>Servicio (10%)</span>
+                        <span>{publicPriceLabel(serviceChargeBase, restaurant).primary}</span>
                       </div>
                     )}
                     {deliveryFeeBase != null && deliveryFeeBase > 0 && (
@@ -622,25 +729,32 @@ export default function CartDrawer({
                         <span>{publicPriceLabel(envaseFeeBase, restaurant).primary}</span>
                       </div>
                     )}
+                    {couponDiscountBase > 0 && (
+                      <div className="flex justify-between font-medium text-emerald-700">
+                        <span>Cupón {selectedPromoCode}</span>
+                        <span>-{publicPriceLabel(couponDiscountBase, restaurant).primary}</span>
+                      </div>
+                    )}
                   </div>
                 )}
-                {quotingFee && <p className="text-xs text-brand-950/40 mt-1">Calculando envío…</p>}
+                {quotingFee && <p className="text-brand-950/40 mt-1 text-xs">Calculando envío…</p>}
+                {deliveryQuoteError && <p className="text-rose-600 mt-1 text-xs">{deliveryQuoteError}</p>}
 
                 <div className="flex justify-between text-sm font-semibold mt-3">
                   <span>Total a pagar</span>
-                  <span>{publicPriceLabel(totalBase, restaurant).primary}</span>
+                  <span>{publicPriceLabel(amountDueBase, restaurant).primary}</span>
                 </div>
-                {publicPriceLabel(totalBase, restaurant).secondary && (
+                {publicPriceLabel(amountDueBase, restaurant).secondary && (
                   <div className="flex justify-between text-xs text-brand-950/50 mb-3">
                     <span>Equivalente</span>
-                    <span>{publicPriceLabel(totalBase, restaurant).secondary}</span>
+                    <span>{publicPriceLabel(amountDueBase, restaurant).secondary}</span>
                   </div>
                 )}
 
                 {cart.length > 0 && (
                   <>
                     {qrToken && multipleAccounts && (
-                      <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mt-2">
+                      <p className="text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mt-2 text-xs">
                         Esta mesa tiene varias cuentas abiertas — pide ayuda al mesero para tu pedido.
                       </p>
                     )}
@@ -648,7 +762,7 @@ export default function CartDrawer({
                       <>
                         {suggestions.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-brand-950/10">
-                            <p className="text-xs font-medium text-brand-950/60 mb-2">¿Agregamos algo más?</p>
+                            <p className="font-medium text-brand-950/60 mb-2 text-xs">¿Agregamos algo más?</p>
                             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                               {suggestions.map((p) => (
                                 <button
@@ -664,8 +778,8 @@ export default function CartDrawer({
                                       🍽️
                                     </div>
                                   )}
-                                  <p className="text-[11px] font-medium text-brand-950 line-clamp-1">{p.name}</p>
-                                  <p className="text-[11px] text-brand-500 font-semibold">
+                                  <p className="font-medium text-brand-950 line-clamp-1 text-xs">{p.name}</p>
+                                  <p className="text-brand-500 font-semibold text-xs">
                                     + {publicPriceLabel(p.price, restaurant).primary}
                                   </p>
                                 </button>
@@ -689,17 +803,18 @@ export default function CartDrawer({
                     ) : step === 'modeChoice' ? (
                       <div className="space-y-2 mt-2">
                         <button
-                          onClick={() => setStep('summary')}
+                          onClick={() => setStep(qrToken ? 'summary' : 'identity')}
                           className="flex items-center gap-1 text-xs text-brand-950/50 hover:text-brand-950 mb-1"
                         >
-                          <ArrowLeft className="h-3 w-3" /> Volver al resumen
+                          <ArrowLeft className="h-3 w-3" /> {qrToken ? 'Volver al resumen' : 'Cambiar mis datos'}
                         </button>
-                        <p className="text-sm font-semibold text-brand-950">¿Cómo quieres tu pedido?</p>
+                        <p className="font-semibold text-brand-950 text-base">¿Cómo quieres tu pedido?</p>
                         <div className="grid grid-cols-2 gap-2">
                           <button
+                            hidden={restaurant.deliveryAvailable === false}
                             onClick={() => {
                               setMode('DELIVERY');
-                              setStep('checkout');
+                              setStep('identity');
                             }}
                             className="flex flex-col items-center gap-1.5 rounded-xl border border-brand-950/15 bg-white py-5 hover:border-brand-500 hover:bg-brand-950/[0.03] transition-colors"
                           >
@@ -709,7 +824,7 @@ export default function CartDrawer({
                           <button
                             onClick={() => {
                               setMode('PICKUP');
-                              setStep('checkout');
+                              setStep('identity');
                             }}
                             className="flex flex-col items-center gap-1.5 rounded-xl border border-brand-950/15 bg-white py-5 hover:border-brand-500 hover:bg-brand-950/[0.03] transition-colors"
                           >
@@ -717,6 +832,68 @@ export default function CartDrawer({
                             <span className="text-sm font-medium text-brand-950">Pick-up</span>
                           </button>
                         </div>
+                      </div>
+                    ) : step === 'identity' ? (
+                      <div className="space-y-3 mt-2">
+                        <button
+                          onClick={() => setStep('modeChoice')}
+                          className="flex items-center gap-1 text-xs text-brand-950/50 hover:text-brand-950"
+                        >
+                          <ArrowLeft className="h-3 w-3" /> Cambiar modalidad
+                        </button>
+                        <div className="flex items-start gap-3 rounded-2xl bg-brand-950/[0.035] p-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-brand-500 shadow-sm">
+                            <UserRound className="h-5 w-5" />
+                          </span>
+                          <div>
+                            <p className="font-semibold text-brand-950 text-base">Primero, tus datos</p>
+                            <p className="mt-0.5 leading-relaxed text-brand-950/55 text-xs">
+                              Con tu teléfono reconocemos tus pedidos, direcciones anteriores y beneficios disponibles.
+                            </p>
+                          </div>
+                        </div>
+                        <label className="block text-sm font-medium">
+                          <span className="text-xs font-medium text-brand-950/60">Nombre y apellido</span>
+                          <input
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Ej. Valentina Torres"
+                            autoComplete="name"
+                            className="mt-1 w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
+                          />
+                        </label>
+                        <label className="block text-sm font-medium">
+                          <span className="text-xs font-medium text-brand-950/60">Teléfono</span>
+                          <input
+                            type="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="0424 1234567"
+                            autoComplete="tel"
+                            className="mt-1 w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
+                          />
+                        </label>
+                        <label className="block text-sm font-medium">
+                          <span className="text-xs font-medium text-brand-950/60">Cédula o RIF <span className="font-normal opacity-70">(opcional)</span></span>
+                          <input
+                            value={idNumber}
+                            onChange={(e) => setIdNumber(e.target.value)}
+                            placeholder="V-12345678"
+                            autoComplete="off"
+                            className="mt-1 w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
+                          />
+                        </label>
+                        <TextureButton
+                          variant="brand"
+                          size="default"
+                          disabled={lookingUpCustomer}
+                          onClick={continueWithCustomer}
+                          className="disabled:opacity-50"
+                        >
+                          {lookingUpCustomer ? 'Buscando tus beneficios…' : 'Continuar'}
+                          {!lookingUpCustomer && <ChevronRight className="ml-1 h-4 w-4" />}
+                        </TextureButton>
+                        {error && <p className="text-red-600 text-xs">{error}</p>}
                       </div>
                     ) : (
                       <div className="space-y-2 mt-2">
@@ -731,11 +908,11 @@ export default function CartDrawer({
                           <>
                             {sessionOpen ? (
                               <>
-                                <p className="text-sm text-brand-950/60 font-light">
+                                <p className="text-brand-950/60 font-light text-base">
                                   Se añadirá a la cuenta de <span className="font-medium text-brand-950">{sessionCustomerName}</span>.
                                 </p>
                                 {pinRequired && (
-                                  <label className="block">
+                                  <label className="block text-sm font-medium">
                                     <span className="text-sm font-semibold text-brand-950">Clave de la mesa</span>
                                     <input
                                       type="tel"
@@ -751,25 +928,25 @@ export default function CartDrawer({
                               </>
                             ) : (
                               <>
-                                <p className="text-sm font-semibold text-brand-950">Datos para facturación</p>
+                                <p className="font-semibold text-brand-950 text-base">Datos del cliente (opcionales al pedir)</p>
                                 <input
                                   value={dineInName}
                                   onChange={(e) => setDineInName(e.target.value)}
                                   placeholder="Nombre"
-                                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                  className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                                 />
                                 <input
                                   value={dineInIdNumber}
                                   onChange={(e) => setDineInIdNumber(e.target.value)}
                                   placeholder="Cédula"
-                                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                  className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                                 />
                                 <input
                                   type="tel"
                                   value={dineInPhone}
                                   onChange={(e) => setDineInPhone(e.target.value)}
                                   placeholder="Teléfono"
-                                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                  className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                                 />
                               </>
                             )}
@@ -802,11 +979,11 @@ export default function CartDrawer({
                                   }}
                                   placeholder="Otro monto"
                                   inputMode="decimal"
-                                  className="w-28 text-sm border border-brand-950/15 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                  className="w-28 border border-brand-950/15 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                                 />
                               </div>
                               {tipBase > 0 && (
-                                <p className="text-xs text-brand-950/50 mt-1">
+                                <p className="text-brand-950/50 mt-1 text-xs">
                                   Propina: {publicPriceLabel(tipBase, restaurant).primary}
                                 </p>
                               )}
@@ -826,6 +1003,7 @@ export default function CartDrawer({
                           <>
                             <div className="flex gap-2 text-sm">
                               <button
+                                hidden={restaurant.deliveryAvailable === false}
                                 onClick={() => setMode('DELIVERY')}
                                 className={`flex-1 rounded-lg py-1.5 border border-brand-950/15 ${mode === 'DELIVERY' ? 'bg-brand-500 text-white border-brand-500' : 'bg-white'}`}
                               >
@@ -838,26 +1016,68 @@ export default function CartDrawer({
                                 🏬 Pickup
                               </button>
                             </div>
-                            <input
-                              value={name}
-                              onChange={(e) => setName(e.target.value)}
-                              placeholder="Tu nombre *"
-                              required
-                              className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                            />
-                            <input
-                              type="tel"
-                              value={phone}
-                              onChange={(e) => setPhone(e.target.value)}
-                              placeholder="Teléfono *"
-                              required
-                              className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                            />
+                            <div className="flex items-center gap-3 rounded-xl border border-brand-950/10 bg-white px-3 py-2.5">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-500">
+                                <UserRound className="h-4 w-4" />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate font-semibold text-brand-950 text-base">{name}</p>
+                                <p className="truncate text-brand-950/50 text-xs">
+                                  {phone}{idNumber ? ` · ${idNumber}` : ''}
+                                </p>
+                              </div>
+                              {customerRecognized && (
+                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                                  Datos encontrados
+                                </span>
+                              )}
+                            </div>
                             {mode === 'DELIVERY' && (
                               <>
+                                {savedAddresses.length > 0 && (
+                                  <div>
+                                    <p className="mb-1.5 font-semibold text-brand-950 text-xs">Tus direcciones anteriores</p>
+                                    <div className="space-y-1.5">
+                                      {savedAddresses.slice(0, 4).map((saved) => {
+                                        const selected = address === saved.label;
+                                        return (
+                                          <button
+                                            key={`${saved.label}-${saved.lastUsedAt}`}
+                                            type="button"
+                                            onClick={() => {
+                                              setAddress(saved.label);
+                                              if (saved.lat != null && saved.lng != null) {
+                                                setLocationCoords({ lat: saved.lat, lng: saved.lng });
+                                                setLocationUrl(`https://www.google.com/maps?q=${saved.lat},${saved.lng}`);
+                                              } else {
+                                                setLocationCoords(null);
+                                                setLocationUrl(null);
+                                              }
+                                            }}
+                                            className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
+                                              selected
+                                                ? 'border-brand-500 bg-brand-500/[0.06]'
+                                                : 'border-brand-950/10 bg-white hover:border-brand-500/40'
+                                            }`}
+                                          >
+                                            <MapPin className={`h-4 w-4 shrink-0 ${selected ? 'text-brand-500' : 'text-brand-950/35'}`} />
+                                            <span className="line-clamp-2 flex-1 text-xs text-brand-950">{saved.label}</span>
+                                            {selected && <Check className="h-4 w-4 shrink-0 text-brand-500" />}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                                 <AddressAutocomplete
                                   value={address}
-                                  onChange={setAddress}
+                                  onChange={(value) => {
+                                    setAddress(value);
+                                    // Al editar una dirección ya seleccionada, sus coordenadas
+                                    // dejan de representar el texto nuevo hasta elegir otra sugerencia.
+                                    setLocationCoords(null);
+                                    setLocationUrl(null);
+                                  }}
                                   onSelect={(s) => {
                                     setAddress(s.displayName);
                                     setLocationCoords({ lat: s.lat, lng: s.lng });
@@ -886,13 +1106,86 @@ export default function CartDrawer({
                                     <span className="text-xs text-emerald-600 font-medium">✓ Ubicación agregada</span>
                                   )}
                                 </div>
-                                {locationError && <p className="text-xs text-red-600 -mt-1">{locationError}</p>}
+                                {locationError && <p className="text-red-600 -mt-1 text-xs">{locationError}</p>}
                               </>
                             )}
-                            <select
+                            {availableCoupons.length > 0 && (
+                              <div>
+                                <div className="mb-1.5 flex items-center gap-1.5">
+                                  <TicketPercent className="h-4 w-4 text-emerald-600" />
+                                  <p className="font-semibold text-brand-950 text-xs">Beneficios disponibles</p>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {availableCoupons.map((coupon) => {
+                                    const selected = selectedPromoCode === coupon.code;
+                                    const benefit = coupon.discountType === 'PERCENT'
+                                      ? `${Number(coupon.discountValue)}% de descuento`
+                                      : `${publicPriceLabel(Number(coupon.discountValue), restaurant).primary} de descuento`;
+                                    return (
+                                      <button
+                                        key={coupon.code}
+                                        type="button"
+                                        onClick={() => setAppliedCoupon(selected ? null : coupon)}
+                                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                                          selected
+                                            ? 'border-emerald-500 bg-emerald-50'
+                                            : 'border-brand-950/10 bg-white hover:border-emerald-400/60'
+                                        }`}
+                                      >
+                                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                                          <TicketPercent className="h-4 w-4" />
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                          <span className="block truncate text-xs font-semibold text-brand-950">{coupon.name}</span>
+                                          <span className="block text-[11px] text-brand-950/50">{benefit} · {coupon.code}</span>
+                                        </span>
+                                        <span className={`h-4 w-4 rounded-full border-2 ${selected ? 'border-emerald-600 bg-emerald-600 ring-2 ring-white' : 'border-brand-950/20'}`} />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            <div className="rounded-xl border border-brand-950/10 bg-white p-3">
+                              <p className="mb-1.5 flex items-center gap-1.5 font-semibold text-brand-950 text-xs">
+                                <TicketPercent className="h-4 w-4 text-brand-500" /> ¿Tienes un cupón?
+                              </p>
+                              {appliedCoupon ? (
+                                <div className="flex items-center gap-2">
+                                  <p className="min-w-0 flex-1 truncate text-xs font-medium text-emerald-700">
+                                    {appliedCoupon.code} aplicado · {appliedCoupon.discountType === 'PERCENT'
+                                      ? `${Number(appliedCoupon.discountValue)}% de descuento`
+                                      : `${publicPriceLabel(Number(appliedCoupon.discountValue), restaurant).primary} de descuento`}
+                                  </p>
+                                  <button type="button" onClick={() => setAppliedCoupon(null)} className="shrink-0 text-xs font-semibold text-brand-500">
+                                    Quitar
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex gap-2">
+                                  <input
+                                    value={couponCodeInput}
+                                    onChange={(e) => { setCouponCodeInput(e.target.value.toUpperCase()); setCouponError(null); }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void applyCouponCode(); } }}
+                                    placeholder="Escribe tu código"
+                                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-2 font-mono uppercase text-base focus:border-brand-500 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={validatingCoupon || !couponCodeInput.trim()}
+                                    onClick={() => void applyCouponCode()}
+                                    className="shrink-0 rounded-lg bg-brand-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                                  >
+                                    {validatingCoupon ? 'Validando…' : 'Aplicar'}
+                                  </button>
+                                </div>
+                              )}
+                              {couponError && <p className="mt-1 font-medium text-red-600 text-xs">{couponError}</p>}
+                            </div>
+                            {showPublicPayments ? <><select
                               value={payment}
                               onChange={(e) => setPayment(e.target.value as PaymentMethod)}
-                              className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                              className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                             >
                               {paymentOptions.map((o) => (
                                 <option key={o} value={o}>
@@ -908,7 +1201,7 @@ export default function CartDrawer({
                                 {/* Con varias cuentas del mismo método, cada bloque lleva su nombre
                                     para que el cliente sepa a cuál está pagando. */}
                                 {selectedPaymentAccounts.length > 1 && (
-                                  <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
+                                  <p className="font-bold uppercase tracking-wide text-brand-950/45 text-xs">
                                     {account.label}
                                   </p>
                                 )}
@@ -919,7 +1212,7 @@ export default function CartDrawer({
                                     const copyKey = `${account.key}:${f}`;
                                     return (
                                       <div key={f} className="flex items-center justify-between gap-2">
-                                        <p className="truncate">
+                                        <p className="truncate text-base">
                                           <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
                                         </p>
                                         <button
@@ -941,11 +1234,12 @@ export default function CartDrawer({
                                   })}
                               </div>
                             ))}
+                            </> : <p className="rounded-xl bg-brand-950/[0.03] p-3 text-brand-950/70 text-base">Envía tu pedido y espera la confirmación del restaurante antes de pagar. Te indicaremos los métodos y datos de pago al verificarlo.</p>}
                             <input
                               value={note}
                               onChange={(e) => setNote(e.target.value)}
                               placeholder="Nota general (opcional)"
-                              className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                              className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                             />
                             {/* Verde y no del color del restaurante: es el paso que cierra el
                                 pedido, y conviene que se distinga de los botones de navegación
@@ -962,7 +1256,7 @@ export default function CartDrawer({
                             </TextureButton>
                           </>
                         )}
-                        {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+                        {error && <p className="text-red-600 mt-2 text-xs">{error}</p>}
                       </div>
                     )}
                   </>

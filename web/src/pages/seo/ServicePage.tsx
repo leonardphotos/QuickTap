@@ -16,11 +16,11 @@ export default function ServicePage({ slug }: { slug: string }) {
     <SeoPageLayout>
       <Seo title={page.title} description={page.description} path={`/${page.slug}`} faq={page.faq} />
 
-      <p className="text-xs font-bold uppercase tracking-widest text-brand-logo">{page.eyebrow}</p>
+      <p className="font-bold uppercase tracking-widest text-brand-logo text-xs">{page.eyebrow}</p>
       <h1 className="mt-3 text-2xl sm:text-3xl font-bold leading-tight max-w-3xl">{page.h1}</h1>
       <div className="mt-5 space-y-4 max-w-3xl">
         {page.intro.map((p) => (
-          <p key={p.slice(0, 40)} className="text-[15px] text-brand-950/70 font-light leading-relaxed">{p}</p>
+          <p key={p.slice(0, 40)} className="text-brand-950/70 font-light leading-relaxed text-base">{p}</p>
         ))}
       </div>
 
@@ -39,7 +39,7 @@ export default function ServicePage({ slug }: { slug: string }) {
               </span>
               <h2 className="text-sm font-semibold">{f.title}</h2>
             </div>
-            <p className="text-[13px] text-brand-950/60 font-light leading-relaxed">{f.text}</p>
+            <p className="text-brand-950/60 font-light leading-relaxed text-base">{f.text}</p>
           </div>
         ))}
       </section>
@@ -47,7 +47,7 @@ export default function ServicePage({ slug }: { slug: string }) {
       {page.sections?.map((s) => (
         <section key={s.title} className="mt-10 max-w-3xl">
           <h2 className="text-lg sm:text-xl font-bold mb-2">{s.title}</h2>
-          <p className="text-[15px] text-brand-950/70 font-light leading-relaxed">{s.text}</p>
+          <p className="text-brand-950/70 font-light leading-relaxed text-base">{s.text}</p>
         </section>
       ))}
 

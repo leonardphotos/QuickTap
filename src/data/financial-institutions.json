@@ -1,0 +1,498 @@
+[
+  {
+    "id": "ve-bdv",
+    "name": "Banco de Venezuela",
+    "domain": "bancodevenezuela.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-venezolano",
+    "name": "Venezolano de Crédito",
+    "domain": "venezolano.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-mercantil",
+    "name": "Mercantil",
+    "domain": "mercantilbanco.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-provincial",
+    "name": "BBVA Provincial",
+    "domain": "provincial.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bancaribe",
+    "name": "Bancaribe",
+    "domain": "bancaribe.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-exterior",
+    "name": "Banco Exterior",
+    "domain": "bancoexterior.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-caroni",
+    "name": "Banco Caroní",
+    "domain": "bancocaroni.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-banesco",
+    "name": "Banesco",
+    "domain": "banesco.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-sofitasa",
+    "name": "Sofitasa",
+    "domain": "sofitasa.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-plaza",
+    "name": "Banco Plaza",
+    "domain": "bancoplaza.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bangente",
+    "name": "Bangente",
+    "domain": "bangente.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bfc",
+    "name": "BFC Banco Fondo Común",
+    "domain": "bfc.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-100banco",
+    "name": "100% Banco",
+    "domain": "100x100banco.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-delsur",
+    "name": "DelSur",
+    "domain": "delsur.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-tesoro",
+    "name": "Banco del Tesoro",
+    "domain": "bt.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-agricola",
+    "name": "Banco Agrícola de Venezuela",
+    "domain": "bav.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bancrecer",
+    "name": "Bancrecer",
+    "domain": "bancrecer.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-r4",
+    "name": "R4 Banco Microfinanciero",
+    "domain": "r4.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-activo",
+    "name": "Banco Activo",
+    "domain": "bancoactivo.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bancamiga",
+    "name": "Bancamiga",
+    "domain": "bancamiga.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bid",
+    "name": "Banco Internacional de Desarrollo",
+    "domain": "bid.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-banplus",
+    "name": "Banplus",
+    "domain": "banplus.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bdt",
+    "name": "Banco Digital de los Trabajadores",
+    "domain": "bdt.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-banfanb",
+    "name": "BANFANB",
+    "domain": "banfanb.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bnc",
+    "name": "Banco Nacional de Crédito",
+    "domain": "bnc.com.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-n58",
+    "name": "N58 Banco Digital",
+    "domain": "n58bancodigital.com",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "MOBILE_PAYMENT"
+  },
+  {
+    "id": "ve-bancoex",
+    "name": "Bancoex",
+    "domain": "bancoex.gob.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "ve-bandes",
+    "name": "Bandes",
+    "domain": "bandes.gob.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "ve-banavih",
+    "name": "Banavih",
+    "domain": "banavih.gob.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "ve-imcp",
+    "name": "Instituto Municipal de Crédito Popular",
+    "domain": "imcp.gob.ve",
+    "group": "VE",
+    "region": "Venezuela",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "chase",
+    "name": "Chase",
+    "domain": "chase.com",
+    "group": "INTERNATIONAL",
+    "region": "Estados Unidos",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "boa",
+    "name": "Bank of America",
+    "domain": "bankofamerica.com",
+    "group": "INTERNATIONAL",
+    "region": "Estados Unidos",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "wells",
+    "name": "Wells Fargo",
+    "domain": "wellsfargo.com",
+    "group": "INTERNATIONAL",
+    "region": "Estados Unidos",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "citi",
+    "name": "Citi",
+    "domain": "citi.com",
+    "group": "INTERNATIONAL",
+    "region": "Internacional",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "capitalone",
+    "name": "Capital One",
+    "domain": "capitalone.com",
+    "group": "INTERNATIONAL",
+    "region": "Estados Unidos",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "santander",
+    "name": "Santander",
+    "domain": "santander.com",
+    "group": "INTERNATIONAL",
+    "region": "Internacional",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "bbva",
+    "name": "BBVA",
+    "domain": "bbva.com",
+    "group": "INTERNATIONAL",
+    "region": "Internacional",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "caixa",
+    "name": "CaixaBank",
+    "domain": "caixabank.es",
+    "group": "INTERNATIONAL",
+    "region": "España",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "sabadell",
+    "name": "Banco Sabadell",
+    "domain": "bancsabadell.com",
+    "group": "INTERNATIONAL",
+    "region": "España",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "hsbc",
+    "name": "HSBC",
+    "domain": "hsbc.com",
+    "group": "INTERNATIONAL",
+    "region": "Internacional",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "bancolombia",
+    "name": "Bancolombia",
+    "domain": "bancolombia.com",
+    "group": "INTERNATIONAL",
+    "region": "Colombia",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "davivienda",
+    "name": "Davivienda",
+    "domain": "davivienda.com",
+    "group": "INTERNATIONAL",
+    "region": "Colombia",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "banesco-pa",
+    "name": "Banesco Panamá",
+    "domain": "banesco.com.pa",
+    "group": "INTERNATIONAL",
+    "region": "Panamá",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "mercantil-pa",
+    "name": "Mercantil Banco Panamá",
+    "domain": "mercantilbanco.com.pa",
+    "group": "INTERNATIONAL",
+    "region": "Panamá",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "banistmo",
+    "name": "Banistmo",
+    "domain": "banistmo.com",
+    "group": "INTERNATIONAL",
+    "region": "Panamá",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "general-pa",
+    "name": "Banco General",
+    "domain": "bgeneral.com",
+    "group": "INTERNATIONAL",
+    "region": "Panamá",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "zinli",
+    "name": "Zinli",
+    "domain": "zinli.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "binance",
+    "name": "Binance",
+    "domain": "binance.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "BINANCE"
+  },
+  {
+    "id": "okx",
+    "name": "OKX",
+    "domain": "okx.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "paypal",
+    "name": "PayPal",
+    "domain": "paypal.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "PAYPAL"
+  },
+  {
+    "id": "zelle",
+    "name": "Zelle",
+    "domain": "zellepay.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "ZELLE"
+  },
+  {
+    "id": "airtm",
+    "name": "AirTM",
+    "domain": "airtm.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "wise",
+    "name": "Wise",
+    "domain": "wise.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "payoneer",
+    "name": "Payoneer",
+    "domain": "payoneer.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "revolut",
+    "name": "Revolut",
+    "domain": "revolut.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "wally",
+    "name": "Wally",
+    "domain": "wally.tech",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "dolarapp",
+    "name": "DolarApp",
+    "domain": "dolarapp.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "meru",
+    "name": "Meru",
+    "domain": "getmeru.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "bybit",
+    "name": "Bybit",
+    "domain": "bybit.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "coinbase",
+    "name": "Coinbase",
+    "domain": "coinbase.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "skrill",
+    "name": "Skrill",
+    "domain": "skrill.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  },
+  {
+    "id": "mercadopago",
+    "name": "Mercado Pago",
+    "domain": "mercadopago.com",
+    "group": "PLATFORM",
+    "region": "Plataforma",
+    "method": "TRANSFER"
+  }
+]

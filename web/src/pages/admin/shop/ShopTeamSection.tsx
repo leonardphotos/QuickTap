@@ -127,7 +127,7 @@ export function ShopTeamSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Equipo</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Crea usuarios para tu personal. Administrador ve márgenes y costos; Cajero solo puede cobrar.
         </p>
       </TextureCardHeader>
@@ -137,7 +137,7 @@ export function ShopTeamSection() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Nombre"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             required
           />
           <input
@@ -145,7 +145,7 @@ export function ShopTeamSection() {
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="Email"
             type="email"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             required
           />
           <PasswordInput
@@ -158,7 +158,7 @@ export function ShopTeamSection() {
           <select
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           >
             {SHOP_ASSIGNABLE_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -166,7 +166,7 @@ export function ShopTeamSection() {
               </option>
             ))}
           </select>
-          {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+          {error && <p className="text-red-600 sm:col-span-2 text-base">{error}</p>}
           <TextureButton
             variant="brand"
             size="default"
@@ -181,11 +181,11 @@ export function ShopTeamSection() {
           {staff.map((s) =>
             editingId === s.id && editDraft ? (
               <li key={s.id} className="space-y-2 px-3 py-3 text-sm">
-                <p className="font-medium text-brand-950">{s.name}</p>
+                <p className="font-medium text-brand-950 text-base">{s.name}</p>
                 <select
                   value={editDraft.role}
                   onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value as UserRole })}
-                  className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                 >
                   {SHOP_ASSIGNABLE_ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -193,7 +193,7 @@ export function ShopTeamSection() {
                     </option>
                   ))}
                 </select>
-                <label className="flex items-center gap-2 text-xs text-brand-950/70">
+                <label className="flex items-center gap-2 text-brand-950/70 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={editDraft.isActive}
@@ -203,7 +203,7 @@ export function ShopTeamSection() {
                   Activo
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-brand-950/70">
+                <label className="flex items-center gap-2 text-brand-950/70 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={editDraft.isServiceProvider}
@@ -215,21 +215,21 @@ export function ShopTeamSection() {
 
                 {editDraft.isServiceProvider && (
                   <div className="rounded-xl bg-brand-950/[0.03] border border-brand-950/10 p-3 space-y-2.5">
-                    <label className="block text-xs">
+                    <label className="block text-sm font-medium">
                       <span className="text-brand-950/60">Comisión que se lleva (%)</span>
                       <input
                         value={editDraft.commissionPercent}
                         onChange={(e) => setEditDraft({ ...editDraft, commissionPercent: e.target.value })}
                         placeholder="50"
                         inputMode="decimal"
-                        className="mt-1 w-24 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        className="mt-1 w-24 border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                       />
                       <span className="ml-2 text-brand-950/40">del monto de sus servicios</span>
                     </label>
 
                     <div>
-                      <p className="text-xs font-semibold text-brand-950 mb-1">Sus datos de cobro</p>
-                      <p className="text-[11px] text-brand-950/45 mb-2">
+                      <p className="font-semibold text-brand-950 mb-1 text-xs">Sus datos de cobro</p>
+                      <p className="text-brand-950/45 mb-2 text-xs">
                         Al cobrar un servicio suyo se muestran ESTOS datos, no los del local — el cliente le paga
                         directo. La venta igual queda registrada acá.
                       </p>
@@ -238,31 +238,31 @@ export function ShopTeamSection() {
                           value={editDraft.pmTelefono}
                           onChange={(e) => setEditDraft({ ...editDraft, pmTelefono: e.target.value })}
                           placeholder="Pago Móvil: teléfono"
-                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                         />
                         <input
                           value={editDraft.pmBanco}
                           onChange={(e) => setEditDraft({ ...editDraft, pmBanco: e.target.value })}
                           placeholder="Banco"
-                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                         />
                         <input
                           value={editDraft.pmCedula}
                           onChange={(e) => setEditDraft({ ...editDraft, pmCedula: e.target.value })}
                           placeholder="Cédula"
-                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                         />
                         <input
                           value={editDraft.pmTitular}
                           onChange={(e) => setEditDraft({ ...editDraft, pmTitular: e.target.value })}
                           placeholder="Titular"
-                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                         />
                         <input
                           value={editDraft.zelleCorreo}
                           onChange={(e) => setEditDraft({ ...editDraft, zelleCorreo: e.target.value })}
                           placeholder="Zelle: correo (opcional)"
-                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm col-span-2"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 col-span-2 text-base"
                         />
                       </div>
                     </div>
@@ -293,11 +293,11 @@ export function ShopTeamSection() {
             ) : (
               <li key={s.id} className="flex items-center justify-between px-3 py-2.5 text-sm">
                 <div className="min-w-0">
-                  <p className="font-medium text-brand-950 truncate">
+                  <p className="font-medium text-brand-950 truncate text-base">
                     {s.name}
                     {!s.isActive && <span className="font-normal text-brand-950/40"> (inactivo)</span>}
                   </p>
-                  <p className="text-xs text-brand-950/40 truncate">
+                  <p className="text-brand-950/40 truncate text-xs">
                     {s.email} · {ROLE_LABELS[s.role]}
                     {s.isServiceProvider && ` · presta servicios${s.commissionPercent ? ` (${s.commissionPercent}%)` : ''}`}
                   </p>

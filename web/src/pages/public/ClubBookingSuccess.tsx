@@ -67,13 +67,13 @@ export default function ClubBookingSuccess({ courtName, dateLabel, timeLabel, is
 
       <div className="club-rise mt-8" style={{ animation: 'var(--animate-rise)', animationDelay: '1700ms' }}>
         <h2 className="text-[26px] font-bold tracking-tight text-club-text">¡Reserva lista!</h2>
-        <p className="mt-2 text-[15px] font-light text-club-text/80">
+        <p className="mt-2 font-light text-club-text/80 text-base">
           {courtName} · {timeLabel}
         </p>
-        <p className="text-[14px] font-light capitalize text-club-text/60">{dateLabel}</p>
+        <p className="font-light capitalize text-club-text/60 text-base">{dateLabel}</p>
         {/* Duda típica: "escaneé tarde, ¿me descuentan ese tiempo?" — sí. En el
             demo es al revés: la partida arranca al escanear y dura 1 minuto. */}
-        <p className="mx-auto mt-4 max-w-xs rounded-2xl border border-white/25 bg-white/10 px-4 py-2.5 text-[12px] font-light text-club-text/70">
+        <p className="mx-auto mt-4 max-w-xs rounded-2xl border border-white/25 bg-white/10 px-4 py-2.5 font-light text-club-text/70 text-xs">
           {isDemo
             ? 'Modo demostración: escanea tu QR en la tablet de la cancha y la partida arranca en ese momento (dura 1 minuto).'
             : 'El tiempo corre desde la hora reservada, no desde que escanees el QR al llegar.'}

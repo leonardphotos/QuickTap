@@ -56,13 +56,13 @@ export function TableEditDialog({ table, zones, onOpenChange, onSaved }: Props) 
             value={number}
             onChange={(e) => setNumber(e.target.value)}
             placeholder="ej: 5, Terraza-1"
-            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             required
           />
           <select
             value={zoneId}
             onChange={(e) => setZoneId(e.target.value)}
-            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           >
             <option value="">Sin zona</option>
             {zones.map((z) => (
@@ -71,7 +71,7 @@ export function TableEditDialog({ table, zones, onOpenChange, onSaved }: Props) 
               </option>
             ))}
           </select>
-          <label className="flex items-center justify-between gap-2 text-sm text-brand-950/60">
+          <label className="flex items-center justify-between gap-2 text-brand-950/60 text-sm font-medium">
             Sillas
             <input
               type="number"
@@ -79,10 +79,10 @@ export function TableEditDialog({ table, zones, onOpenChange, onSaved }: Props) 
               max={20}
               value={seats}
               onChange={(e) => setSeats(e.target.value)}
-              className="w-20 border border-brand-950/15 rounded-lg px-3 py-2 text-sm text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="w-20 border border-brand-950/15 rounded-lg px-3 py-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </TextureButton>

@@ -130,7 +130,7 @@ export function PhotoUploadField({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <label className="block text-sm font-medium text-brand-950/70">{label}</label>
+      <label className="block text-brand-950/70 text-sm font-medium">{label}</label>
       <div
         onClick={() => inputRef.current?.click()}
         className={cn(
@@ -210,7 +210,7 @@ export function PhotoUploadField({
           e.target.value = '';
         }}
       />
-      {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+      {error && <p className="text-red-600 text-center text-xs">{error}</p>}
 
       {cropSrc && cropAspect && (
         <ImageCropDialog

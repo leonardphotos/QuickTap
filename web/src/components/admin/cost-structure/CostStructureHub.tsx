@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useEffect,useState } from 'react';
 import { CostStructureCalculator } from './CostStructureCalculator';
-import { CostStructureConfigSection, type CostStructureConfig } from './CostStructureConfigSection';
+import { CostStructureConfigSection,type CostStructureConfig } from './CostStructureConfigSection';
 import { CostStructureStats } from './CostStructureStats';
 
 const TABS = [
@@ -31,15 +32,15 @@ export function CostStructureHub() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar la estructura de costo.'));
   }, []);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!config) return <p className="text-sm font-light text-brand-950/40">Cargando…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
+  if (!config) return <p className="font-light text-brand-950/40 text-base">Cargando…</p>;
 
   return (
     <div className="flex flex-col gap-5">
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+        <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {TABS.map((t) => (
-            <button
+            <AnimatedTab active={tab === t.id}
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
@@ -48,9 +49,9 @@ export function CostStructureHub() {
               }`}
             >
               {t.label}
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </div>
 
       {tab === 'calculator' && <CostStructureCalculator config={config} symbol={symbol} />}

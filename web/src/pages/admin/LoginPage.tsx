@@ -1,17 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../../context/AuthContext';
-import { clearRememberedEmail, getRememberedEmail, getStoredSlug, setRememberedEmail } from '../../api/client';
-import { TextureButton } from '@/components/ui/texture-button';
-import { PasswordInput } from '@/components/ui/password-input';
-import AuthLayout from './AuthLayout';
+import { billingReturn } from '@/utils/billing-return';
 import { WaiterProfilePicker } from '@/components/admin/WaiterProfilePicker';
+import { PasswordInput } from '@/components/ui/password-input';
+import { TextureButton } from '@/components/ui/texture-button';
+import { GoogleLogin } from '@react-oauth/google';
+import type { FormEvent } from 'react';
+import { useEffect,useRef,useState } from 'react';
+import { Link,useNavigate,useSearchParams } from 'react-router-dom';
+import { clearRememberedEmail,getRememberedEmail,getStoredSlug,setRememberedEmail } from '../../api/client';
+import { useAuth } from '../../context/AuthContext.shared';
+import AuthLayout from './AuthLayout';
 
 export default function LoginPage() {
   const { login, loginWithGoogle, switchableWaiters, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const billing = billingReturn(searchParams.toString());
+  const destination = billing.paymentPath;
   // Segundo inicio de sesión: si este restaurante ya tiene meseros con PIN configurado, un
   // login normal (correo/clave) no entra directo al panel — primero pregunta de quién es la
   // tablet, estilo Netflix. "Seguir como {tú}" en la cuadrícula es la salida para quien de
@@ -35,14 +39,14 @@ export default function LoginPage() {
     } finally {
       resolviendoLoginRef.current = false;
     }
-    navigate('/admin');
+    navigate(destination);
   }
 
   // Con el acceso directo instalado (PWA), la app abre directo en /admin/login —
   // si el navegador ya tiene sesión, salta la pantalla de login en vez de pedirla de nuevo.
   useEffect(() => {
-    if (!authLoading && user && !resolviendoLoginRef.current && !showPicker) navigate('/admin', { replace: true });
-  }, [authLoading, user, navigate, showPicker]);
+    if (!authLoading && user && !resolviendoLoginRef.current && !showPicker) navigate(destination, { replace: true });
+  }, [authLoading, user, navigate, showPicker, destination]);
   const rememberedEmail = getRememberedEmail();
   const [email, setEmail] = useState(rememberedEmail ?? '');
   const [password, setPassword] = useState('');
@@ -59,7 +63,7 @@ export default function LoginPage() {
     try {
       // Si este navegador ya conoce el restaurante (login previo) se manda
       // como atajo; si no, el backend resuelve la cuenta por el correo.
-      await login(email, password, getStoredSlug() ?? undefined);
+      await login(email, password, billing.slug ?? getStoredSlug() ?? undefined);
       if (remember) setRememberedEmail(email);
       else clearRememberedEmail();
       await afterLogin();
@@ -76,7 +80,7 @@ export default function LoginPage() {
     setError(null);
     resolviendoLoginRef.current = true;
     try {
-      const result = await loginWithGoogle(credential, getStoredSlug() ?? undefined);
+      const result = await loginWithGoogle(credential, billing.slug ?? getStoredSlug() ?? undefined);
       if (result.needsRegistration) {
         // Sin cuenta todavía: manda los datos ya verificados de Google al registro para
         // que solo falte pedir nombre del restaurante + slug (nunca email/contraseña).
@@ -94,14 +98,14 @@ export default function LoginPage() {
   }
 
   if (showPicker) {
-    return <WaiterProfilePicker onSkip={() => navigate('/admin')} />;
+    return <WaiterProfilePicker onSkip={() => navigate(destination)} />;
   }
 
   return (
     <AuthLayout
       footer={
         <div className="space-y-4">
-          <p className="text-sm text-brand-950/60 font-light">
+          <p className="text-brand-950/60 font-light text-base">
             ¿No tienes cuenta?{' '}
             <Link to="/empezar" className="text-brand-500 font-medium">
               Regístrate
@@ -123,7 +127,7 @@ export default function LoginPage() {
                 text="signin_with"
               />
             </div>
-            {googleLoading && <p className="mt-1 text-xs text-brand-950/50">Ingresando…</p>}
+            {googleLoading && <p className="mt-1 text-brand-950/50 text-xs">Ingresando…</p>}
           </div>
         </div>
       }
@@ -139,7 +143,7 @@ export default function LoginPage() {
           autoComplete="current-password"
         />
         <div className="flex items-center justify-between -mt-2">
-          <label className="flex items-center gap-1.5 text-sm text-brand-950/70">
+          <label className="flex items-center gap-1.5 text-brand-950/70 text-sm font-medium">
             <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
             Recordarme
           </label>
@@ -147,7 +151,7 @@ export default function LoginPage() {
             ¿Olvidaste tu contraseña?
           </Link>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
           {loading ? 'Ingresando…' : 'Iniciar sesión'}
         </TextureButton>
@@ -180,7 +184,7 @@ export function Field({
     'mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500';
 
   return (
-    <label className="block text-sm">
+    <label className="block text-sm font-medium">
       <span className="text-brand-950/70">{label}</span>
       {type === 'password' ? (
         <PasswordInput

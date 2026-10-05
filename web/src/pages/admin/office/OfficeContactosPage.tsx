@@ -59,7 +59,7 @@ export default function OfficeContactosPage({ empresa }: { empresa: Empresa }) {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Clientes y proveedores</h1>
-          <p className="mt-0.5 text-[13.5px] text-brand-950/50">Con quién opera {empresa.nombre}.</p>
+          <p className="mt-0.5 text-brand-950/50 text-base">Con quién opera {empresa.nombre}.</p>
         </div>
         {!abierto && (
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setAbierto(true)}>
@@ -71,7 +71,7 @@ export default function OfficeContactosPage({ empresa }: { empresa: Empresa }) {
       {abierto && (
         <div className="mb-6 rounded-2xl border border-brand-950/[0.08] bg-[#FAFAF9] p-5">
           <div className="mb-4 flex items-start justify-between">
-            <p className="text-[15px] font-semibold">Nuevo contacto</p>
+            <p className="font-semibold text-base">Nuevo contacto</p>
             <button type="button" onClick={() => setAbierto(false)} className="text-brand-950/35 hover:text-brand-950"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -84,19 +84,19 @@ export default function OfficeContactosPage({ empresa }: { empresa: Empresa }) {
             ].map((c) => (
               <label key={c.k} className={`block text-sm ${c.ancho ?? ''}`}>
                 <span className="text-brand-950/65">{c.label}</span>
-                <input value={form[c.k]} onChange={(e) => setForm({ ...form, [c.k]: e.target.value })} placeholder={c.ph} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+                <input value={form[c.k]} onChange={(e) => setForm({ ...form, [c.k]: e.target.value })} placeholder={c.ph} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
               </label>
             ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-4">
             {ROLES.map((r) => (
-              <label key={r.k} className="flex items-center gap-2 text-sm">
+              <label key={r.k} className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={form[r.k]} onChange={(e) => setForm({ ...form, [r.k]: e.target.checked })} className="h-4 w-4 rounded border-brand-950/25 accent-brand-500" />
                 {r.label}
               </label>
             ))}
           </div>
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-red-600 text-base">{error}</p>}
           <div className="mt-4 flex gap-2">
             <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-40" disabled={guardando || !form.name.trim()} onClick={crear}>
               {guardando ? 'Guardando…' : 'Guardar contacto'}
@@ -109,7 +109,7 @@ export default function OfficeContactosPage({ empresa }: { empresa: Empresa }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-950/30" />
-          <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar…" className="w-full rounded-lg border border-brand-950/15 py-2 pl-9 pr-3 text-sm" />
+          <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar…" className="w-full rounded-lg border border-brand-950/15 py-2 pl-9 pr-3 text-base" />
         </div>
         <div className="flex gap-1">
           {([['', 'Todos'], ...ROLES.map((r) => [r.k, r.label] as const)] as [typeof filtro, string][]).map(([k, label]) => (
@@ -122,9 +122,9 @@ export default function OfficeContactosPage({ empresa }: { empresa: Empresa }) {
 
       <div className="overflow-hidden rounded-2xl border border-brand-950/[0.08]">
         {contactos === null ? (
-          <p className="p-6 text-sm text-brand-950/40">Cargando…</p>
+          <p className="p-6 text-brand-950/40 text-base">Cargando…</p>
         ) : visibles.length === 0 ? (
-          <p className="p-6 text-sm text-brand-950/40">Sin contactos.</p>
+          <p className="p-6 text-brand-950/40 text-base">Sin contactos.</p>
         ) : (
           <table className="w-full text-[13.5px]">
             <thead>

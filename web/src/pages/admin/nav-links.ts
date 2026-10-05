@@ -1,4 +1,4 @@
-import { Bike, Boxes, Building2, CalendarDays, ChefHat, CircleDollarSign, CircleDot, ClipboardList, CloudOff, FileText, Grid2x2, LayoutDashboard, QrCode, Receipt, Settings, ShoppingCart, UtensilsCrossed } from 'lucide-react';
+import { Bike, Boxes, Building2, CalendarDays, ChefHat, CircleDollarSign, CircleDot, ClipboardList, CloudOff, FileText, Grid2x2, LayoutDashboard, QrCode, Receipt, Settings, ShoppingCart, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { RESTRICTED_ROLES, isAdminCashier, isScreenRole } from '../../utils/roles';
 import { allowsBranches, hasFeature, isDeliveryTierPlan } from '../../utils/subscription';
 import type { UserRole } from '../../types';
@@ -10,14 +10,15 @@ export interface AdminNavLink {
 }
 
 export const PLAN_LABELS: Record<string, string> = {
-  DELIVERY: 'Solo Delivery',
+  ESSENTIAL: 'Esencial', OPERATIONS: 'Operación', CONTROL: 'Control',
+  DELIVERY: 'Esencial · heredado',
   STARTER: 'Plan Inicial',
-  PRO: 'Plan Pro',
+  PRO: 'Operación · heredado',
   PREMIUM: 'Plan Premium',
   CUSTOM: 'Plan Personalizado',
   SUCURSALES: 'Plan Sucursales',
   DELIVERY_SUCURSALES: 'Delivery Sucursales',
-  ELITE: 'Plan Elite',
+  ELITE: 'Control · heredado',
   SHOP: 'QuickTap Shop',
   ELITE_SHOP: 'Elite Shop',
   CLUB: 'QuickTap Club',
@@ -27,10 +28,10 @@ export const PLAN_LABELS: Record<string, string> = {
 // Todas las pestañas del panel. Mesero/Cocina solo ven Comandas, Cocina y Órdenes de Mesa.
 export const ADMIN_NAV_LINKS: AdminNavLink[] = [
   { to: '/admin', label: 'Resumen', icon: LayoutDashboard },
-  { to: '/admin/comandas', label: 'Comandas', icon: ClipboardList },
+  { to: '/admin/comandas', label: 'Pedidos', icon: ClipboardList },
   { to: '/admin/kitchen', label: 'Cocina', icon: ChefHat },
-  { to: '/admin/table-orders', label: 'Órdenes de Mesa', icon: Grid2x2 },
-  { to: '/admin/delivery', label: 'Delivery', icon: Bike },
+  { to: '/admin/table-orders', label: 'Mesas', icon: Grid2x2 },
+  { to: '/admin/delivery', label: 'Repartos', icon: Bike },
   { to: '/admin/products', label: 'Productos', icon: UtensilsCrossed },
   { to: '/admin/tables', label: 'Mesas / QR', icon: QrCode },
   { to: '/admin/settings', label: 'Ajustes', icon: Settings },
@@ -50,6 +51,7 @@ export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: '
 // Módulo de Compras: registro de compras con reabastecimiento, cotizaciones, proveedores,
 // libro de compras y calificación de proveedores. Mismo flag que Administración.
 export const PURCHASES_NAV_LINK: AdminNavLink = { to: '/admin/purchases', label: 'Compras', icon: ShoppingCart };
+export const INTERNAL_MENU_NAV_LINK: AdminNavLink = { to: '/admin/internal-menu', label: 'Menú interno', icon: UtensilsCrossed };
 // Visible solo con Plan Sucursales / Delivery Sucursales (crear sucursales + reporte consolidado).
 export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', label: 'Sucursales', icon: Building2 };
 // Reservas hechas desde el botón "Mesa" del menú público: solo dueño/admin/cajero, que son quienes las aceptan.
@@ -74,6 +76,7 @@ const DELIVERY_HIDDEN = new Set(['/admin/tables', '/admin/table-orders']);
 const STAFF_HIDDEN = new Set(['/admin/products', '/admin/tables']);
 
 interface NavRestaurant {
+  businessType?: string;
   subscriptionPlan?: string | null;
   customAdministration?: boolean;
   customInventoryBasic?: boolean;
@@ -98,7 +101,7 @@ export function visibleNavLinks(
   // activo se comporta como el resto de este archivo (isAdminCashier de abajo).
   const isRestricted = !!(role && (RESTRICTED_ROLES.includes(role) || (role === 'CASHIER' && !cashierFullAccess)));
   if (isRestricted) {
-    links = links.filter((l) => RESTRICTED_VISIBLE.has(l.to));
+    links = links.filter((l) => RESTRICTED_VISIBLE.has(l.to) || (role === 'CASHIER' && l.to === '/admin/delivery'));
     if (canAccessInventory && restaurant && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'))) {
       links = [...links, INVENTORY_NAV_LINK];
     }
@@ -125,6 +128,7 @@ export function visibleNavLinks(
     // (Compras vive dentro de Administración → Compras) — repetirlas acá solo alargaba la lista.
     if (isAdminCashier(role, cashierFullAccess) && hasFeature(restaurant, 'administration')) {
       extra.push(ADMINISTRATION_NAV_LINK);
+      extra.push(INTERNAL_MENU_NAV_LINK);
     }
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);
@@ -137,6 +141,12 @@ export function visibleNavLinks(
       const settingsIndex = links.findIndex((l) => l.to === '/admin/settings');
       links = [...links.slice(0, settingsIndex), ...extra, ...links.slice(settingsIndex)];
     }
+  }
+  if (restaurant?.subscriptionPlan === 'ESSENTIAL') links = links.filter(l => !['/admin/delivery', '/admin/reservations'].includes(l.to));
+  if (restaurant?.businessType === 'RESTAURANT' && (role === 'OWNER' || role === 'ADMIN')) {
+    const index = links.findIndex(link => link.to === '/admin/settings');
+    const insertAt = index < 0 ? links.length : index;
+    links = [...links.slice(0, insertAt), { to: '/admin/assistant', label: 'Asistente', icon: Sparkles }, ...links.slice(insertAt)];
   }
   return links;
 }
@@ -155,4 +165,33 @@ export function dashboardSectionLinks(
   return visibleNavLinks(role, restaurant, canAccessInventory, cashierFullAccess, syncConflicts).filter(
     (l) => l.to !== '/admin/settings' && l.to !== '/admin' && l.to !== '/admin/comandas',
   );
+}
+
+/** Catálogo completo de accesos rápidos del Resumen. A diferencia de
+ * `dashboardSectionLinks`, aquí sí entran Comandas y Ajustes, y se exponen los
+ * accesos directos a Gastos y Compras cuando el usuario tiene Administración.
+ * Se deriva de la misma fuente del menú lateral para no crear excepciones por
+ * restaurante o slug (el fallo que dejaba incompleto a Cotufas). */
+export function dashboardQuickActionLinks(
+  role: UserRole | null | undefined,
+  restaurant?: NavRestaurant | null,
+  canAccessInventory?: boolean,
+  cashierFullAccess?: boolean,
+  syncConflicts = 0,
+): AdminNavLink[] {
+  const links = visibleNavLinks(role, restaurant, canAccessInventory, cashierFullAccess, syncConflicts)
+    .filter((link) => link.to !== '/admin');
+
+  if (!restaurant || !isAdminCashier(role, cashierFullAccess) || !hasFeature(restaurant, 'administration')) {
+    return links;
+  }
+
+  const settingsIndex = links.findIndex((link) => link.to === '/admin/settings');
+  const insertAt = settingsIndex >= 0 ? settingsIndex : links.length;
+  return [
+    ...links.slice(0, insertAt),
+    EXPENSES_NAV_LINK,
+    PURCHASES_NAV_LINK,
+    ...links.slice(insertAt),
+  ];
 }

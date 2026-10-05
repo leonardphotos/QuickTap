@@ -1,37 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
-import { ArrowUpRight, Banknote, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChefHat, ChevronDown, ChevronRight, Coffee, CreditCard, Crown, Download, Grid2x2, Hash, Menu, MessageCircle, Monitor, Palette, Printer, QrCode, ScanLine, ShieldCheck, ShoppingBag, Smartphone, SplitSquareHorizontal, Tablet, Tag, Trophy, UserCog, Users, UtensilsCrossed, Wallet, Wallet as WalletIcon, X } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
-import { GradientWave } from '@/components/ui/gradient-wave';
+import './LandingScreenshots.css';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { FeatureCard,type GridFeature } from '@/components/ui/grid-feature-cards';
+import { ShaderBackground } from '@/components/ui/adisyon-shader';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
+import { ArrowUpRight,Banknote,BarChart3,Bell,Bike,Bot,Boxes,Building2,CalendarDays,ChefHat,ChevronDown,ChevronRight,CreditCard,Crown,Download,Grid2x2,Hash,Menu,MessageCircle,Monitor,Palette,Printer,QrCode,ScanLine,ShieldCheck,ShoppingBag,Smartphone,SplitSquareHorizontal,Tablet,Tag,UserCog,Users,Wallet,Wallet as WalletIcon,X } from 'lucide-react';
+import { AnimatePresence,motion } from 'motion/react';
+import type { ReactNode } from 'react';
+import { useEffect,useRef,useState } from 'react';
+import { Link,useNavigate } from 'react-router-dom';
 
 /** Espejo en JS de --ease-out-strong (index.css): arranca rápido, se siente intencional. */
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
-
-/** Capa con parallax: se traslada a distinta velocidad que el scroll de la página, según su propio recorrido por el viewport. */
-function ParallaxLayer({
-  children,
-  offset = 50,
-  className,
-}: {
-  children: ReactNode;
-  offset?: number;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
-  const y = useTransform(scrollYProgress, [0, 1], [offset, -offset]);
-  return (
-    <motion.div ref={ref} style={{ y }} className={className}>
-      {children}
-    </motion.div>
-  );
-}
 
 /** Aparición con fundido + desplazamiento al entrar en el viewport (acompaña el parallax en el resto de bloques). */
 function Reveal({ children, className, delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
@@ -45,6 +27,86 @@ function Reveal({ children, className, delay = 0 }: { children: ReactNode; class
     >
       {children}
     </motion.div>
+  );
+}
+
+/** Carrusel de capacidades: usa scroll-snap nativo para conservar el gesto directo en móvil
+ * y añade flechas como alternativa precisa en escritorio. */
+function FeatureCarousel({ features }: { features: GridFeature[] }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setReduceMotion(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+
+  function updateActiveCard() {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = Array.from(track.querySelectorAll<HTMLElement>('[data-feature-card]'));
+    if (!cards.length) return;
+    const current = cards.reduce((nearest, card, index) => (
+      Math.abs(card.offsetLeft - track.scrollLeft) < Math.abs(cards[nearest].offsetLeft - track.scrollLeft) ? index : nearest
+    ), 0);
+    setActiveIndex(current);
+  }
+
+  function move(direction: -1 | 1) {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = Array.from(track.querySelectorAll<HTMLElement>('[data-feature-card]'));
+    const next = Math.max(0, Math.min(cards.length - 1, activeIndex + direction));
+    cards[next]?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
+  }
+
+  return (
+    <div className="relative">
+      <div
+        ref={trackRef}
+        onScroll={updateActiveCard}
+        aria-label="Funciones de QuickTap"
+        className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0"
+      >
+        {features.map((feature) => (
+          <FeatureCard
+            key={feature.title}
+            feature={feature}
+            data-feature-card
+            className="h-[430px] w-[calc(100vw-3rem)] shrink-0 snap-start overflow-y-auto border border-dashed border-white/[.11] sm:w-[min(430px,calc(50vw-2rem))] lg:w-[380px]"
+          />
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="font-medium tracking-wide text-white/45 text-xs">
+          {String(activeIndex + 1).padStart(2, '0')} <span className="mx-1 text-white/25">/</span> {String(features.length).padStart(2, '0')}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => move(-1)}
+            disabled={activeIndex === 0}
+            aria-label="Función anterior"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-lg text-white transition-[background-color,opacity,transform] duration-150 hover:bg-white/10 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={() => move(1)}
+            disabled={activeIndex === features.length - 1}
+            aria-label="Siguiente función"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-lg text-white transition-[background-color,opacity,transform] duration-150 hover:bg-white/10 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            →
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -81,6 +143,7 @@ const DEMO_ROLES: DemoRole[] = [
   { icon: Monitor, role: 'SCREEN', email: 'pantalla.demo@quicktap.club', label: 'Pantalla', description: 'Vista de TV: mesas + cocina en horizontal.' },
   { icon: ShoppingBag, role: 'COMANDA', email: 'comanda.demo@quicktap.club', label: 'Autoservicio', description: 'Kiosco: el cliente pide y paga solo.' },
   { icon: Hash, role: 'NUMERO', email: 'numero.demo@quicktap.club', label: 'Número', description: 'Pantalla de "pedido listo" junto al mostrador.' },
+  { icon: Bike, role: 'MOTORIZADO', email: 'motorizado.demo@quicktap.club', label: 'Motorizado', description: 'Mapa, ruta y cola móvil de pedidos para entregar.' },
 ];
 
 /** Local de demostración de QuickTap Shop ("Urbana Store") — mismo mecanismo que el restaurante
@@ -120,35 +183,55 @@ interface Showcase {
  * fuera de la app — y el bot de la demo no está vinculado a un número real. */
 function ChatbotMock() {
   const bubbles = [
-    '¡Hola! 👋 Bienvenido a Big Bite Burgers. Puedes ver el menú y pedir aquí: quicktap.club/r/bigbite',
-    '💳 Total a pagar: Bs 8.372,71 ($11.21) — Pago Móvil: Banesco, 0424-1234567, V-12345678',
-    '✅ Tu pago fue confirmado. ¡Tu pedido #42 ya está en proceso!',
+    '¡Hola! 👋 Bienvenido a Bunzy Burgers, restaurante de demostración. Puedes ver el menú y pedir aquí: quicktap.club/r/demo',
+    '💳 El total y los datos de pago del restaurante aparecen aquí.',
+    '✅ Pago confirmado. Tu pedido de demostración ya está en proceso.',
   ];
   return (
     <div className="space-y-1.5 max-w-xs">
       {bubbles.map((b, i) => (
         <div key={i} className="rounded-2xl bg-[#dcf8c6]/60 px-3 py-2">
-          <p className="text-[10px] text-brand-950/70 leading-snug">{b}</p>
+          <p className="text-brand-950/70 leading-snug text-xs">{b}</p>
         </div>
       ))}
     </div>
   );
 }
 
-/** Marco de celular simple (CSS puro) para mostrar una captura real de la app dentro de una
- * vitrina, en vez de un mockup abstracto — más creíble para una captura de pantalla real. */
-function PhoneMockup({ src, alt }: { src: string; alt: string }) {
+/** Capturas actuales de la demo: móvil en teléfonos verticales y web en pantallas anchas
+ * u horizontales. Picture descarga solo la variante adecuada y conserva su proporción. */
+function PlatformScreenshot({ src, alt }: { src: string; alt: string }) {
+  const name = src.split('/').pop()?.replace('-captura.jpg', '');
+  const [expanded, setExpanded] = useState(false);
+  const demoImage = name?.includes('inventario') || name?.includes('productos')
+    ? '/images/restaurant-demo/productos.jpg'
+    : name?.includes('administracion') || name?.includes('cobros') || name?.includes('sucursales') || name?.includes('cocina') || name?.includes('autoservicio')
+      ? '/images/restaurant-demo/administracion.jpg'
+      : '/images/restaurant-demo/menu.jpg';
+  const restaurantCaption = 'Restaurante de demostración · QuickTap';
   return (
-    <div className="relative mx-auto w-[190px] rounded-[1.75rem] border-[5px] border-brand-950 bg-brand-950 shadow-[0_24px_50px_-20px_rgba(0,27,67,0.5)]">
-      <div className="absolute top-0 inset-x-0 z-10 flex justify-center pt-1">
-        <div className="h-3.5 w-16 rounded-full bg-brand-950" />
-      </div>
-      <div className="overflow-hidden rounded-[1.35rem] aspect-[9/19.5] bg-white">
-        <img src={src} alt={alt} className="h-full w-full object-cover object-top" />
-      </div>
-    </div>
+    <>
+    <figure className="landing-platform-shot mx-auto overflow-hidden border-[5px] border-brand-950 bg-white shadow-[0_24px_50px_-20px_rgba(0,27,67,0.35)]">
+      <button type="button" onClick={() => setExpanded(true)} aria-label={`Ampliar captura: ${alt}`} className="block h-full w-full cursor-zoom-in focus-visible:outline-4 focus-visible:outline-offset-[-4px] focus-visible:outline-brand-500">
+      <picture>
+        <img src={demoImage} alt={alt} loading="lazy" decoding="async" className="block h-full w-full object-contain object-top" />
+      </picture>
+      </button>
+    </figure>
+    {restaurantCaption && <p className="mt-3 text-center leading-relaxed text-brand-950/50 text-xs">{restaurantCaption}</p>}
+    <Dialog open={expanded} onOpenChange={setExpanded}>
+      <DialogContent aria-describedby={undefined} className="w-[95vw] max-w-[1440px] max-h-[95dvh] p-3 pt-12">
+        <DialogTitle className="sr-only">{alt}</DialogTitle>
+        <picture>
+          <img src={demoImage} alt={alt} decoding="async" className="mx-auto block h-auto max-h-[80dvh] w-full rounded-lg object-contain" />
+        </picture>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
+
+const PhoneMockup = PlatformScreenshot;
 
 /** Captura real de la pantalla de cobro por Pago Móvil de QuickTap Shop — con el QR que subió el
  * negocio, el monto en Bs y la tasa del día, todo en una sola pantalla. */
@@ -158,25 +241,11 @@ function ShopQrPaymentMock() {
 
 /** Marco de tablet horizontal (CSS puro), para las capturas reales de la tablet de cancha —
  * mismo criterio que PhoneMockup, pero apaisado. */
-function TabletMockup({ src, alt }: { src: string; alt: string }) {
-  return (
-    <div className="relative mx-auto w-full max-w-md rounded-2xl border-[6px] border-brand-950 bg-brand-950 shadow-[0_24px_50px_-20px_rgba(0,27,67,0.5)]">
-      <div className="overflow-hidden rounded-lg aspect-[2360/1400] bg-white">
-        <img src={src} alt={alt} className="h-full w-full object-cover object-top" />
-      </div>
-    </div>
-  );
-}
+const TabletMockup = PlatformScreenshot;
 
 /** Tarjeta simple para una captura real que ya trae su propia forma (un diálogo, una pantalla
  * de escritorio) — sin bezel de dispositivo, solo el marco que usan el resto de vitrinas. */
-function ScreenshotCard({ src, alt }: { src: string; alt: string }) {
-  return (
-    <div className="mx-auto w-full overflow-hidden rounded-2xl border border-brand-950/10 shadow-[0_20px_50px_-24px_rgba(0,27,67,0.35)]">
-      <img src={src} alt={alt} className="h-auto w-full" />
-    </div>
-  );
-}
+const ScreenshotCard = PlatformScreenshot;
 
 const SHOWCASES: Showcase[] = [
   {
@@ -193,7 +262,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <PhoneMockup
         src="/images/restaurant-menu-allgrill-captura.jpg"
-        alt="Menú digital real de All Grill Chirikayen, visto desde el teléfono al escanear el QR de la mesa"
+        alt="Menú público de un restaurante de demostración en QuickTap, con categorías y precios"
       />
     ),
   },
@@ -211,7 +280,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/restaurant-cocina-captura.jpg"
-        alt="Cola de cocina en vivo de Big Bite Burgers, con las comandas reales entrando por mesa, delivery y pickup"
+        alt="Panel administrativo de un restaurante de demostración en QuickTap"
       />
     ),
   },
@@ -229,7 +298,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/restaurant-cobros-captura.jpg"
-        alt="Diálogo real de pago fraccionado de una mesa, con método de pago, referencia y monto a abonar"
+        alt="Vista de gestión de QuickTap con datos de un restaurante de demostración"
       />
     ),
   },
@@ -247,23 +316,20 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <PhoneMockup
         src="/images/restaurant-delivery-captura.jpg"
-        alt="Checkout de delivery real de All Grill Chirikayen, con el envío calculado por zona y el botón para enviar el pedido por WhatsApp"
+        alt="Menú de un restaurante de demostración para pedidos y retiro"
       />
     ),
   },
   {
     icon: Bot,
     eyebrow: 'Chatbot de WhatsApp',
-    title: 'Un chatbot que cobra y confirma el pedido por ti',
+    title: 'Un chatbot que confirma por ti',
     description:
-      'Vincula el WhatsApp del negocio (como un dispositivo más, sin apps externas ni comisiones) y deja que el chatbot atienda cada conversación de principio a fin: saluda al cliente, le manda los datos exactos para pagar, revisa el comprobante contigo y manda el pedido a cocina solo cuando el pago quedó confirmado.',
+      'Conecta el WhatsApp del negocio para responder, enviar el cobro y confirmar pedidos desde la misma conversación.',
     bullets: [
-      'Responde con el menú apenas alguien te escribe por primera vez, sin que nadie del equipo tenga que contestar',
-      'Apenas se crea el pedido, manda el monto exacto y los datos de cobro (Pago Móvil, Zelle, Binance, PayPal o Transferencia) según el método elegido',
-      'El cliente responde con la foto del comprobante — el chatbot se la reenvía a tu número de confianza para que la apruebes o la rechaces',
-      'Al aprobarla, el pedido pasa solo de pendiente a cocina — nadie del equipo tiene que aceptar nada a mano',
-      'Si rechazas el comprobante, le pide al cliente reenviarlo; si no respondes a tiempo, te avisa en el panel para que lo revises',
-      'Avisa automáticamente "pedido recibido", "listo para retirar" y "va en camino" en cada paso, desde el WhatsApp del propio negocio',
+      'Comparte el menú y los datos de pago automáticamente',
+      'Reenvía el comprobante para una aprobación individual',
+      'Al aprobar, el pedido pasa a cocina y el cliente recibe sus avisos',
     ],
     mock: <ChatbotMock />,
   },
@@ -281,7 +347,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/restaurant-autoservicio-captura.jpg"
-        alt="Kiosco de autoservicio real, con el catálogo del restaurante listo para que el cliente pida solo"
+        alt="Vista de autoservicio de QuickTap con datos de un restaurante de demostración"
       />
     ),
   },
@@ -299,7 +365,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/restaurant-inventario-captura.jpg"
-        alt="Alertas de inventario reales: insumos por agotarse en Big Bite Burgers, con su stock y mínimo"
+        alt="Vista de inventario de QuickTap con datos de un restaurante de demostración"
       />
     ),
   },
@@ -317,7 +383,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/restaurant-administracion-captura.jpg"
-        alt="Panel de Administración real de Big Bite Burgers, con el balance del día y el detalle de ventas"
+        alt="Dashboard de QuickTap con datos de un restaurante de demostración"
       />
     ),
   },
@@ -335,7 +401,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/restaurant-sucursales-captura.jpg"
-        alt="Panel de Sucursales real, con las 3 sedes de Big Bite Burgers y el reporte consolidado de ventas"
+        alt="Panel de sucursales de QuickTap con datos de demostración"
       />
     ),
   },
@@ -512,7 +578,7 @@ const CLUB_SHOWCASES: Showcase[] = [
     mock: (
       <PhoneMockup
         src="/images/canchas-reservas-captura.jpg"
-        alt="Calendario de reservas de QuickTap Canchas, con los turnos libres y de hora pico de cada cancha"
+        alt="Vista actual de QuickTap Canchas, con disponibilidad, jugadores y tiempo de cada cancha"
       />
     ),
   },
@@ -530,7 +596,7 @@ const CLUB_SHOWCASES: Showcase[] = [
     mock: (
       <TabletMockup
         src="/images/canchas-acceso-captura.jpg"
-        alt="Tablet de la cancha con el nombre del jugador y la cuenta regresiva de su partida"
+        alt="Control de acceso actual de QuickTap Canchas"
       />
     ),
   },
@@ -548,7 +614,7 @@ const CLUB_SHOWCASES: Showcase[] = [
     mock: (
       <TabletMockup
         src="/images/canchas-tienda-captura.jpg"
-        alt="Selector de tiendas en la tablet de la cancha: la tienda del club y las tiendas vinculadas"
+        alt="Tienda actual del club de demostración de QuickTap Canchas"
       />
     ),
   },
@@ -566,7 +632,7 @@ const CLUB_SHOWCASES: Showcase[] = [
     mock: (
       <ScreenshotCard
         src="/images/canchas-cobro-captura.jpg"
-        alt="Pantalla de pago desde la tablet de cancha, con el monto en bolívares y los datos de transferencia del cobrador"
+        alt="Panel actual de cobros y deudas de QuickTap Canchas"
       />
     ),
   },
@@ -628,9 +694,12 @@ export default function LandingPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [enteringRole, setEnteringRole] = useState<string | null>(null);
   const [demoError, setDemoError] = useState<string | null>(null);
-  const [vertical, setVertical] = useState<'restaurant' | 'shop' | 'club'>('restaurant');
+  // La captación y la demo pública se enfocan temporalmente solo en restaurantes. Se conserva
+  // el contenido de las demás verticales en el código para reactivarlo sin perderlo.
+  const [vertical] = useState<'restaurant' | 'shop' | 'club'>('restaurant');
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -707,21 +776,26 @@ export default function LandingPage() {
         transition={{ duration: 0.5, ease: EASE_OUT }}
         className="text-brand-950"
       >
-        {/* Hero estilo estudio creativo: la onda animada de siempre como fondo a sangre
-            completa, nav integrada arriba, titular con acento serif itálico y contenido
-            en la columna izquierda. Las máscaras de degradado garantizan legibilidad. */}
-        <section className="relative min-h-screen overflow-hidden bg-[#F6F9FC]">
-          <GradientWave />
-          {/* Máscaras: columna izquierda legible, franjas arriba/abajo para nav y cierre */}
-          <div className="absolute inset-y-0 left-0 w-[78%] sm:w-[42%] bg-gradient-to-r from-[#F6F9FC] via-[#F6F9FC]/90 to-transparent" />
-          <div className="absolute top-0 inset-x-0 h-48 sm:h-56 lg:h-64 bg-gradient-to-b from-[#F6F9FC] via-[#F6F9FC]/60 to-transparent" />
-          <div className="absolute bottom-0 inset-x-0 h-48 sm:h-56 lg:h-64 bg-gradient-to-t from-[#F6F9FC] via-[#F6F9FC]/60 to-transparent" />
+        {/* Hero con ondas WebGL de la identidad QuickTap. El shader se pausa fuera del
+            viewport y se vuelve estático cuando el sistema solicita reducir movimiento. */}
+        <section className="relative min-h-screen overflow-hidden bg-brand-950">
+          <ShaderBackground className="absolute inset-0 h-full w-full" />
+          {/* Velo óptico localizado: protege la lectura sin ocultar el movimiento del shader. */}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,18,45,.76)_0%,rgba(0,24,58,.42)_42%,rgba(0,15,35,.06)_76%)] max-md:bg-[linear-gradient(180deg,rgba(0,18,45,.62)_0%,rgba(0,20,48,.28)_58%,rgba(0,10,24,.36)_100%)]" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-brand-950/35 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-brand-950/55 to-transparent" />
 
           <div className="relative z-10 flex min-h-screen w-full flex-col justify-between px-6 py-6 sm:px-12 lg:px-16">
             {/* Nav integrada en el hero */}
             <nav aria-label="Principal" className="flex items-center justify-between gap-4">
-              <Link to="/" className="flex items-center">
-                <img src="/logo/logo-central.png" alt="QuickTap" className="h-6 w-auto" />
+              <Link to="/" aria-label="QuickTap" className="flex items-center">
+                <img
+                  src="/logo/QuickTap-Baja-blanco.png?v=20261002"
+                  alt="QuickTap"
+                  width="520"
+                  height="123"
+                  className="h-7 w-auto sm:h-8"
+                />
               </Link>
               <div className="hidden lg:flex items-center gap-8">
                 {[
@@ -732,22 +806,30 @@ export default function LandingPage() {
                   { label: 'Iniciar sesión', to: '/admin/login' },
                 ].map((l) =>
                   l.to ? (
-                    <Link key={l.label} to={l.to} className="group relative text-sm font-medium text-brand-950/70 transition-colors hover:text-brand-950">
+                    <Link key={l.label} to={l.to} className="group relative text-sm font-medium text-white/75 transition-colors hover:text-white">
                       {l.label}
-                      <span className="absolute -bottom-1 left-0 h-px w-0 bg-brand-950 transition-all duration-300 group-hover:w-full" />
+                      <span className="absolute -bottom-1 left-0 h-px w-0 bg-white transition-all duration-300 group-hover:w-full" />
                     </Link>
                   ) : (
-                    <a key={l.label} href={l.href} className="group relative text-sm font-medium text-brand-950/70 transition-colors hover:text-brand-950">
+                    <a key={l.label} href={l.href} className="group relative text-sm font-medium text-white/75 transition-colors hover:text-white">
                       {l.label}
-                      <span className="absolute -bottom-1 left-0 h-px w-0 bg-brand-950 transition-all duration-300 group-hover:w-full" />
+                      <span className="absolute -bottom-1 left-0 h-px w-0 bg-white transition-all duration-300 group-hover:w-full" />
                     </a>
                   ),
                 )}
+                <button
+                  type="button"
+                  onClick={() => setDownloadsOpen(true)}
+                  className="group relative text-sm font-medium text-white/75 transition-colors hover:text-white"
+                >
+                  Descargas
+                  <span className="absolute -bottom-1 left-0 h-px w-0 bg-white transition-[width] duration-200 group-hover:w-full" />
+                </button>
               </div>
               <div className="flex items-center gap-3">
                 <Link
                   to="/empezar"
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-brand-950 px-5 py-2 text-sm font-semibold text-brand-950 transition-colors hover:bg-brand-950 hover:text-white"
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/55 bg-white/10 px-5 py-2 text-sm font-semibold text-white backdrop-blur-md transition-colors hover:bg-white hover:text-brand-950"
                 >
                   Regístrate <ArrowUpRight className="h-4 w-4" />
                 </Link>
@@ -755,66 +837,41 @@ export default function LandingPage() {
                   type="button"
                   onClick={() => setNavOpen(true)}
                   aria-label="Abrir menú"
-                  className="lg:hidden flex h-10 w-10 items-center justify-center rounded-full border border-brand-950/15 bg-white/70 backdrop-blur-sm"
+                  className="lg:hidden flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-brand-950/25 backdrop-blur-md"
                 >
-                  <Menu className="h-5 w-5 text-brand-950" />
+                  <Menu className="h-5 w-5 text-white" />
                 </button>
               </div>
             </nav>
 
             {/* Contenido principal — columna izquierda */}
             <div className="max-w-xl py-14">
-              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.25em] text-brand-500">
+              <p className="font-bold uppercase tracking-[0.25em] text-sky-300 text-xs">
                 • Menú QR • Comandas • Delivery
               </p>
-              <h1 className="mt-5 text-4xl sm:text-6xl font-bold leading-[1.05] text-brand-950">
+              <h1 className="mt-5 text-4xl sm:text-6xl font-bold leading-[1.05] text-white drop-shadow-sm">
                 Software para restaurantes,
-                <span className="block font-display italic font-normal text-brand-500">en un toque.</span>
+                <span className="block font-display italic font-normal text-sky-300">en un toque.</span>
               </h1>
-              <p className="mt-6 max-w-md text-[15px] sm:text-base font-light leading-relaxed text-brand-950/60">
-                Tu carta digital, los pedidos de cada mesa, el delivery por WhatsApp y el inventario — en un solo
-                sistema, desde cualquier navegador. También para locales comerciales y canchas.
+              <p className="mt-5 max-w-sm font-light leading-relaxed text-white/72 text-base">
+                Lleva el control de tu negocio desde cualquier parte del mundo: ventas, pedidos, inventario y equipo,
+                siempre contigo.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => setDemoOpen(true)}
-                  className="group inline-flex items-center gap-2 rounded-full bg-brand-950 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-900"
+                <Link
+                  to="/menu-gratis"
+                  className="group inline-flex items-center gap-2 rounded-full bg-brand-500 px-7 py-3.5 text-sm font-semibold text-white shadow-[0_14px_34px_-14px_rgba(0,159,255,.8)] transition-colors hover:bg-brand-500"
                 >
-                  Ver la demo
+                  Obtén tu menú gratis
                   <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </button>
-                <Link to="/precios" className="text-sm font-medium text-brand-950/70 underline underline-offset-4 hover:text-brand-950">
-                  Ver precios y planes
                 </Link>
-              </div>
-
-              {/* Prueba social: las tres verticales que ya operan con QuickTap */}
-              <div className="mt-10 flex items-center gap-4">
-                <div className="flex -space-x-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-950 ring-2 ring-[#F6F9FC]">
-                    <UtensilsCrossed className="h-4 w-4 text-white" />
-                  </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 ring-2 ring-[#F6F9FC]">
-                    <ShoppingBag className="h-4 w-4 text-white" />
-                  </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 ring-2 ring-[#F6F9FC]">
-                    <Trophy className="h-4 w-4 text-white" />
-                  </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 ring-2 ring-[#F6F9FC]">
-                    <Coffee className="h-4 w-4 text-white" />
-                  </span>
-                </div>
-                <p className="max-w-[240px] text-[13px] font-light leading-snug text-brand-950/60">
-                  Restaurantes, locales comerciales y canchas operan a diario con QuickTap.
-                </p>
               </div>
             </div>
 
             {/* Invitación a seguir bajando */}
             <div className="flex justify-center pb-1">
               <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}>
-                <ChevronDown className="h-6 w-6 text-brand-950/40" />
+                <ChevronDown className="h-6 w-6 text-white/55" />
               </motion.div>
             </div>
           </div>
@@ -833,7 +890,7 @@ export default function LandingPage() {
                 className="absolute right-0 top-0 flex h-full w-72 flex-col bg-white p-6 shadow-xl"
               >
                 <div className="mb-6 flex items-center justify-between">
-                  <img src="/logo/icono.png" alt="QuickTap" className="h-7 w-7" />
+                  <img src="/logo/icono.png?v=20261002" alt="QuickTap" className="h-7 w-7" />
                   <button
                     type="button"
                     onClick={() => setNavOpen(false)}
@@ -855,6 +912,13 @@ export default function LandingPage() {
                 <Link to="/tutoriales" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
                   Tutoriales
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => { setNavOpen(false); setDownloadsOpen(true); }}
+                  className="rounded-lg px-3 py-2.5 text-left text-[15px] font-medium text-brand-950 hover:bg-brand-950/5"
+                >
+                  Descargas
+                </button>
                 <Link to="/admin/login" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
                   Iniciar sesión
                 </Link>
@@ -869,101 +933,17 @@ export default function LandingPage() {
           )}
         </AnimatePresence>
 
-        {/* Banner de Wallet: entre el hero y las funciones, en la línea gráfica del propio
-            Wallet (negro con el resplandor azul) — un corte deliberado con el resto de la
-            landing, para que se lea como un producto aparte y no una sección más. */}
-        <section className="relative overflow-hidden bg-[#04070d] px-6 py-14 sm:py-16">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(90% 130% at 85% 0%, rgba(170,212,255,0.35) 0%, rgba(58,136,245,0.25) 22%, rgba(20,74,185,0.14) 42%, rgba(4,7,13,0) 68%)',
-            }}
-          />
-          <Reveal className="relative z-10 mx-auto max-w-5xl">
-            <div className="max-w-xl">
-              <span className="flex flex-col items-start">
-                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-9 w-auto" />
-                <span className="mt-1 text-[8px] font-light tracking-wide text-white/40">by QuickTap</span>
-              </span>
-              <h2 className="mt-5 text-3xl font-bold leading-tight text-white sm:text-4xl">
-                Lo que debes, tus cuotas y tus entradas — <span className="text-[#3d9bff]">en tu bolsillo.</span>
-              </h2>
-              <p className="mt-3 max-w-md text-[15px] font-light leading-relaxed text-white/55">
-                El portal del cliente de los negocios QuickTap: saldo al día, abonos con
-                comprobante, entradas con QR y recordatorios antes de cada cuota.
-              </p>
-              <div className="mt-7 flex flex-wrap items-center gap-4">
-                <Link
-                  to="/wallet/conoce"
-                  className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-transform duration-200 active:scale-[0.97]"
-                  style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
-                >
-                  Conoce Wallet <ArrowUpRight className="h-4 w-4" />
-                </Link>
-                <Link to="/wallet" className="text-sm font-medium text-white/60 underline-offset-4 hover:text-white hover:underline">
-                  Entrar a mi Wallet
-                </Link>
-              </div>
-            </div>
-          </Reveal>
-          {/* El teléfono, a toda la altura del banner y posicionado fuera del flujo (absolute
-              respecto a la sección) para que no le sume alto — solo el overflow-hidden de la
-              sección lo recorta por arriba, abajo y a la derecha, como una foto que se sale de
-              cuadro. Centrado verticalmente y bien grande; solo en escritorio, porque en el
-              teléfono ya estás viendo un teléfono. */}
-          {/* Como la referencia: el teléfono arranca justo después del texto (no pegado al
-              borde derecho — queda aire oscuro después de él), con su tope asomando arriba y
-              el resto sangrando por debajo del banner. */}
-          <div className="pointer-events-none absolute left-[37%] -top-6 z-10 hidden lg:block">
-            <img
-              src="/images/wallet-mockup.png"
-              alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="w-[1150px] max-w-none drop-shadow-[0_50px_100px_rgba(0,0,0,0.55)]"
-            />
-          </div>
-        </section>
-
-        {/* Hero secundario: presentación general (antes en /soluciones) */}
-        <section id="funciones" className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
-          <Reveal className="relative z-10 max-w-3xl mx-auto text-center">
-            {/* Toggle Restaurantes / Locales Comerciales / Canchas: todo el contenido de acá
-                para abajo (vitrinas, features, FAQ y el demo) cambia según cuál esté activo. */}
-            <div className="inline-flex items-center gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.03] p-1 mb-6">
-              <button
-                type="button"
-                onClick={() => setVertical('restaurant')}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                  !isShop && !isClub ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
-                }`}
-              >
-                Restaurantes
-              </button>
-              <button
-                type="button"
-                onClick={() => setVertical('shop')}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                  isShop ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
-                }`}
-              >
-                Locales Comerciales
-              </button>
-              <button
-                type="button"
-                onClick={() => setVertical('club')}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                  isClub ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
-                }`}
-              >
-                Canchas
-              </button>
-            </div>
-            <p className="text-xs font-medium text-brand-950/40 tracking-wide">{heroContent.eyebrow}</p>
+        <div style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+        {/* Desde aquí la landing adopta el ritmo editorial del SaaS Kit: tipografía de
+            sistema, grandes titulares, aire generoso y demostraciones de producto. */}
+        <section id="funciones" className="relative overflow-hidden bg-[#f8fafc] px-4 py-28 sm:py-36">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(5,151,242,.12),transparent_72%)]" />
+          <Reveal className="relative z-10 mx-auto max-w-4xl text-center">
+            <p className="font-bold uppercase tracking-[.18em] text-brand-500 text-xs">{heroContent.eyebrow}</p>
             {/* h2, no h1: el h1 de la home vive en el hero de arriba (cluster G del plan SEO). */}
-            <h2 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">{heroContent.title}</h2>
-            <p className="mt-5 text-base text-brand-950/60 max-w-xl mx-auto font-light">{heroContent.description}</p>
-            <div className="mt-8 flex items-center justify-center">
+            <h2 className="mt-5 text-4xl font-semibold leading-[.98] tracking-[-.05em] text-brand-950 sm:text-6xl lg:text-7xl">{heroContent.title}</h2>
+            <p className="mx-auto mt-7 max-w-2xl leading-7 text-brand-950/60 sm:text-lg text-base">{heroContent.description}</p>
+            <div className="mt-9 flex items-center justify-center">
               <TextureButton variant="brand" size="lg" className="sm:!w-auto" onClick={() => setDemoOpen(true)}>
                 {heroContent.cta}
               </TextureButton>
@@ -971,63 +951,36 @@ export default function LandingPage() {
           </Reveal>
         </section>
 
-        {/* Vitrinas grandes: alternando texto izq/der con el mockup, cada mockup con parallax propio */}
-        <section className="bg-white py-16 sm:py-24 px-4 overflow-hidden">
-          <div className="max-w-5xl mx-auto space-y-20 sm:space-y-28">
-            {activeShowcases.map((s, i) => (
-              <div
-                key={s.title}
-                className={`grid md:grid-cols-2 gap-10 items-center ${i % 2 === 1 ? 'md:[&>*:first-child]:order-2' : ''}`}
-              >
-                <Reveal>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-500 uppercase tracking-wide">
-                    <s.icon className="h-4 w-4" /> {s.eyebrow}
-                  </span>
-                  <h2 className="mt-3 text-2xl sm:text-3xl font-bold text-brand-950">{s.title}</h2>
-                  <p className="mt-3 text-brand-950/60 font-light">{s.description}</p>
-                  <ul className="mt-5 space-y-2.5">
-                    {s.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2 text-sm text-brand-950/70">
-                        <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                </Reveal>
-                <ParallaxLayer
-                  offset={i % 2 === 0 ? 40 : -40}
-                  className="rounded-3xl border border-brand-950/[0.06] bg-brand-950/[0.02] p-6 shadow-[0_20px_50px_-24px_rgba(0,27,67,0.25)]"
-                >
-                  {s.mock}
-                </ParallaxLayer>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Grid de features secundarias */}
-        <section className="bg-brand-950/[0.02] py-16 sm:py-20 px-4">
-          <div className="max-w-5xl mx-auto">
-            <Reveal>
-              <h2 className="text-2xl sm:text-3xl font-bold text-brand-950 text-center mb-10">Y también incluye</h2>
+        {/* Todas las capacidades viven en un carrusel textual compacto, sin mockups. */}
+        <section className="relative overflow-hidden border-y border-white/[.07] bg-brand-950 px-4 py-24 sm:py-32">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_50%_0%,rgba(5,151,242,.18),transparent_68%)]" />
+          <div className="mx-auto max-w-6xl">
+            <Reveal className="relative mx-auto mb-14 max-w-3xl text-center">
+              <p className="font-bold uppercase tracking-[.18em] text-sky-300 text-xs">Una sola plataforma</p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.045em] text-white sm:text-6xl">Potencia. Orden. Control.</h2>
+              <p className="mx-auto mt-5 max-w-2xl leading-7 text-white/58 text-base">Todas las funciones de QuickTap, explicadas de forma simple y reunidas en un solo lugar.</p>
             </Reveal>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {activeSupporting.map((f, i) => (
-                <Reveal key={f.title} delay={(i % 4) * 0.06} className="rounded-2xl border border-brand-950/[0.06] bg-white p-5">
-                  <div className="w-10 h-10 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center mb-3">
-                    <f.icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-brand-950 font-semibold text-sm mb-1">{f.title}</h3>
-                  <p className="text-xs text-brand-950/50 font-light">{f.text}</p>
-                </Reveal>
-              ))}
-            </div>
+            <Reveal className="relative">
+              <FeatureCarousel
+                key={vertical}
+                features={[
+                  ...activeShowcases.map((feature) => ({
+                    title: feature.title,
+                    icon: feature.icon,
+                    description: feature.description,
+                    eyebrow: feature.eyebrow,
+                    details: feature.bullets,
+                  })),
+                  ...activeSupporting.map((feature) => ({ title: feature.title, icon: feature.icon, description: feature.text })),
+                ]}
+              />
+            </Reveal>
           </div>
         </section>
 
-        {/* FAQ */}
-        <section className="bg-white py-16 sm:py-20 px-4">
-          <div className="max-w-2xl mx-auto">
+        {/* FAQ en dos columnas: contexto fijo a la izquierda y respuestas a la derecha. */}
+        <section className="bg-white px-4 py-24 sm:py-32">
+          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[.75fr_1.25fr] lg:gap-20">
             {/* Mismo contenido que se ve abajo, en el formato que Google necesita para
                 mostrarlo como resultado enriquecido. Se emite el set del vertical activo
                 para que siempre coincida con lo que hay en pantalla. */}
@@ -1045,22 +998,32 @@ export default function LandingPage() {
                 }).replace(/</g, '\\u003c'),
               }}
             />
-            <Reveal>
-              <h2 className="text-2xl sm:text-3xl font-bold text-brand-950 text-center mb-10">Preguntas frecuentes</h2>
+            <Reveal className="lg:sticky lg:top-24 lg:self-start">
+              <p className="font-bold uppercase tracking-[.18em] text-brand-500 text-xs">Sin letra pequeña</p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-.04em] text-brand-950 sm:text-5xl">Preguntas frecuentes.</h2>
+              <p className="mt-5 max-w-sm leading-7 text-brand-950/52 text-base">Todo lo importante antes de poner QuickTap a trabajar en tu negocio.</p>
             </Reveal>
-            <div className="space-y-2">
+            <div className="overflow-hidden rounded-[24px] border border-brand-950/[.08] bg-[#f8fafc]">
               {activeFaq.map((item, i) => {
                 const open = openFaq === i;
                 return (
-                  <Reveal key={item.q} delay={(i % 5) * 0.05} className="rounded-2xl border border-brand-950/[0.06] overflow-hidden">
+                  <Reveal key={item.q} delay={(i % 5) * 0.04} className="border-b border-brand-950/[.07] last:border-b-0">
                     <button
                       onClick={() => setOpenFaq(open ? null : i)}
-                      className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-brand-950/[0.02]"
+                      className="flex w-full items-center justify-between gap-5 px-6 py-5 text-left transition-colors duration-200 hover:bg-white active:bg-white/70 sm:px-7"
                     >
-                      <span className="text-sm font-medium text-brand-950">{item.q}</span>
-                      <ChevronDown className={`h-4 w-4 text-brand-950/40 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      <span className="text-[15px] font-semibold text-brand-950">{item.q}</span>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
+                        <ChevronDown className={`h-4 w-4 text-brand-500 transition-transform duration-200 ease-[cubic-bezier(.23,1,.32,1)] ${open ? 'rotate-180' : ''}`} />
+                      </span>
                     </button>
-                    {open && <p className="px-5 pb-4 text-sm text-brand-950/60 font-light">{item.a}</p>}
+                    <AnimatePresence initial={false}>
+                      {open && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, ease: EASE_OUT }} className="overflow-hidden">
+                          <p className="px-6 pb-6 leading-6 text-brand-950/58 sm:px-7 text-base">{item.a}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Reveal>
                 );
               })}
@@ -1068,104 +1031,27 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA final */}
-        <section className="bg-white py-20 px-4 text-center border-t border-brand-950/[0.06]">
-          <Reveal>
-            <h2 className="text-2xl sm:text-4xl font-bold text-brand-950">Prueba QuickTap gratis hoy</h2>
-            <p className="mt-3 text-brand-950/60 font-light max-w-md mx-auto">
+        {/* CTA final dentro de un lienzo azul amplio, inspirado en el cierre del template. */}
+        <section className="bg-white px-4 pb-8 pt-8 sm:pb-12">
+          <Reveal className="relative mx-auto max-w-6xl overflow-hidden rounded-[30px] bg-[radial-gradient(circle_at_78%_18%,rgba(93,211,255,.78),transparent_32%),linear-gradient(135deg,#3954e8_0%,#087fe8_55%,#29aef5_100%)] px-6 py-20 text-center shadow-[0_32px_80px_-42px_rgba(0,83,200,.6)] sm:rounded-[42px] sm:px-12 sm:py-28">
+            <div className="pointer-events-none absolute -bottom-40 left-1/4 h-80 w-80 rounded-full bg-indigo-500/35 blur-3xl" />
+            <div className="relative">
+            <p className="font-bold uppercase tracking-[.18em] text-white/65 text-xs">Empieza hoy</p>
+            <h2 className="mx-auto mt-4 max-w-3xl text-4xl font-semibold leading-[1.02] tracking-[-.045em] text-white sm:text-6xl">Prueba QuickTap gratis.</h2>
+            <p className="mx-auto mt-5 max-w-md leading-7 text-white/72 text-base">
               Crea tu cuenta, arma tu menú y genera el primer QR en minutos.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link to="/empezar" className="w-full sm:w-auto">
-                <TextureButton variant="brand" size="lg" className="sm:!w-auto">
-                  Regístrate y comienza gratis hoy
-                </TextureButton>
+                <button className="w-full rounded-full bg-white px-7 py-3.5 text-sm font-semibold text-brand-950 shadow-[0_14px_32px_-18px_rgba(0,27,67,.65)] transition-transform duration-150 active:scale-[.97] sm:w-auto">Regístrate y comienza gratis hoy</button>
               </Link>
               <Link to="/precios" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-2.5 transition-colors hover:bg-brand-950/5 active:scale-[0.97]">
+                <button className="w-full rounded-full border border-white/30 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-[background-color,transform] duration-150 hover:bg-white/16 active:scale-[.97] sm:w-auto">
                   Ver precios y planes
                 </button>
               </Link>
             </div>
-          </Reveal>
-        </section>
-
-        {/* Descarga de la app de escritorio (Windows) — instalador público en GitHub Releases,
-            no requiere iniciar sesión para bajarlo (solo al abrir la app ya instalada). Misma
-            onda animada del hero, pero en paleta oscura (versión "de noche" del GradientWave
-            claro de arriba) — máscara degradada hacia brand-950 para que el texto blanco se
-            lea encima sin perder el movimiento de fondo. */}
-        <section className="relative overflow-hidden bg-brand-950 px-4 py-20 text-center">
-          <GradientWave
-            colors={['#001b43', '#0597F2', '#001b43', '#38bdf8', '#001b43', '#056CF2']}
-            className="opacity-70"
-            shadowPower={6}
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-950/50 via-brand-950/75 to-brand-950" />
-          <Reveal className="relative">
-            <div className="mx-auto flex items-center justify-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-                <Monitor className="h-7 w-7" />
-              </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-                <Smartphone className="h-7 w-7" />
-              </div>
             </div>
-            <h2 className="mt-5 text-2xl font-bold text-white sm:text-4xl">Lleva QuickTap contigo</h2>
-            <p className="mx-auto mt-3 max-w-md font-light text-white/60">
-              En la computadora, el aviso de pedido nuevo te llega aunque tengas la ventana
-              minimizada. En el teléfono, tu panel completo a mano en el salón.
-            </p>
-            {/* flex-wrap porque con la tercera plataforma los botones ya no entran en una sola
-                línea en tablets angostas. */}
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
-              <a
-                href="/descargas/QuickTap-Setup.exe"
-                className="inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-white px-7 py-3.5 font-semibold text-brand-950 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-[0.97] sm:w-auto"
-              >
-                <Download className="h-5 w-5" />
-                Descargar para Windows
-              </a>
-              <a
-                href="/descargas/QuickTap.apk"
-                className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
-              >
-                <Download className="h-5 w-5" />
-                Descargar para Android
-              </a>
-              <a
-                href="/descargas/QuickTap-Impresion-Setup-1.9.1.exe"
-                className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
-              >
-                <Printer className="h-5 w-5" />
-                Estación de impresión
-              </a>
-              {IOS_APP_URL ? (
-                <a
-                  href={IOS_APP_URL}
-                  className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
-                >
-                  <Download className="h-5 w-5" />
-                  Descargar para iPhone
-                </a>
-              ) : (
-                /* Sin enlace todavía: se muestra igual para que las tres plataformas se vean,
-                   pero apagado y sin cursor de enlace — prometer una descarga que no existe
-                   sería peor que decir que viene en camino. */
-                <span
-                  aria-disabled="true"
-                  className="inline-flex w-full cursor-default items-center justify-center gap-2.5 rounded-full border border-white/15 px-7 py-3.5 font-medium text-white/45 sm:w-auto"
-                >
-                  <Smartphone className="h-5 w-5" />
-                  iPhone · próximamente
-                </span>
-              )}
-            </div>
-            <p className="mt-4 text-xs font-light text-white/40">
-              Instalador .exe, APK y estación de impresión para Windows · gratis · no necesitas
-              iniciar sesión para descargarlos
-              {!IOS_APP_URL && ' · en iPhone, agrégala a tu pantalla de inicio desde Safari'}
-            </p>
           </Reveal>
         </section>
 
@@ -1173,9 +1059,9 @@ export default function LandingPage() {
         <footer className="border-t border-brand-950/10 bg-white">
           {/* Mapa de enlaces SEO: la home es el hub del cluster genérico y desde aquí
               reparte hacia cada página de servicio y vertical (ver data/seoPages.ts). */}
-          <nav aria-label="Funciones y tipos de negocio" className="max-w-5xl mx-auto px-4 pt-10 grid grid-cols-2 sm:grid-cols-3 gap-8 text-sm">
+          <nav aria-label="Funciones y tipos de negocio" className="mx-auto grid max-w-6xl grid-cols-2 gap-10 px-4 pt-16 text-sm sm:grid-cols-3 sm:pt-20">
             <div>
-              <p className="font-semibold text-brand-950 mb-3">Funciones</p>
+              <p className="font-semibold text-brand-950 mb-3 text-base">Funciones</p>
               <ul className="space-y-2">
                 <li><Link to="/menu-digital-qr" className="text-brand-950/60 hover:text-brand-950">Menú digital QR</Link></li>
                 <li><Link to="/autopedido-comandas" className="text-brand-950/60 hover:text-brand-950">Sistema de comandas</Link></li>
@@ -1186,7 +1072,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <p className="font-semibold text-brand-950 mb-3">Por tipo de negocio</p>
+              <p className="font-semibold text-brand-950 mb-3 text-base">Por tipo de negocio</p>
               <ul className="space-y-2">
                 <li><Link to="/para/bares" className="text-brand-950/60 hover:text-brand-950">Para bares</Link></li>
                 <li><Link to="/para/cafeterias" className="text-brand-950/60 hover:text-brand-950">Para cafeterías</Link></li>
@@ -1198,18 +1084,20 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <p className="font-semibold text-brand-950 mb-3">Recursos</p>
+              <p className="font-semibold text-brand-950 mb-3 text-base">Recursos</p>
               <ul className="space-y-2">
+                <li><Link to="/menu-gratis" className="text-brand-950/60 hover:text-brand-950">Menú gratis · Pedidos por WhatsApp</Link></li>
                 <li><Link to="/precios" className="text-brand-950/60 hover:text-brand-950">Precios y planes</Link></li>
                 <li><Link to="/comparativa" className="text-brand-950/60 hover:text-brand-950">Cómo elegir un software</Link></li>
+                <li><button type="button" onClick={() => setDownloadsOpen(true)} className="text-brand-950/60 hover:text-brand-950">Descargas</button></li>
                 <li><Link to="/legal" className="text-brand-950/60 hover:text-brand-950">Legal</Link></li>
               </ul>
             </div>
           </nav>
-          <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-5 px-4 py-12 sm:flex-row">
             <div className="flex items-center gap-3">
-              <img src="/logo/icono.png" alt="" className="h-7 w-7" />
-              <p className="text-sm text-brand-950/60 font-light">
+              <img src="/logo/icono.png?v=20261002" alt="" className="h-7 w-7" />
+              <p className="text-brand-950/60 font-light text-base">
                 © {new Date().getFullYear()} QuickTap.club — todo a un toque.
               </p>
             </div>
@@ -1227,19 +1115,93 @@ export default function LandingPage() {
               </Link>
             </div>
           </div>
-          <p className="text-center text-[11px] text-brand-950/25 font-light pb-4">Isaías 41:20</p>
+          <p className="text-center text-brand-950/25 font-light pb-4 text-xs">Isaías 41:20</p>
         </footer>
+        </div>
+
+        {/* Centro de descargas: concentra cada instalador en un único punto de entrada. */}
+        <Dialog open={downloadsOpen} onOpenChange={setDownloadsOpen}>
+          <DialogContent className="max-w-2xl overflow-hidden p-0">
+            <DialogHeader className="relative overflow-hidden bg-[radial-gradient(circle_at_84%_12%,rgba(96,212,255,.42),transparent_32%),linear-gradient(135deg,#063a75_0%,#087fe8_100%)] px-6 pb-7 pt-7 sm:px-8 sm:pb-8 sm:pt-8">
+              <div className="pointer-events-none absolute -bottom-14 -right-12 h-40 w-40 rounded-full border border-white/20" />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-white shadow-[0_12px_28px_-14px_rgba(0,27,67,.6)] backdrop-blur-sm">
+                <Download className="h-6 w-6" />
+              </div>
+              <p className="relative mt-5 font-bold uppercase tracking-[.18em] text-sky-100/80 text-xs">QuickTap en tus dispositivos</p>
+              <DialogTitle className="relative mt-2 text-2xl tracking-[-.035em] text-white sm:text-3xl">Centro de descargas</DialogTitle>
+              <p className="relative mt-2 max-w-lg leading-6 text-white/75 text-base">Instala QuickTap donde trabajas. Todos los instaladores son gratuitos y no requieren iniciar sesión para descargarlos.</p>
+            </DialogHeader>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
+              <a
+                href="/descargas/QuickTap-Setup.exe"
+                className="group rounded-2xl border border-brand-950/[.09] bg-[#f8fafc] p-5 transition-[border-color,background-color,transform] duration-200 ease-[cubic-bezier(.23,1,.32,1)] hover:-translate-y-0.5 hover:border-brand-500/35 hover:bg-sky-50 active:scale-[.98]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[0_10px_20px_-12px_rgba(5,151,242,.9)]"><Monitor className="h-5 w-5" /></span>
+                  <Download className="mt-1 h-4 w-4 text-brand-950/35 transition-transform duration-200 group-hover:translate-y-0.5 group-hover:text-brand-500" />
+                </div>
+                <p className="mt-5 font-semibold text-brand-950 text-base">QuickTap para Windows</p>
+                <p className="mt-1 leading-5 text-brand-950/55 text-base">Panel, alertas de pedidos y acceso rápido desde tu computador.</p>
+                <p className="mt-4 font-medium text-brand-500 text-xs">Instalador .exe</p>
+              </a>
+              <a
+                href="/descargas/QuickTap.apk"
+                className="group rounded-2xl border border-brand-950/[.09] bg-[#f8fafc] p-5 transition-[border-color,background-color,transform] duration-200 ease-[cubic-bezier(.23,1,.32,1)] hover:-translate-y-0.5 hover:border-brand-500/35 hover:bg-sky-50 active:scale-[.98]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[0_10px_20px_-12px_rgba(5,151,242,.9)]"><Smartphone className="h-5 w-5" /></span>
+                  <Download className="mt-1 h-4 w-4 text-brand-950/35 transition-transform duration-200 group-hover:translate-y-0.5 group-hover:text-brand-500" />
+                </div>
+                <p className="mt-5 font-semibold text-brand-950 text-base">QuickTap para Android</p>
+                <p className="mt-1 leading-5 text-brand-950/55 text-base">Tu panel completo en el teléfono o tablet del restaurante.</p>
+                <p className="mt-4 font-medium text-brand-500 text-xs">Archivo APK</p>
+              </a>
+              <a
+                href="/descargas/QuickTap-Impresion-Setup-1.9.3.exe"
+                className="group rounded-2xl border border-brand-950/[.09] bg-[#f8fafc] p-5 transition-[border-color,background-color,transform] duration-200 ease-[cubic-bezier(.23,1,.32,1)] hover:-translate-y-0.5 hover:border-brand-500/35 hover:bg-sky-50 active:scale-[.98]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-950 text-white shadow-[0_10px_20px_-12px_rgba(0,27,67,.75)]"><Printer className="h-5 w-5" /></span>
+                  <Download className="mt-1 h-4 w-4 text-brand-950/35 transition-transform duration-200 group-hover:translate-y-0.5 group-hover:text-brand-500" />
+                </div>
+                <p className="mt-5 font-semibold text-brand-950 text-base">Estación de impresión</p>
+                <p className="mt-1 leading-5 text-brand-950/55 text-base">Envía comandas y recibos a la impresora térmica del local.</p>
+                <p className="mt-4 font-medium text-brand-500 text-xs">Instalador para Windows</p>
+              </a>
+              {IOS_APP_URL ? (
+                <a
+                  href={IOS_APP_URL}
+                  className="group rounded-2xl border border-brand-950/[.09] bg-[#f8fafc] p-5 transition-[border-color,background-color,transform] duration-200 ease-[cubic-bezier(.23,1,.32,1)] hover:-translate-y-0.5 hover:border-brand-500/35 hover:bg-sky-50 active:scale-[.98]"
+                >
+                  <div className="flex items-start justify-between gap-4"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-950 text-white"><Smartphone className="h-5 w-5" /></span><Download className="mt-1 h-4 w-4 text-brand-950/35" /></div>
+                  <p className="mt-5 font-semibold text-brand-950 text-base">QuickTap para iPhone</p>
+                  <p className="mt-1 leading-5 text-brand-950/55 text-base">Instala la app desde App Store o TestFlight.</p>
+                  <p className="mt-4 font-medium text-brand-500 text-xs">Disponible para iOS</p>
+                </a>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-brand-950/[.13] p-5">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-950/[.06] text-brand-950/45"><Smartphone className="h-5 w-5" /></span>
+                  <p className="mt-5 font-semibold text-brand-950/70 text-base">QuickTap para iPhone</p>
+                  <p className="mt-1 leading-5 text-brand-950/45 text-base">Próximamente en App Store. Mientras tanto, abre QuickTap desde Safari y agrégalo a tu pantalla de inicio.</p>
+                  <p className="mt-4 font-medium text-brand-950/35 text-xs">Próximamente</p>
+                </div>
+              )}
+            </div>
+            <p className="border-t border-brand-950/[.07] px-6 py-4 text-center leading-5 text-brand-950/45 text-xs">¿No sabes cuál instalar? Usa la app de Windows para administración, Android para el equipo en movimiento y la Estación de impresión para tus tickets.</p>
+          </DialogContent>
+        </Dialog>
 
         {/* Selector de rol para entrar al restaurante de demostración */}
         <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>¿Con qué rol quieres entrar?</DialogTitle>
-              <p className="text-sm text-brand-950/50 font-light">
+              <p className="text-brand-950/50 font-light text-base">
                 Cada rol ve una parte distinta de QuickTap — entra con el que quieras probar.
               </p>
             </DialogHeader>
-            {demoError && <p className="text-sm text-red-600">{demoError}</p>}
+            {demoError && <p className="text-red-600 text-base">{demoError}</p>}
             <div className="grid sm:grid-cols-2 gap-2.5">
               {activeDemoRoles.map((r) => (
                 <button
@@ -1252,8 +1214,8 @@ export default function LandingPage() {
                     <r.icon className="h-4.5 w-4.5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-brand-950">{r.label}</p>
-                    <p className="text-xs text-brand-950/50 font-light mt-0.5">{r.description}</p>
+                    <p className="font-semibold text-brand-950 text-base">{r.label}</p>
+                    <p className="text-brand-950/50 font-light mt-0.5 text-xs">{r.description}</p>
                   </div>
                   {enteringRole === r.role ? (
                     <span className="text-xs text-brand-950/40 shrink-0 self-center">Entrando…</span>

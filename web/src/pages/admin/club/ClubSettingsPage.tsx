@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { Building2, ChevronDown, CircleDot, Crown, LogOut, MessageCircle, Palette, ShieldCheck, Tablet, Wallet } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/components/admin/SettingsCategory';
-import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
-import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
-import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
-import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
-import { CHATBOTS_ENABLED } from '@/config/features';
+import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
+import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
+import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { FullWidth,SettingsCategory } from '@/components/admin/SettingsCategory';
+import { scrollToSettingsCategory } from '@/components/admin/SettingsCategory.shared';
 import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
+import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
+import { DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { TextureButton } from '@/components/ui/texture-button';
+import { TextureCard,TextureCardContent } from '@/components/ui/texture-card';
+import { CHATBOTS_ENABLED } from '@/config/features';
+import { useAuth } from '@/context/AuthContext.shared';
 import { canManageTeam } from '@/utils/roles';
+import { Building2,ChevronDown,CircleDot,Crown,LogOut,MessageCircle,Palette,ShieldCheck,Tablet,Wallet } from 'lucide-react';
+import { useState } from 'react';
 import { ClubBrandingSection } from './ClubBrandingSection';
 import ClubCourtsPage from './ClubCourtsPage';
 import { ClubKitchenLinkSection } from './ClubKitchenLinkSection';
@@ -93,8 +94,8 @@ export default function ClubSettingsPage() {
         <FullWidth>
           <TextureCard>
             <TextureCardContent className="py-5">
-              <p className="text-sm font-semibold text-brand-950">Enlace de reservas</p>
-              <p className="mt-0.5 text-xs text-brand-950/50 font-light">
+              <p className="font-semibold text-brand-950 text-base">Enlace de reservas</p>
+              <p className="mt-0.5 text-brand-950/50 font-light text-xs">
                 Compártelo con tus jugadores: desde ahí ven la disponibilidad y reservan solos, 24/7.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -216,8 +217,8 @@ export default function ClubSettingsPage() {
       <TextureCard className="mt-3">
         <TextureCardContent className="flex items-center justify-between gap-4 py-5">
           <div>
-            <p className="text-sm font-semibold text-brand-950">Cerrar sesión</p>
-            <p className="text-xs text-brand-950/50 font-light">Sales de esta cuenta en este dispositivo.</p>
+            <p className="font-semibold text-brand-950 text-base">Cerrar sesión</p>
+            <p className="text-brand-950/50 font-light text-xs">Sales de esta cuenta en este dispositivo.</p>
           </div>
           <TextureButton variant="minimal" size="default" className="!w-auto shrink-0" onClick={logout}>
             <LogOut className="h-4 w-4" /> Cerrar sesión

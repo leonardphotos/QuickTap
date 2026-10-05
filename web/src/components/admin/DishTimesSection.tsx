@@ -94,7 +94,7 @@ export function DishTimesSection() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {cargando ? (
         <div className="flex justify-center py-10">
@@ -104,30 +104,30 @@ export function DishTimesSection() {
         <>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl border border-brand-950/10 px-3.5 py-3">
-              <p className="text-[11px] font-semibold text-brand-950/50 flex items-center gap-1.5">
+              <p className="font-semibold text-brand-950/50 flex items-center gap-1.5 text-xs">
                 <ChefHat className="h-3.5 w-3.5" /> Cocina
               </p>
               <p className={`text-2xl font-bold tabular-nums ${tono(g.cocina.promedioMin, 15, 25)}`}>
                 {min(g.cocina.promedioMin)}
               </p>
-              <p className="text-[10px] font-light text-brand-950/40 leading-tight">
+              <p className="font-light text-brand-950/40 leading-tight text-xs">
                 mediana {min(g.cocina.medianaMin)} · {g.cocina.muestras} platos medidos
               </p>
             </div>
             <div className="rounded-2xl border border-brand-950/10 px-3.5 py-3">
-              <p className="text-[11px] font-semibold text-brand-950/50 flex items-center gap-1.5">
+              <p className="font-semibold text-brand-950/50 flex items-center gap-1.5 text-xs">
                 <UtensilsCrossed className="h-3.5 w-3.5" /> Sala
               </p>
               <p className={`text-2xl font-bold tabular-nums ${tono(g.sala.promedioMin, 5, 10)}`}>
                 {min(g.sala.promedioMin)}
               </p>
-              <p className="text-[10px] font-light text-brand-950/40 leading-tight">
+              <p className="font-light text-brand-950/40 leading-tight text-xs">
                 mediana {min(g.sala.medianaMin)} · {g.sala.muestras} platos medidos
               </p>
             </div>
           </div>
 
-          <p className="text-[11px] font-light text-brand-950/45 leading-relaxed">
+          <p className="font-light text-brand-950/45 leading-relaxed text-xs">
             <span className="font-medium">Cocina</span> = desde que entra la comanda hasta que la marcan lista.{' '}
             <span className="font-medium">Sala</span> = desde que está lista hasta que se entrega en la mesa. Solo se
             cuentan los platos que tienen esas marcas.
@@ -135,7 +135,7 @@ export function DishTimesSection() {
 
           {cobertura < 40 && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5">
-              <p className="text-xs text-amber-900 leading-relaxed">
+              <p className="text-amber-900 leading-relaxed text-xs">
                 Solo se midió el <span className="font-semibold">{cobertura}%</span> de los platos servidos. Los tiempos
                 salen de marcar "listo" en cocina y "entregado" en la mesa: mientras el equipo no use esos botones, estos
                 promedios son de una muestra chica.
@@ -144,11 +144,11 @@ export function DishTimesSection() {
           )}
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-brand-950 flex items-center gap-1.5">
+            <p className="font-semibold text-brand-950 flex items-center gap-1.5 text-base">
               <Timer className="h-4 w-4" /> Por plato · del más lento al más rápido
             </p>
             {data.platos.length === 0 ? (
-              <p className="text-sm text-brand-950/40 font-light">Sin pedidos en el período.</p>
+              <p className="text-brand-950/40 font-light text-base">Sin pedidos en el período.</p>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-brand-950/10">
                 <table className="w-full text-sm">

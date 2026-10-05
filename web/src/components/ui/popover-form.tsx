@@ -195,7 +195,7 @@ export function PopoverFormSuccess({
         />
       </svg>
       <h3 className="mb-1 mt-2 text-sm font-medium text-primary">{title}</h3>
-      <p className="text-sm text-muted-foreground max-w-xs text-pretty mx-auto text-center">
+      <p className="text-muted-foreground max-w-xs text-pretty mx-auto text-center text-base">
         {description}
       </p>
     </>

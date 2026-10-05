@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
+import { api,getToken } from '@/api/client';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import type { Currency,PaymentMethod } from '@/types';
 import { apiOrigin } from '@/utils/apiOrigin';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
 import { Plus } from 'lucide-react';
-import { api, getToken } from '@/api/client';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ExpenseFormDialog, CATEGORY_LABELS, type ExpenseCategory } from './ExpenseFormDialog';
-import { IncomeFormDialog, INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
-import { PAYMENT_LABELS } from './PaymentDialog';
-import type { Currency, PaymentMethod } from '@/types';
+import { useEffect,useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import { ExpenseFormDialog } from './ExpenseFormDialog';
+import { CATEGORY_LABELS,type ExpenseCategory } from './ExpenseFormDialog.shared';
+import { IncomeFormDialog } from './IncomeFormDialog';
+import { INCOME_CATEGORY_LABELS,type IncomeCategory } from './IncomeFormDialog.shared';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
+import { useAuth } from '@/context/AuthContext.shared';
 
 interface TodaySummary {
   ordersCount: number;
@@ -49,6 +52,7 @@ const CHANNEL_LABEL: Record<string, string> = { DINE_IN: 'Mesa', DELIVERY: 'Deli
  * Ingresos, Egresos) y debajo se agregan "Añadir egreso" y los últimos movimientos — todo
  * dentro de la columna fija (estática) del Dashboard, mientras las comandas se desplazan aparte. */
 export function DailySalesSummary() {
+  const { restaurant,user } = useAuth();
   const [summary, setSummary] = useState<TodaySummary | null>(null);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
@@ -83,38 +87,48 @@ export function DailySalesSummary() {
 
   const symbol = CURRENCY_SYMBOLS[summary.currency];
   const channels = Object.entries(summary.byChannel).filter(([, count]) => count > 0);
+  const firstName = user?.name?.trim().split(/\s+/)[0] ?? 'equipo';
 
   return (
     <div className="w-full">
       {/* Celular: tarjeta "Ventas de hoy" — fondo azul de marca a pantalla completa, con
           el desglose Balance/Ingresos/Egresos abajo, todo dentro de la misma ventana. */}
-      <div className="lg:hidden w-full mb-4 rounded-[20px] bg-brand-500 shadow-sm px-4 py-4 text-left">
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <p className="text-sm font-semibold text-white shrink-0">Ventas de hoy</p>
+      <div className="qt-calm-mobile-summary relative lg:hidden w-full mb-4 overflow-hidden rounded-[29px] bg-gradient-to-br from-brand-500 via-[#3278ff] to-[#5134e8] shadow-[0_16px_34px_rgba(31,93,230,0.22)] px-5 py-5 text-left">
+        <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/15 blur-3xl" />
+        <div className="relative flex items-center justify-between mb-5 gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src={restaurant?.logoUrl || '/logo/icono.png?v=20261002'} alt="" className="h-10 w-10 shrink-0 rounded-2xl border border-white/35 bg-white/90 object-cover" />
+            <div className="min-w-0">
+              <p className="font-medium text-white/70 text-xs">Buen día</p>
+              <p className="truncate font-semibold tracking-[-0.025em] text-white text-base">{firstName}</p>
+            </div>
+          </div>
           <div className="flex gap-1.5">
             <button
               type="button"
+              aria-label="Añadir egreso"
               onClick={() => setShowExpenseDialog(true)}
-              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15 text-amber-300 hover:bg-white/25 transition-colors whitespace-nowrap"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-amber-200 active:scale-95"
             >
-              <Plus className="h-3 w-3" /> Egreso
+              <Plus className="h-4 w-4" />
             </button>
             <button
               type="button"
+              aria-label="Añadir ingreso"
               onClick={() => setShowIncomeDialog(true)}
-              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15 text-emerald-300 hover:bg-white/25 transition-colors whitespace-nowrap"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white active:scale-95"
             >
-              <Plus className="h-3 w-3" /> Ingreso
+              <Plus className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex items-baseline gap-1.5">
-          <p className="text-[26px] font-bold text-white tracking-tight">{formatBase(summary.ingresosBase, symbol)}</p>
-          <span className="text-[13px] font-medium text-white/75">· {formatBsAbsolute(summary.ingresosBs)}</span>
+        <p className="relative font-medium text-white/72 text-xs">Ventas de hoy</p>
+        <div className="relative mt-1 flex items-baseline gap-1.5">
+          <p className="text-[30px] font-bold text-white tracking-[-0.045em]">{formatBase(summary.totalBase, symbol)}</p>
         </div>
-        <p className="text-[11.5px] text-white/80 mt-0.5">
-          {summary.ordersCount} pedido{summary.ordersCount === 1 ? '' : 's'} completado{summary.ordersCount === 1 ? '' : 's'}
+        <p className="relative text-white/72 mt-1 text-base">
+          {formatBsAbsolute(summary.totalBs)} · {summary.ordersCount} pedido{summary.ordersCount === 1 ? '' : 's'} completado{summary.ordersCount === 1 ? '' : 's'}
         </p>
 
         {channels.length > 0 && (
@@ -130,29 +144,29 @@ export function DailySalesSummary() {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2 mt-4 pt-3.5 border-t border-white/25">
+        <div className="relative grid grid-cols-3 gap-2 mt-5 pt-3.5 border-t border-white/25">
           <div>
-            <p className="text-[9.5px] font-semibold text-white uppercase tracking-wide">Balance</p>
-            <p className="text-[13.5px] font-semibold text-white mt-0.5">{formatBase(summary.balanceBase, symbol)}</p>
-            <p className="text-[9.5px] font-medium text-white/70">{formatBsAbsolute(summary.balanceBs)}</p>
+            <p className="font-semibold text-white uppercase tracking-wide text-base">Flujo neto</p>
+            <p className="font-semibold text-white mt-0.5 text-base">{formatBase(summary.balanceBase, symbol)}</p>
+            <p className="font-medium text-white/70 text-base">{formatBsAbsolute(summary.balanceBs)}</p>
           </div>
           <div>
-            <p className="text-[9.5px] font-semibold text-white uppercase tracking-wide">Ingresos</p>
-            <p className="text-[13.5px] font-semibold text-emerald-300 mt-0.5">{formatBase(summary.ingresosBase, symbol)}</p>
-            <p className="text-[9.5px] font-medium text-white/70">{formatBsAbsolute(summary.ingresosBs)}</p>
+            <p className="font-semibold text-white uppercase tracking-wide text-base">Cobrado hoy</p>
+            <p className="font-semibold text-emerald-300 mt-0.5 text-base">{formatBase(summary.ingresosBase, symbol)}</p>
+            <p className="font-medium text-white/70 text-base">{formatBsAbsolute(summary.ingresosBs)}</p>
           </div>
           <div>
-            <p className="text-[9.5px] font-semibold text-white uppercase tracking-wide">Egresos</p>
-            <p className="text-[13.5px] font-semibold text-amber-300 mt-0.5">{formatBase(summary.egresosBase, symbol)}</p>
-            <p className="text-[9.5px] font-medium text-white/70">{formatBsAbsolute(summary.egresosBs)}</p>
+            <p className="font-semibold text-white uppercase tracking-wide text-base">Egresos</p>
+            <p className="font-semibold text-amber-300 mt-0.5 text-base">{formatBase(summary.egresosBase, symbol)}</p>
+            <p className="font-medium text-white/70 text-base">{formatBsAbsolute(summary.egresosBs)}</p>
           </div>
         </div>
       </div>
 
       <div className="hidden lg:block">
-        <p className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide mb-2">Últimos movimientos</p>
+        <p className="font-semibold text-brand-950/50 uppercase tracking-wide mb-2 text-xs">Últimos movimientos</p>
         {movements.length === 0 ? (
-          <p className="text-sm text-brand-950/40 font-light">Sin movimientos todavía.</p>
+          <p className="text-brand-950/40 font-light text-base">Sin movimientos todavía.</p>
         ) : (
           <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm divide-y divide-brand-950/[0.06]">
             {movements.map((m) => (
@@ -162,8 +176,8 @@ export function DailySalesSummary() {
                 className="flex items-center justify-between gap-2 px-4 py-3 w-full text-left hover:bg-brand-950/[0.02] transition-colors"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-brand-950 truncate">{m.description}</p>
-                  <p className="text-xs text-brand-950/40 font-light">
+                  <p className="font-medium text-brand-950 truncate text-base">{m.description}</p>
+                  <p className="text-brand-950/40 font-light text-xs">
                     {new Date(m.createdAt).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })}
                   </p>
                 </div>

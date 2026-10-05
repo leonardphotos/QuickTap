@@ -1,3 +1,4 @@
+import { addonFeature } from './membership-addons';
 // Espejo del backend (src/utils/subscription.ts). El servidor sigue siendo la
 // única fuente de verdad (bloquea el acceso real); esto solo pinta la cuenta
 // regresiva y el aviso sin depender de otra llamada a la API.
@@ -20,6 +21,7 @@ export function graceHoursRemaining(periodEnd: string): number | null {
 export type FeatureFlag = 'administration' | 'inventoryBasic' | 'inventoryRecipe' | 'accountsPayable' | 'accounting' | 'crm';
 
 interface FeatureCheckRestaurant {
+  membershipTerms?: unknown;
   subscriptionPlan?: string | null;
   customAdministration?: boolean;
   customInventoryBasic?: boolean;
@@ -45,7 +47,7 @@ function hasLegacyFullAccess(restaurant: FeatureCheckRestaurant): boolean {
 
 /** Planes "completos" (todos los beneficios de Administración/Inventario/etc.), con o sin sucursales. */
 export function isFullTierPlan(plan?: string | null): boolean {
-  return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES' || plan === 'ELITE';
+  return plan === 'ESSENTIAL' || plan === 'OPERATIONS' || plan === 'CONTROL' || plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES' || plan === 'ELITE';
 }
 
 /** Planes "Solo Delivery" (sin mesas/QR, acceso directo a Cocina), con o sin sucursales. */
@@ -61,6 +63,7 @@ export function isDeliveryTierPlan(plan?: string | null): boolean {
 export function allowsBranches(plan?: string | null): boolean {
   // Pro ya no incluye sucursales (espejo del backend).
   return (
+    plan === 'CONTROL' ||
     plan === 'DELIVERY' ||
     plan === 'ELITE' ||
     plan === 'ELITE_SHOP' ||
@@ -72,6 +75,10 @@ export function allowsBranches(plan?: string | null): boolean {
 export function hasFeature(restaurant: FeatureCheckRestaurant | null | undefined, feature: FeatureFlag): boolean {
   if (!restaurant) return false;
   const plan = restaurant.subscriptionPlan;
+  if (addonFeature(restaurant.membershipTerms, feature)) return true;
+  if (plan === 'CONTROL') return true;
+  if (plan === 'OPERATIONS') return feature === 'administration' || feature === 'inventoryBasic' || feature === 'accountsPayable';
+  if (plan === 'ESSENTIAL') return false;
   // Espejo exacto de hasFeature() del backend — los dos tienen que decir lo mismo.
   // Pro: Administración básica (Resumen, Estadísticas, Productos, Delivery, Métodos de
   // pago), Gastos e inventario por stock; el resto es de Elite.

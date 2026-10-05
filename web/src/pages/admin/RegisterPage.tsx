@@ -1,15 +1,12 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import RegistrationFlow, { type RegistrationFields } from '@/components/billing/RegistrationFlow';
+import { isCommercialPlan, type CommercialPlan } from '@/utils/commercial-plans';
+import { funnelSessionId,trackFunnel } from '@/utils/registrationFunnel';
 import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../../context/AuthContext';
-import { Field } from './LoginPage';
-import AuthLayout from './AuthLayout';
+import type { FormEvent } from 'react';
+import { useEffect,useRef,useState } from 'react';
+import { useLocation,useNavigate,useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.shared';
 import type { Currency } from '../../types';
-import { TextureButton } from '@/components/ui/texture-button';
-import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
-import { getShopRubro } from '@/data/shopRubros';
-import { funnelSessionId, trackFunnel } from '@/utils/registrationFunnel';
 
 interface GoogleSignupState {
   googleCredential: string;
@@ -22,13 +19,15 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  // Presencia de estos params = viene de un vertical distinto al de siempre (ver
-  // StartRegisterPage). Sin ellos, el registro se comporta exactamente igual que antes.
-  const isShop = searchParams.get('businessType') === 'shop';
-  const isClub = searchParams.get('businessType') === 'club';
-  const isOffice = searchParams.get('businessType') === 'office';
+  // Los enlaces viejos de otras verticales pueden seguir circulando, pero la captación pública
+  // está enfocada en restaurantes. Se limpian sin borrar esos productos ni sus cuentas.
+  const requestedBusinessType = searchParams.get('businessType');
+  const hiddenVerticalRequested = ['shop', 'club', 'office', 'warehouse'].includes(requestedBusinessType ?? '');
+  const publicBusinessType = hiddenVerticalRequested ? null : requestedBusinessType;
+  const isShop = publicBusinessType === 'shop';
+  const isClub = publicBusinessType === 'club';
+  const isOffice = publicBusinessType === 'office';
   const shopRubroId = searchParams.get('rubro');
-  const shopRubro = isShop ? getShopRubro(shopRubroId) : undefined;
   // Viene de "Continuar con Google" en /admin/login sin cuenta todavía (ver LoginPage.tsx):
   // el email/nombre ya están verificados por Google, así que el form ya no los pide.
   const [googleSignup, setGoogleSignup] = useState<GoogleSignupState | null>(
@@ -43,23 +42,35 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState<CommercialPlan>(() => { const requested = searchParams.get('plan'); return isCommercialPlan(requested) ? requested : 'ESSENTIAL'; });
+  const submitting = useRef(false);
 
-  // Embudo de registro: se marca que llegó al formulario (ver registrationFunnel.ts). Cada
-  // campo guarda su avance al perder el foco, así que aunque cierre el navegador de golpe queda
-  // con qué contactarlo. La contraseña nunca se manda.
+  useEffect(() => {
+    if (!hiddenVerticalRequested) return;
+    const restaurantParams = new URLSearchParams(searchParams);
+    restaurantParams.delete('businessType');
+    restaurantParams.delete('rubro');
+    if (['SHOP', 'ELITE_SHOP', 'CLUB', 'OFFICE'].includes(restaurantParams.get('plan') ?? '')) {
+      restaurantParams.delete('plan');
+    }
+    const query = restaurantParams.toString();
+    navigate(`/admin/register${query ? `?${query}` : ''}`, { replace: true, state: location.state });
+  }, [hiddenVerticalRequested, location.state, navigate, searchParams]);
+
+  // Solo la etapa y el tipo de negocio; nunca el contenido del formulario.
   useEffect(() => {
     trackFunnel({
       stage: 'FORM',
       businessType: isShop ? 'shop' : isClub ? 'club' : isOffice ? 'office' : 'restaurant',
-      shopRubro: shopRubroId ?? undefined,
-      landingQuery: searchParams.toString() || undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onGoogleSuccess(credential: string) {
     setError(null);
-    setGoogleSignup({ googleCredential: credential, googleEmail: '', googleName: '' });
+    if (submitting.current) return;
+    submitting.current = true;
+    setLoading(true);
     // Reusa exactamente la misma verificación que /admin/login: si esta cuenta de Google
     // ya existe (ej. abrió /empezar por error) entra directo en vez de pedirle de nuevo
     // los datos del restaurante.
@@ -73,11 +84,13 @@ export default function RegisterPage() {
     } catch (err: any) {
       setGoogleSignup(null);
       setError(err.response?.data?.error ?? 'No se pudo continuar con Google.');
-    }
+    } finally { submitting.current = false; setLoading(false); }
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -90,8 +103,9 @@ export default function RegisterPage() {
           businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : isOffice ? 'ADMIN_OFFICE' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
           funnelSessionId: funnelSessionId(),
+          termsAccepted: true,
         });
-        if (result.needsRegistration) return; // no debería pasar en esta rama, pero por las dudas no navega
+        if (result.needsRegistration) { setError('Revisa tus datos e intenta crear la cuenta de nuevo.'); return; }
       } else {
         await register({
           restaurantName,
@@ -104,127 +118,41 @@ export default function RegisterPage() {
           businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : isOffice ? 'ADMIN_OFFICE' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
           funnelSessionId: funnelSessionId(),
+          termsAccepted: true,
         });
       }
       // Si venía de "Elegir plan" en la landing, lo mandamos directo a pagar ese plan.
-      const plan = searchParams.get('plan');
-      navigate(plan ? `/admin/billing?${searchParams.toString()}` : '/admin');
+      const billingParams = new URLSearchParams(searchParams);
+      billingParams.set('plan', plan);
+      billingParams.set('cycle', 'MONTHLY');
+      billingParams.delete('businessType');
+      billingParams.delete('rubro');
+      navigate(`/admin/billing?${billingParams.toString()}`);
     } catch (err: any) {
       const mensaje = err.response?.data?.error ?? 'No se pudo registrar el restaurante.';
       setError(mensaje);
       // Queda registrado con qué se topó: un "ese enlace ya está en uso" repetido en la lista
       // dice que el problema es el formulario, no el interés del cliente.
-      trackFunnel({ stage: 'FORM', lastError: mensaje });
+      trackFunnel({ stage: 'FORM' });
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
 
-  return (
-    <AuthLayout
-      title={isShop ? 'Registra tu local comercial' : isClub ? 'Registra tu cancha' : isOffice ? 'Registra tu administración' : 'Registra tu local'}
-      footer={
-        <p className="text-sm text-brand-950/60 font-light">
-          ¿Ya tienes cuenta?{' '}
-          <Link to="/admin/login" className="text-brand-500 font-medium">
-            Ingresa
-          </Link>
-        </p>
-      }
-    >
-      {isShop && (
-        <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-brand-500/10 px-4 py-3">
-          <span className="text-sm font-medium text-brand-950">
-            {shopRubro ? `${shopRubro.emoji} ${shopRubro.label}` : 'Rubro no seleccionado'}
-          </span>
-          <Link
-            to={`/admin/register/rubro?${searchParams.toString()}`}
-            className="shrink-0 text-xs font-semibold text-brand-500 hover:underline"
-          >
-            Cambiar
-          </Link>
-        </div>
-      )}
-      {googleSignup ? (
-        <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-brand-500/10 px-4 py-3">
-          <span className="text-sm font-medium text-brand-950">
-            {googleSignup.googleName} · {googleSignup.googleEmail}
-          </span>
-          <button
-            type="button"
-            onClick={() => setGoogleSignup(null)}
-            className="shrink-0 text-xs font-semibold text-brand-500 hover:underline"
-          >
-            Usar otro correo
-          </button>
-        </div>
-      ) : (
-        <div className="mb-4">
-          <div className="flex justify-center">
-            <GoogleLogin
-              onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
-              onError={() => setError('No se pudo continuar con Google.')}
-              text="signup_with"
-            />
-          </div>
-          <div className="flex items-center gap-3 my-4">
-            <div className="h-px flex-1 bg-brand-950/10" />
-            <span className="text-xs text-brand-950/40">o con tu correo</span>
-            <div className="h-px flex-1 bg-brand-950/10" />
-          </div>
-        </div>
-      )}
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Field
-          label={isShop ? 'Nombre del negocio' : isClub ? 'Nombre de la cancha' : isOffice ? 'Tu nombre o el de tu firma' : 'Nombre del restaurante'}
-          value={restaurantName}
-          onChange={setRestaurantName}
-          onBlur={() => trackFunnel({ stage: 'FORM', restaurantName })}
-        />
-        <Field
-          label="Nombre de usuario"
-          value={slug}
-          onChange={(v) => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-          onBlur={() => trackFunnel({ stage: 'FORM', slug })}
-          placeholder={isClub ? 'mi-club' : isOffice ? 'mi-administracion' : 'mi-restaurante'}
-        />
-        <label className="block text-sm">
-          <span className="text-brand-950/70">{isOffice ? 'Teléfono de contacto' : 'WhatsApp'}</span>
-          <div className="mt-1" onBlur={() => trackFunnel({ stage: 'FORM', whatsappPhone })}>
-            <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
-          </div>
-          <span className="text-xs text-brand-950/40 font-light">
-            Elige tu país y escribe el número local; el código se agrega automáticamente.
-          </span>
-        </label>
-        {!isOffice && (
-          <label className="block text-sm">
-            <span className="text-brand-950/70">¿En qué moneda colocas tus precios?</span>
-            <select
-              value={baseCurrency}
-              onChange={(e) => setBaseCurrency(e.target.value as Currency)}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            >
-              <option value="USD">Dólares ($)</option>
-              <option value="EUR">Euros (€)</option>
-            </select>
-            <span className="text-xs text-brand-950/40 font-light">
-              La conversión a Bs para tus clientes se calcula sola con la tasa BCV.
-            </span>
-          </label>
-        )}
-        {!googleSignup && (
-          <>
-            <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} onBlur={() => trackFunnel({ stage: 'FORM', ownerName })} />
-            <Field label="Email" type="email" value={email} onChange={setEmail} onBlur={() => trackFunnel({ stage: 'FORM', email })} />
-            <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
-          </>
-        )}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
-          {loading ? 'Creando…' : 'Crear cuenta'}
-        </TextureButton>
-      </form>
-    </AuthLayout>
-  );
+  const setters: Record<keyof RegistrationFields, (value: string) => void> = {
+    restaurantName: setRestaurantName,
+    slug: value => setSlug(value.toLowerCase().replace(/[^a-z0-9-]/g, '-')),
+    whatsappPhone: setWhatsappPhone,
+    baseCurrency: value => setBaseCurrency(value as Currency),
+    ownerName: setOwnerName, email: setEmail, password: setPassword,
+  };
+  return <RegistrationFlow
+    values={{ restaurantName, slug, whatsappPhone, baseCurrency, ownerName, email, password }}
+    onChange={(key, value) => { setters[key](value); setError(null); }}
+    plan={plan} onPlanChange={setPlan} google={googleSignup}
+    onClearGoogle={() => { setGoogleSignup(null); setError(null); }}
+    googleButton={<GoogleLogin onSuccess={cred => cred.credential && onGoogleSuccess(cred.credential)} onError={() => setError('No se pudo continuar con Google.')} text="signup_with"/>}
+    onSubmit={onSubmit} loading={loading} error={error}
+  />;
 }

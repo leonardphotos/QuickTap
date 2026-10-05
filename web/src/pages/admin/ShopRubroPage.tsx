@@ -26,7 +26,7 @@ export default function ShopRubroPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col items-center px-6 pt-20 pb-16 sm:pt-28">
       <Link to="/" className="mb-10">
-        <img src="/logo/icno-web.png" alt="QuickTap" className="h-12 w-auto mx-auto" />
+        <img src="/logo/icno-web.png?v=20261002" alt="QuickTap" className="h-12 w-auto mx-auto" />
       </Link>
       <div className="w-full max-w-2xl">
         <h1 className="text-2xl font-semibold text-brand-950 text-center mb-8">¿Cuál es el rubro de tu negocio?</h1>

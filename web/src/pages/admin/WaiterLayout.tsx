@@ -1,21 +1,23 @@
-import { lazy, Suspense, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { Boxes, ChefHat, Grid2x2, LogOut, Plus, Receipt, Users } from 'lucide-react';
-import { api } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
-import { hasFeature } from '../../utils/subscription';
-import { useLowStockItems } from '../../hooks/useLowStockItems';
-import { LiveOrdersPanel, EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
-import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
-import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
-import { LowStockAlert } from '@/components/admin/LowStockAlert';
-import { CHATBOTS_ENABLED } from '@/config/features';
-import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
 import { ActiveOrdersPreview } from '@/components/admin/ActiveOrdersPreview';
 import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
+import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
+import { EditOrderDialog,LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
+import { type LiveOrder } from '@/components/admin/LiveOrdersPanel.shared';
+import { LowStockAlert } from '@/components/admin/LowStockAlert';
+import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
-import { TextureButton } from '@/components/ui/texture-button';
+import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { WaiterProfilePicker } from '@/components/admin/WaiterProfilePicker';
+import { TextureButton } from '@/components/ui/texture-button';
+import { CHATBOTS_ENABLED } from '@/config/features';
+import { Boxes,ChefHat,Grid2x2,LogOut,Plus,Receipt,Users } from 'lucide-react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { lazy,Suspense,useRef,useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../../api/client';
+import { useAuth } from '../../context/AuthContext.shared';
+import { useLowStockItems } from '../../hooks/useLowStockItems';
+import { hasFeature } from '../../utils/subscription';
 
 const TableOrdersPage = lazy(() => import('./TableOrdersPage'));
 const KitchenPage = lazy(() => import('./KitchenPage'));
@@ -54,6 +56,7 @@ function loadFabPosition() {
  */
 export default function WaiterLayout() {
   const { user, restaurant, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<WaiterTab>('comandas');
   // Segundo inicio de sesión: "Cambiar" reabre la misma cuadrícula de perfiles del login,
   // usando la sesión ya activa (no hace falta correo/clave de nuevo) para elegir a otro mesero.
@@ -112,38 +115,38 @@ export default function WaiterLayout() {
     user.canAccessInventory && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
 
   const tabs: { id: WaiterTab; label: string; icon: typeof Grid2x2 }[] = [
-    { id: 'comandas', label: 'Comandas', icon: Receipt },
+    { id: 'comandas', label: 'Pedidos', icon: Receipt },
     { id: 'cocina', label: 'Cocina', icon: ChefHat },
     { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
     ...(canSeeInventory ? [{ id: 'inventario' as const, label: 'Inventario', icon: Boxes }] : []),
   ];
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
-      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-brand-950/[0.06] bg-white">
+    <div className="min-h-screen bg-[#f7f9fc]">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-brand-950/[0.06] bg-white/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-[0_1px_0_rgba(0,27,67,0.02)] backdrop-blur-xl">
         <div className="flex items-center gap-2.5 min-w-0">
           <img
-            src={restaurant.logoUrl || '/logo/icono.png'}
+            src={restaurant.logoUrl || '/logo/icono.png?v=20261002'}
             alt=""
             className="h-8 w-8 rounded-full object-cover shrink-0"
           />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-brand-950 truncate">{restaurant.name}</p>
-            <p className="text-xs text-brand-950/50 truncate">Mesero · {user.name}</p>
+            <p className="font-semibold text-brand-950 truncate text-base">{restaurant.name}</p>
+            <p className="text-brand-950/50 truncate text-xs">Mesero · {user.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setSwitchingUser(true)}
-            className="flex items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3.5 py-2 text-xs font-medium text-brand-950/60"
+            className="flex h-10 items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3 text-xs font-medium text-brand-950/60 transition-[color,background-color,transform] duration-150 ease-out-strong hover:bg-brand-950/[0.035] hover:text-brand-950 active:scale-[0.97] motion-reduce:transition-none"
           >
             <Users className="h-3.5 w-3.5" /> Cambiar
           </button>
           <button
             type="button"
             onClick={logout}
-            className="flex items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3.5 py-2 text-xs font-medium text-brand-950/60"
+            className="flex h-10 items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3 text-xs font-medium text-brand-950/60 transition-[color,background-color,transform] duration-150 ease-out-strong hover:bg-red-50 hover:text-red-600 active:scale-[0.97] motion-reduce:transition-none"
           >
             <LogOut className="h-3.5 w-3.5" /> Salir
           </button>
@@ -152,16 +155,19 @@ export default function WaiterLayout() {
 
       {switchingUser && <WaiterProfilePicker onClose={() => setSwitchingUser(false)} />}
 
-      <nav className="flex gap-1.5 px-3 py-2.5 bg-white border-b border-brand-950/[0.06] overflow-x-auto">
+      <AnimatedTabs wrapperClassName="sticky top-[65px] z-20 border-b border-brand-950/[0.06] bg-white/90 px-3 py-2.5 backdrop-blur-xl" className="min-w-full bg-transparent" label="Secciones del mesero">
         {tabs.map((t) => {
           const active = tab === t.id;
           return (
-            <button
+            <AnimatedTab active={active}
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`relative flex flex-1 flex-col items-center gap-1 rounded-2xl py-2 px-2 text-xs font-medium transition-colors ${
-                active ? 'bg-brand-500 text-white' : 'text-brand-950/50'
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-xs font-medium transition-[color,background-color,box-shadow,transform] duration-150 ease-out-strong active:scale-[0.97] motion-reduce:transition-none ${
+                active
+                  ? 'bg-brand-500 text-white shadow-[0_8px_18px_-12px_rgba(0,154,255,0.75)]'
+                  : 'text-brand-950/50 hover:bg-brand-950/[0.035] hover:text-brand-950/75'
               }`}
             >
               <t.icon className="h-[19px] w-[19px]" />
@@ -171,12 +177,12 @@ export default function WaiterLayout() {
                   {lowStockItems.length}
                 </span>
               )}
-            </button>
+            </AnimatedTab>
           );
         })}
-      </nav>
+      </AnimatedTabs>
 
-      <main className="px-4 py-4 pb-28">
+      <main className="mx-auto w-full max-w-7xl px-4 py-4 pb-28">
         <Suspense fallback={<div className="p-10 text-center text-brand-950/30 font-light text-sm">Cargando…</div>}>
           {tab === 'mesas' && (
             <div className="space-y-8">
@@ -191,7 +197,12 @@ export default function WaiterLayout() {
       </main>
 
       <TableServiceAlert />
-      <NewOrderAlert onNavigate={() => setTab('comandas')} />
+      <NewOrderAlert
+        onNavigate={(orderId) => {
+          setTab('comandas');
+          navigate(`/admin/comandas?order=${encodeURIComponent(orderId)}`);
+        }}
+      />
       <LowStockAlert />
       {CHATBOTS_ENABLED && <HelpChatWidget />}
 
@@ -206,7 +217,7 @@ export default function WaiterLayout() {
         onPointerCancel={handleFabPointerUp}
         aria-label="Crear pedido (mantén presionado y arrastra para moverlo)"
         style={{ position: 'fixed', left: fabPos.left, top: fabPos.top, touchAction: 'none' }}
-        className="z-30 !h-16 !w-16 rounded-full shadow-lg shadow-brand-950/25"
+        className="z-30 !h-16 !w-16 rounded-full shadow-[0_14px_34px_-12px_rgba(0,27,67,0.45)] transition-[transform,box-shadow] duration-150 ease-out-strong active:scale-95 motion-reduce:transition-none"
       >
         <Plus className="h-8 w-8" strokeWidth={2.5} />
       </TextureButton>
@@ -242,3 +253,4 @@ export default function WaiterLayout() {
     </div>
   );
 }
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';

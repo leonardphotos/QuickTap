@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Landmark, PiggyBank, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
+import { InstitutionLogo, InstitutionPicker } from './InstitutionPicker';
 import { TextureButton } from '@/components/ui/texture-button';
-import { InlinePanel } from './InlinePanel';
-import { PAYMENT_LABELS } from './PaymentDialog';
 import type { PaymentMethod } from '@/types';
+import { formatBase,formatBsAbsolute } from '@/utils/format';
+import { ArrowDownLeft,ArrowLeftRight,ArrowUpRight,PiggyBank,Plus,Trash2 } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { InlinePanel } from './InlinePanel';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
 
 type AccountCurrency = 'BASE' | 'BS';
 
 interface BankAccount {
+  institutionId?: string | null;
   id: string;
   name: string;
   currency: AccountCurrency;
@@ -63,8 +65,8 @@ export function BankAccountsSection({ symbol = '$' }: { symbol?: string }) {
 
   useEffect(load, [load]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!accounts) return <p className="text-sm text-brand-950/40 font-light">Cargando cuentas…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
+  if (!accounts) return <p className="text-brand-950/40 font-light text-base">Cargando cuentas…</p>;
 
   if (expanded) {
     return (
@@ -133,10 +135,10 @@ export function BankAccountsSection({ symbol = '$' }: { symbol?: string }) {
 
       {accounts.length === 0 && (
         <div className={`${card} p-6 text-center`}>
-          <p className="text-sm text-brand-950/60">
+          <p className="text-brand-950/60 text-base">
             Agrega tus cuentas bancarias y tu caja chica, y vincula cada método de pago a la suya.
           </p>
-          <p className="mt-1 text-xs text-brand-950/40 font-light">
+          <p className="mt-1 text-brand-950/40 font-light text-xs">
             Ejemplo: Pago Móvil → Banco de Venezuela. Al cobrar un Pago Móvil, el saldo del banco sube solo; al pagar un
             gasto con ese método, baja.
           </p>
@@ -151,9 +153,9 @@ export function BankAccountsSection({ symbol = '$' }: { symbol?: string }) {
                 {a.isPettyCash ? (
                   <PiggyBank className="h-4 w-4 shrink-0 text-amber-500" />
                 ) : (
-                  <Landmark className="h-4 w-4 shrink-0 text-brand-950/40" />
+                  <InstitutionLogo id={a.institutionId} />
                 )}
-                <p className="truncate text-sm font-bold text-brand-950">{a.name}</p>
+                <p className="truncate font-bold text-brand-950 text-base">{a.name}</p>
               </div>
               <span className="shrink-0 rounded-full bg-brand-950/[0.06] px-2 py-0.5 text-[10px] font-bold text-brand-950/50">
                 {a.currency === 'BS' ? 'Bs' : symbol}
@@ -217,6 +219,7 @@ function AccountForm({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(account?.name ?? '');
+  const [institutionId, setInstitutionId] = useState<string | null>(account?.institutionId ?? null);
   const [currency, setCurrency] = useState<AccountCurrency>(account?.currency ?? 'BS');
   const [isPettyCash, setIsPettyCash] = useState(account?.isPettyCash ?? false);
   const [isVault, setIsVault] = useState(account?.isVault ?? false);
@@ -245,6 +248,7 @@ function AccountForm({
     try {
       if (account) {
         await api.patch(`/bank-accounts/${account.id}`, {
+          institutionId,
           name: name.trim(),
           isPettyCash,
           isVault,
@@ -252,6 +256,7 @@ function AccountForm({
         });
       } else {
         await api.post('/bank-accounts', {
+          institutionId,
           name: name.trim(),
           currency,
           isPettyCash,
@@ -288,8 +293,13 @@ function AccountForm({
       onClose={onClose}
     >
       <div className="space-y-3">
+        <InstitutionPicker value={institutionId} onChange={institution => {
+          setInstitutionId(institution?.id ?? null);
+          if (institution && !name.trim()) setName(institution.name);
+        }} />
+        <p className="text-brand-950/50 text-xs">El catálogo identifica la entidad. No conecta al banco ni modifica la moneda o el saldo de la cuenta.</p>
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nombre de la cuenta</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Nombre de la cuenta</p>
           <input
             autoFocus
             value={name}
@@ -301,7 +311,7 @@ function AccountForm({
 
         {!account && (
           <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Tipo de cuenta</p>
+            <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Tipo de cuenta</p>
             <div className="flex gap-1.5">
               {(
                 [
@@ -325,7 +335,7 @@ function AccountForm({
         )}
 
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Métodos de pago vinculados</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Métodos de pago vinculados</p>
           <div className="flex flex-wrap gap-1.5">
             {ALL_METHODS.map((m) => {
               const owner = takenBy.get(m);
@@ -347,14 +357,14 @@ function AccountForm({
               );
             })}
           </div>
-          <p className="mt-1 text-[11px] text-brand-950/40 font-light">
+          <p className="mt-1 text-brand-950/40 font-light text-xs">
             Cada cobro o pago con estos métodos moverá el saldo de esta cuenta automáticamente.
           </p>
         </div>
 
         {!account && (
           <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+            <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
               Saldo inicial ({currency === 'BS' ? 'Bs' : symbol}, opcional)
             </p>
             <input
@@ -366,7 +376,7 @@ function AccountForm({
           </div>
         )}
 
-        <label className="flex items-center gap-1.5 text-sm">
+        <label className="flex items-center gap-1.5 text-sm font-medium">
           <input
             type="checkbox"
             checked={isPettyCash}
@@ -380,7 +390,7 @@ function AccountForm({
 
         {/* Bóveda: adonde va el efectivo al cerrar el turno. Excluyente con caja chica —
             una cuenta es el efectivo del día o el que se guarda, no las dos cosas. */}
-        <label className="flex items-center gap-1.5 text-sm">
+        <label className="flex items-center gap-1.5 text-sm font-medium">
           <input
             type="checkbox"
             checked={isVault}
@@ -392,7 +402,7 @@ function AccountForm({
           ¿Es la bóveda? (donde se guarda el efectivo al cerrar caja)
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <div className="flex items-center gap-2">
           <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
@@ -465,7 +475,7 @@ function TransferForm({
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Desde</p>
+            <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Desde</p>
             <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={inputCls}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -475,7 +485,7 @@ function TransferForm({
             </select>
           </div>
           <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Hacia</p>
+            <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Hacia</p>
             <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputCls}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -487,7 +497,7 @@ function TransferForm({
         </div>
 
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
             Monto ({from?.currency === 'BS' ? 'Bs' : symbol})
           </p>
           <input
@@ -497,14 +507,14 @@ function TransferForm({
             className={inputCls}
           />
           {crossCurrency && (
-            <p className="mt-1 text-[11px] text-brand-950/40 font-light">
+            <p className="mt-1 text-brand-950/40 font-light text-xs">
               Las cuentas usan monedas distintas: se convierte con la tasa BCV del momento.
             </p>
           )}
         </div>
 
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
             Concepto <span className="text-red-500">*</span>
           </p>
           <input
@@ -515,7 +525,7 @@ function TransferForm({
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
           {saving ? 'Transfiriendo…' : 'Transferir'}
@@ -650,11 +660,11 @@ function AccountDetail({ account, symbol, onClose }: { account: BankAccount; sym
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
           {rows?.length === 0 && (
-            <p className="p-4 text-sm text-brand-950/40 font-light">Sin movimientos en este período.</p>
+            <p className="p-4 text-brand-950/40 font-light text-base">Sin movimientos en este período.</p>
           )}
           {rows?.map((t) => {
             const meta = TX_META[t.type];
@@ -663,8 +673,8 @@ function AccountDetail({ account, symbol, onClose }: { account: BankAccount; sym
               <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
                 <Icon className={`h-4 w-4 shrink-0 ${meta.cls}`} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-brand-950">{t.description}</p>
-                  <p className="text-xs text-brand-950/40 font-light">
+                  <p className="truncate text-brand-950 text-base">{t.description}</p>
+                  <p className="text-brand-950/40 font-light text-xs">
                     {meta.label}
                     {t.paymentMethod && ` · ${PAYMENT_LABELS[t.paymentMethod]}`}
                     {t.counterpartName && ` · ${t.counterpartName}`}

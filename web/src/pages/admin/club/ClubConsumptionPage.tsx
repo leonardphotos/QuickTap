@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, TrendingDown } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
+import { PeriodPicker } from '@/components/admin/PeriodPicker';
+import { periodParams,periodoDeHoy,type Period } from '@/components/admin/PeriodPicker.shared';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { formatBase } from '@/utils/format';
+import { AlertTriangle,TrendingDown } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { card } from './clubStyle';
-import { PeriodPicker, periodParams, periodoDeHoy, type Period } from '@/components/admin/PeriodPicker';
 
 interface ConsumedItem {
   productId: string | null;
@@ -58,8 +59,8 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
 
   useEffect(load, [load]);
 
-  if (loading && !data) return <p className="text-sm font-light text-brand-950/40">Cargando consumo…</p>;
-  if (!data) return <p className="text-sm text-red-600">No pudimos cargar el consumo.</p>;
+  if (loading && !data) return <p className="font-light text-brand-950/40 text-base">Cargando consumo…</p>;
+  if (!data) return <p className="text-red-600 text-base">No pudimos cargar el consumo.</p>;
 
   const maxQty = Math.max(1, ...data.top.map((t) => Number(t.qty)));
 
@@ -69,7 +70,7 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
 
       {data.runningOut.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-amber-900">
+          <p className="flex items-center gap-1.5 font-bold text-amber-900 text-base">
             <TrendingDown className="h-4 w-4" />
             Se acaba pronto al ritmo actual
           </p>
@@ -88,7 +89,7 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
 
       {data.lowStock.length > 0 && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-red-900">
+          <p className="flex items-center gap-1.5 font-bold text-red-900 text-base">
             <AlertTriangle className="h-4 w-4" />
             Bajo el mínimo
           </p>
@@ -109,13 +110,13 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
       )}
 
       <div className={`${card} p-5`}>
-        <p className="text-sm font-bold text-brand-950">Lo que más se consume</p>
-        <p className="mt-0.5 text-xs font-light text-brand-950/50">
+        <p className="font-bold text-brand-950 text-base">Lo que más se consume</p>
+        <p className="mt-0.5 font-light text-brand-950/50 text-xs">
           Suma la venta de mostrador y lo que se pide desde las canchas.
         </p>
 
         {data.top.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">
+          <p className="py-6 text-center font-light text-brand-950/40 text-base">
             No hubo consumo registrado en este período.
           </p>
         ) : (
@@ -132,7 +133,7 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
                     style={{ width: `${(Number(p.qty) / maxQty) * 100}%` }}
                   />
                 </div>
-                <p className="mt-0.5 text-[11px] font-light text-brand-950/40">
+                <p className="mt-0.5 font-light text-brand-950/40 text-xs">
                   {formatBase(p.revenueBase, symbol)}
                   {p.stock != null && ` · quedan ${p.stock}`}
                   {p.daysLeft != null && ` · para ${p.daysLeft} día${p.daysLeft === 1 ? '' : 's'}`}

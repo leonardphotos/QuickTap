@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, Check, Clock, LogOut, Wallet, X } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { card } from './clubStyle';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { CalendarDays,Check,Clock,LogOut,Wallet,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { WEEKDAYS } from './academia/academyApi';
+import { card } from './clubStyle';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -69,7 +70,7 @@ export default function CoachLayout() {
     <div className="min-h-screen bg-[#fafafa]">
       <header className="sticky top-0 z-20 border-b border-brand-950/[0.06] bg-white pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-5">
-          <p className="truncate font-bold text-brand-950">{restaurant.name}</p>
+          <p className="truncate font-bold text-brand-950 text-base">{restaurant.name}</p>
           <span className="shrink-0 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-500">
             Profesor
           </span>
@@ -81,9 +82,9 @@ export default function CoachLayout() {
 
       <main className="mx-auto max-w-3xl px-5 py-5 pb-28">
         <div className="-mx-1 mb-5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+          <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
             {TABS.map((t) => (
-              <button
+              <AnimatedTab active={screen === t.id}
                 key={t.id}
                 type="button"
                 onClick={() => setScreen(t.id)}
@@ -93,9 +94,9 @@ export default function CoachLayout() {
               >
                 <t.icon className="h-4 w-4" />
                 {t.label}
-              </button>
+              </AnimatedTab>
             ))}
-          </div>
+          </AnimatedTabs>
         </div>
 
         {screen === 'agenda' && <AgendaScreen />}
@@ -124,26 +125,26 @@ function AgendaScreen() {
 
   useEffect(load, [load]);
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando tu agenda…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando tu agenda…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const upcoming = sessions.filter((s) => s.status !== 'CANCELLED' && s.status !== 'RELEASED');
 
   return (
     <div className={`${card} p-5`}>
-      <p className="text-sm font-bold text-brand-950">Próximas clases</p>
-      <p className="mt-0.5 text-xs font-light text-brand-950/50">Las tuyas de los próximos 14 días.</p>
+      <p className="font-bold text-brand-950 text-base">Próximas clases</p>
+      <p className="mt-0.5 font-light text-brand-950/50 text-xs">Las tuyas de los próximos 14 días.</p>
 
       {upcoming.length === 0 ? (
-        <p className="py-6 text-center text-sm font-light text-brand-950/40">No tienes clases agendadas.</p>
+        <p className="py-6 text-center font-light text-brand-950/40 text-base">No tienes clases agendadas.</p>
       ) : (
         <ul className="mt-3 divide-y divide-brand-950/[0.06]">
           {upcoming.map((s) => (
             <li key={s.id} className="py-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-brand-950">{s.group?.name ?? 'Clase suelta'}</p>
-                  <p className="text-xs font-light text-brand-950/50">
+                  <p className="truncate font-semibold text-brand-950 text-base">{s.group?.name ?? 'Clase suelta'}</p>
+                  <p className="font-light text-brand-950/50 text-xs">
                     {dayLabel(s.startsAt)} · {hhmm(s.startsAt)}
                     {s.court && ` · ${s.court.name}`}
                   </p>
@@ -219,9 +220,9 @@ function RosterDialog({ session, onClose, onSaved }: { session: Session; onClose
           <DialogTitle>{session.group?.name ?? 'Clase'}</DialogTitle>
         </DialogHeader>
         {loading ? (
-          <p className="text-sm font-light text-brand-950/40">Cargando…</p>
+          <p className="font-light text-brand-950/40 text-base">Cargando…</p>
         ) : roster.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">No hay alumnos en esta clase.</p>
+          <p className="py-6 text-center font-light text-brand-950/40 text-base">No hay alumnos en esta clase.</p>
         ) : (
           <div className="space-y-2">
             {roster.map((e) => (
@@ -251,7 +252,7 @@ function RosterDialog({ session, onClose, onSaved }: { session: Session; onClose
             ))}
           </div>
         )}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton
           variant="brand"
           size="default"
@@ -296,12 +297,12 @@ function AvailabilityScreen() {
     }
   }
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando…</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando…</p>;
 
   return (
     <div className={`${card} p-5`}>
-      <p className="text-sm font-bold text-brand-950">Cuándo puedes dar clase</p>
-      <p className="mt-0.5 text-xs font-light text-brand-950/50">
+      <p className="font-bold text-brand-950 text-base">Cuándo puedes dar clase</p>
+      <p className="mt-0.5 font-light text-brand-950/50 text-xs">
         No bloquea canchas: solo le dice al club a qué grupos y particulares te puede asignar.
       </p>
 
@@ -352,16 +353,16 @@ function AvailabilityScreen() {
       </button>
 
       {slots.length === 0 && (
-        <p className="mt-2 text-xs font-light text-brand-950/40">
+        <p className="mt-2 font-light text-brand-950/40 text-xs">
           Sin franjas cargadas se asume que estás disponible siempre.
         </p>
       )}
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-red-600 text-base">{error}</p>}
       <TextureButton variant="brand" size="default" disabled={saving} className="mt-3 disabled:opacity-50" onClick={save}>
         {saving ? 'Guardando…' : 'Guardar'}
       </TextureButton>
-      {saved && <p className="mt-2 text-sm text-emerald-700">Guardado.</p>}
+      {saved && <p className="mt-2 text-emerald-700 text-base">Guardado.</p>}
     </div>
   );
 }
@@ -377,30 +378,30 @@ function EarningsScreen({ symbol }: { symbol: string }) {
       .catch((err) => setError(err.response?.data?.error ?? 'No pudimos cargar tus honorarios.'));
   }, []);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!data) return <p className="text-sm font-light text-brand-950/40">Cargando…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
+  if (!data) return <p className="font-light text-brand-950/40 text-base">Cargando…</p>;
 
   return (
     <div className={`${card} p-5`}>
-      <p className="text-sm font-bold text-brand-950">Tus honorarios</p>
-      <p className="mt-0.5 text-xs font-light text-brand-950/50">Últimos 30 días.</p>
+      <p className="font-bold text-brand-950 text-base">Tus honorarios</p>
+      <p className="mt-0.5 font-light text-brand-950/50 text-xs">Últimos 30 días.</p>
 
       <div className="mt-3 grid grid-cols-3 gap-3 text-center">
         <div>
           <p className="text-[20px] font-bold tracking-tight text-brand-950">{data.sessionsCount}</p>
-          <p className="text-[12px] font-light text-brand-950/45">clases dadas</p>
+          <p className="font-light text-brand-950/45 text-xs">clases dadas</p>
         </div>
         <div>
           <p className="text-[20px] font-bold tracking-tight text-brand-950">{formatBase(data.totalBase, symbol)}</p>
-          <p className="text-[12px] font-light text-brand-950/45">generado</p>
+          <p className="font-light text-brand-950/45 text-xs">generado</p>
         </div>
         <div>
           <p className="text-[20px] font-bold tracking-tight text-amber-600">{formatBase(data.pendingBase, symbol)}</p>
-          <p className="text-[12px] font-light text-brand-950/45">por cobrar</p>
+          <p className="font-light text-brand-950/45 text-xs">por cobrar</p>
         </div>
       </div>
 
-      <p className="mt-3 rounded-xl bg-brand-950/[0.03] p-3 text-xs font-light text-brand-950/60">
+      <p className="mt-3 rounded-xl bg-brand-950/[0.03] p-3 font-light text-brand-950/60 text-xs">
         Esto es informativo: quien registra el pago es la administración del club.
       </p>
     </div>

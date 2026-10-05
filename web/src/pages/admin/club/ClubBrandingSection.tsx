@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import type { RestaurantTheme } from '@/types';
-import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 import { ColorPickerField } from '@/components/admin/ColorPickerField';
+import { TextureButton } from '@/components/ui/texture-button';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
 import { clubGradient } from '@/pages/public/clubPublic';
+import type { RestaurantTheme } from '@/types';
+import { useState } from 'react';
 
 const DEFAULTS = { primary: '#0B6BCB', accent: '#0597F2', text: '#FFFFFF' };
 
@@ -42,7 +42,7 @@ export function ClubBrandingSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Marca del enlace de reservas</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Los colores que ven tus jugadores en la página donde reservan y en su código de acceso. No
           afectan a este panel, que siempre se ve igual para todos los clubes.
         </p>
@@ -70,7 +70,7 @@ export function ClubBrandingSection() {
         </div>
 
         <div>
-          <p className="mb-1.5 text-sm font-medium text-brand-950/70">Así se ve</p>
+          <p className="mb-1.5 font-medium text-brand-950/70 text-base">Así se ve</p>
           <div
             className="flex h-24 items-center justify-center rounded-2xl text-[13px] font-semibold"
             style={{ ...clubGradient(theme), color: theme.text || DEFAULTS.text }}
@@ -79,8 +79,8 @@ export function ClubBrandingSection() {
           </div>
         </div>
 
-        {message && <p className="text-sm text-emerald-600">{message}</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {message && <p className="text-emerald-600 text-base">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton variant="brand" size="default" onClick={save} disabled={saving} className="!w-auto">
           {saving ? 'Guardando…' : 'Guardar colores'}
         </TextureButton>

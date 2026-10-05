@@ -1,3 +1,4 @@
+import { parseWalletAmount, previewWalletAdvance } from './wallet-payment-amount';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Upload, X } from 'lucide-react';
@@ -7,8 +8,8 @@ import { getWalletToken } from './walletSession';
 /**
  * Reportar un abono desde el portal del cliente.
  *
- * El deslizador arranca en el saldo completo: lo más común es pagar todo, y quien quiera abonar
- * menos solo tiene que arrastrarlo. "Pagar completo" es un atajo al tope.
+ * Permite cubrir cuotas completas o escribir un monto para adelantar cuotas.
+ * El dinero se aplica en orden después de que el negocio verifica el abono.
  *
  * El comprobante es opcional en el formulario pero se pide con insistencia: sin él, el local no
  * tiene con qué verificar y el abono se queda esperando.
@@ -64,21 +65,28 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
   // Cuántas cuotas cubre este pago, contadas desde la más vieja pendiente. Sin plan de cuotas
   // no se usa: ahí se salda la cuenta completa.
   const [cantidad, setCantidad] = useState(1);
+  const [montoLibre, setMontoLibre] = useState(false);
+  const [montoEscrito, setMontoEscrito] = useState('');
   const [comprobante, setComprobante] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const auth = useMemo(() => ({ Authorization: `Bearer ${getWalletToken()}` }), []);
-  const porPagar = cuotas.filter((c) => c.saldo > 0);
+  const porPagar = cuotas.filter((c) => c.saldo > 0).sort((a, b) => a.number - b.number);
 
   // El monto sale de las cuotas elegidas; sin plan de cuotas, del saldo completo. Se topa al
   // saldo real para que el redondeo de las cuotas nunca reporte más de lo que se debe (el
   // servidor rechaza un abono mayor al saldo).
-  const monto =
+  const montoPorCuotas =
     porPagar.length > 0
       ? Math.min(saldo, Math.round(porPagar.slice(0, cantidad).reduce((a, c) => a + c.saldo, 0) * 100) / 100)
       : saldo;
+  const montoPersonalizado = parseWalletAmount(montoEscrito);
+  const monto = montoLibre ? montoPersonalizado ?? 0 : montoPorCuotas;
+  const montoValido = Number.isFinite(monto) && monto > 0 && Math.round(monto * 100) <= Math.round(saldo * 100);
+  const reparto = previewWalletAdvance(porPagar, montoValido ? monto : 0);
+
 
   useEffect(() => {
     api
@@ -112,6 +120,8 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
   }
 
   async function enviar() {
+    if (enviando || subiendo) return;
+    if (!montoValido) return setError('Escribe un monto mayor que cero y que no supere tu saldo pendiente.');
     if (!metodo) return setError('Elige cómo pagaste.');
     setEnviando(true);
     setError(null);
@@ -158,33 +168,39 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">Abonar</h2>
-            <p className="text-[11px] font-light text-white/45">{negocio}</p>
+            <p className="font-light text-white/45 text-xs">{negocio}</p>
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="wallet-tap rounded-full bg-white/10 p-1.5">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Cuánto: se elige por cuotas, no con un monto libre. Las cuotas las fijó el negocio,
-            así que el cliente decide CUÁNTAS cubre —siempre desde la más vieja— y el monto sale
-            de esa suma. Tocar una cuota selecciona esa y todas las anteriores: pagar la #3
-            dejando la #1 sin pagar no es algo que el negocio acepte. */}
+        <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1" role="group" aria-label="Cómo elegir el monto">
+          <button type="button" disabled={enviando} onClick={() => { setMontoLibre(false); setError(null); }} aria-pressed={!montoLibre} className={`rounded-lg px-2 py-2.5 text-xs font-medium ${!montoLibre ? 'bg-[#009aff] text-white' : 'text-white/60'}`}>{porPagar.length ? 'Por cuotas' : 'Pagar completo'}</button>
+          <button type="button" disabled={enviando} onClick={() => { setMontoLibre(true); setError(null); }} aria-pressed={montoLibre} className={`rounded-lg px-2 py-2.5 text-xs font-medium ${montoLibre ? 'bg-[#009aff] text-white' : 'text-white/60'}`}>Monto personalizado</button>
+        </div>
+        {montoLibre && <div className="mt-4 space-y-2">
+          <label htmlFor="wallet-custom-amount" className="text-white/70 text-sm font-medium">¿Cuánto quieres abonar? ($)</label>
+          <input id="wallet-custom-amount" inputMode="decimal" autoComplete="off" disabled={enviando} value={montoEscrito} onChange={e => { setMontoEscrito(e.target.value); setError(null); }} placeholder="Ej. 25,00" aria-describedby="wallet-amount-help" className="w-full rounded-xl border border-white/15 bg-[#0e141b] px-4 py-3 tabular-nums text-white outline-none focus:border-[#009aff] text-base" />
+          <div id="wallet-amount-help" className="flex items-center justify-between gap-2 text-xs text-white/45"><span>Saldo pendiente: {money(saldo)}</span><button type="button" disabled={enviando} onClick={()=>setMontoEscrito(saldo.toFixed(2))} className="text-[#4db5ff]">Pagar todo</button></div>
+          {montoEscrito && !montoValido && <p role="alert" className="text-red-300 text-xs">Ingresa entre $0,01 y {money(saldo)}, con hasta dos decimales.</p>}
+        </div>}
         <div className="mt-5 rounded-2xl bg-[#0e141b] p-4">
-          <p className="text-[11px] font-light text-white/45">Vas a pagar</p>
+          <p className="font-light text-white/45 text-xs">Vas a pagar</p>
           <p className="mt-1 text-3xl font-bold tabular-nums">{bs(monto, rateBs) || money(monto)}</p>
-          {rateBs && <p className="text-sm font-light tabular-nums text-white/50">{money(monto)}</p>}
-          {porPagar.length > 0 && (
-            <p className="mt-1 text-[11px] font-light text-white/40">
+          {rateBs && <p className="font-light tabular-nums text-white/50 text-base">{money(monto)}</p>}
+          {porPagar.length > 0 && !montoLibre && (
+            <p className="mt-1 font-light text-white/40 text-xs">
               {cantidad} de {porPagar.length} cuota{porPagar.length === 1 ? '' : 's'} pendiente
               {porPagar.length === 1 ? '' : 's'}
             </p>
           )}
         </div>
 
-        {porPagar.length > 0 ? (
+        {!montoLibre && (porPagar.length > 0 ? (
           <div className="mt-4">
             <div className="mb-1.5 flex items-baseline justify-between">
-              <p className="text-[11px] font-light text-white/45">¿Cuántas cuotas vas a pagar?</p>
+              <p className="font-light text-white/45 text-xs">¿Cuántas cuotas vas a pagar?</p>
               <button
                 onClick={() => setCantidad(cantidad === porPagar.length ? 1 : porPagar.length)}
                 className="text-[11px] font-semibold text-[#4db5ff]"
@@ -226,17 +242,22 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
           </div>
         ) : (
           // Cuenta fiada sin plan de cuotas: no hay nada que elegir, se salda completa.
-          <p className="mt-3 rounded-xl bg-white/[0.05] px-3 py-2.5 text-[11px] font-light leading-snug text-white/50">
+          <p className="mt-3 rounded-xl bg-white/[0.05] px-3 py-2.5 font-light leading-snug text-white/50 text-xs">
             Esta cuenta no tiene cuotas: se paga completa, {money(saldo)}.
           </p>
-        )}
+        ))}
 
+        {montoLibre && reparto.length > 0 && <div className="mt-3 rounded-xl bg-white/5 p-3 text-xs space-y-2">
+          <p className="font-medium text-white/85 text-base">Así se aplicará tu abono</p>
+          {reparto.map(c => <div key={c.id} className="flex justify-between gap-3"><span className="text-white/65">Cuota #{c.number}</span><span className="text-right tabular-nums">{money(c.applied)} <span className="text-white/45">· {c.remaining ? `restarían ${money(c.remaining)}` : 'quedaría pagada'}</span></span></div>)}
+          <p className="pt-1 text-white/45 leading-relaxed text-base">Primero se cubren las cuotas pendientes en orden y luego se adelantan las siguientes. Se aplica cuando el negocio verifica el pago.</p>
+        </div>}
         {/* Cómo pagó, con los datos del negocio */}
         <div className="mt-4">
-          <p className="mb-1.5 text-[11px] font-light text-white/45">¿Cómo pagaste?</p>
-          {metodos === null && <p className="text-[11px] text-white/30">Cargando métodos…</p>}
+          <p className="mb-1.5 font-light text-white/45 text-xs">¿Cómo pagaste?</p>
+          {metodos === null && <p className="text-white/30 text-xs">Cargando métodos…</p>}
           {metodos !== null && Object.keys(metodos).length === 0 && (
-            <p className="rounded-xl bg-white/[0.06] px-3 py-2 text-[11px] font-light text-white/50">
+            <p className="rounded-xl bg-white/[0.06] px-3 py-2 font-light text-white/50 text-xs">
               Este negocio todavía no cargó sus datos de pago. Escríbele para coordinar.
             </p>
           )}
@@ -265,7 +286,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
 
         {/* Comprobante */}
         <div className="mt-4">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 px-3 py-3 text-[12px] font-light text-white/60">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 px-3 py-3 text-white/60 text-sm font-medium">
             <Upload className="h-4 w-4" />
             {subiendo ? 'Subiendo…' : comprobante ? 'Comprobante cargado ✓' : 'Subir comprobante de pago'}
             <input
@@ -276,23 +297,23 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
             />
           </label>
           {!comprobante && (
-            <p className="mt-1 text-center text-[10px] font-light text-white/35">
+            <p className="mt-1 text-center font-light text-white/35 text-xs">
               Sin comprobante el negocio no puede verificar tu abono.
             </p>
           )}
         </div>
 
-        {error && <p className="mt-3 text-center text-[11px] text-red-300">{error}</p>}
+        {error && <p className="mt-3 text-center text-red-300 text-xs">{error}</p>}
 
         <button
           onClick={enviar}
-          disabled={enviando || !metodo}
+          disabled={enviando || subiendo || !metodo || !montoValido}
           className="wallet-tap mt-4 w-full rounded-full py-3 text-sm font-semibold text-white disabled:opacity-40"
           style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
         >
           {enviando ? 'Enviando…' : 'Reportar abono'}
         </button>
-        <p className="mt-2 text-center text-[10px] font-light text-white/35">
+        <p className="mt-2 text-center font-light text-white/35 text-xs">
           El negocio lo verifica y se suma a tu cuenta.
         </p>
       </motion.div>

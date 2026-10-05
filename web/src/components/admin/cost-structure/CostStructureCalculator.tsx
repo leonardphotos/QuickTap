@@ -218,7 +218,7 @@ export function CostStructureCalculator({
         {/* Producto */}
         <section className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold text-brand-950">1 · Producto</p>
+            <p className="font-semibold text-brand-950 text-base">1 · Producto</p>
             {selectedId && (
               <button type="button" onClick={() => { setSelectedId(null); setLines([blankLine()]); setPrice(''); }} className="text-xs font-medium text-brand-950/50 underline">
                 Cálculo en blanco
@@ -232,7 +232,7 @@ export function CostStructureCalculator({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar producto del menú…"
-              className="w-full rounded-full border border-brand-950/15 py-2 pl-9 pr-4 text-sm"
+              className="w-full rounded-full border border-brand-950/15 py-2 pl-9 pr-4 text-base"
             />
           </div>
           <div className="mt-3 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
@@ -248,10 +248,10 @@ export function CostStructureCalculator({
                 {p.name} · {formatBase(p.price, symbol)}
               </button>
             ))}
-            {filtered.length === 0 && <p className="text-xs font-light text-brand-950/40">Ningún producto coincide.</p>}
+            {filtered.length === 0 && <p className="font-light text-brand-950/40 text-xs">Ningún producto coincide.</p>}
           </div>
           {sheet && (
-            <p className="mt-3 text-xs text-brand-950/50">
+            <p className="mt-3 text-brand-950/50 text-xs">
               <span className="font-semibold text-brand-950">{sheet.product.name}</span> · {sheet.product.categoryName} ·{' '}
               {SOURCE_LABEL[sheet.materialsSource]}
               {sheet.saved && (
@@ -262,14 +262,14 @@ export function CostStructureCalculator({
               )}
             </p>
           )}
-          {loadingSheet && <p className="mt-2 text-xs text-brand-950/40">Cargando…</p>}
+          {loadingSheet && <p className="mt-2 text-brand-950/40 text-xs">Cargando…</p>}
         </section>
 
         {/* Materiales */}
         <section className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold text-brand-950">2 · Material utilizado</p>
-            <p className="text-xs text-brand-950/50">
+            <p className="font-semibold text-brand-950 text-base">2 · Material utilizado</p>
+            <p className="text-brand-950/50 text-xs">
               Materia prima: <span className="font-semibold text-brand-950">{formatBase(result.materialsCost, symbol)}</span>
             </p>
           </div>
@@ -299,13 +299,13 @@ export function CostStructureCalculator({
                       value={l.name}
                       onChange={(e) => patchLine(l.key, { name: e.target.value })}
                       placeholder="Ej: Carne 150 g"
-                      className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-3 py-1.5 text-sm"
+                      className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-3 py-1.5 text-base"
                     />
                   ) : (
                     <select
                       value={l.preparationId ? `prep:${l.preparationId}` : l.inventoryItemId ? `item:${l.inventoryItemId}` : ''}
                       onChange={(e) => pickMaterial(l.key, e.target.value)}
-                      className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm text-brand-950"
+                      className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-brand-950 text-base"
                     >
                       <option value="">{catalog ? 'Elige un insumo…' : 'Cargando insumos…'}</option>
                       {catalog && catalog.items.length > 0 && (
@@ -343,7 +343,7 @@ export function CostStructureCalculator({
                   </button>
                 </div>
                 <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] items-end gap-2">
-                  <label className="text-[10px] font-medium uppercase tracking-wide text-brand-950/40">
+                  <label className="uppercase tracking-wide text-brand-950/40 text-sm font-medium">
                     Cant.
                     <input
                       type="number"
@@ -351,17 +351,17 @@ export function CostStructureCalculator({
                       step="any"
                       value={l.quantity}
                       onChange={(e) => patchLine(l.key, { quantity: Number(e.target.value) })}
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-right text-sm normal-case tracking-normal text-brand-950"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-right normal-case tracking-normal text-brand-950 text-base"
                     />
                   </label>
-                  <label className="text-[10px] font-medium uppercase tracking-wide text-brand-950/40">
+                  <label className="uppercase tracking-wide text-brand-950/40 text-sm font-medium">
                     Unidad
                     <select
                       value={l.unit}
                       onChange={(e) => patchLine(l.key, { unit: e.target.value })}
                       disabled={l.mode === 'INVENTORY'}
                       title={l.mode === 'INVENTORY' ? 'La unidad la define el insumo en Inventario' : undefined}
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm normal-case tracking-normal text-brand-950 disabled:bg-brand-950/[0.04] disabled:text-brand-950/60"
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 normal-case tracking-normal text-brand-950 disabled:bg-brand-950/[0.04] disabled:text-brand-950/60 text-base"
                     >
                       {!UNITS.includes(l.unit) && <option value={l.unit}>{l.unit}</option>}
                       {UNITS.map((u) => (
@@ -371,7 +371,7 @@ export function CostStructureCalculator({
                       ))}
                     </select>
                   </label>
-                  <label className="text-[10px] font-medium uppercase tracking-wide text-brand-950/40">
+                  <label className="uppercase tracking-wide text-brand-950/40 text-sm font-medium">
                     Costo unit.
                     <div className="relative mt-0.5">
                       <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-brand-950/40">{symbol}</span>
@@ -381,13 +381,13 @@ export function CostStructureCalculator({
                         step="any"
                         value={l.unitCost}
                         onChange={(e) => patchLine(l.key, { unitCost: Number(e.target.value) })}
-                        className="w-full rounded-lg border border-brand-950/15 py-1.5 pl-5 pr-2 text-right text-sm normal-case tracking-normal text-brand-950"
+                        className="w-full rounded-lg border border-brand-950/15 py-1.5 pl-5 pr-2 text-right normal-case tracking-normal text-brand-950 text-base"
                       />
                     </div>
                   </label>
                   <div className="min-w-[72px] text-right">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-brand-950/40">Total</p>
-                    <p className="py-1.5 text-sm font-semibold text-brand-950 tabular-nums">
+                    <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">Total</p>
+                    <p className="py-1.5 font-semibold text-brand-950 tabular-nums text-base">
                       {formatBase((Number(l.quantity) || 0) * (Number(l.unitCost) || 0), symbol)}
                     </p>
                   </div>
@@ -416,15 +416,15 @@ export function CostStructureCalculator({
         {/* Porcentajes del restaurante */}
         <section className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold text-brand-950">3 · Costos fijos y variables</p>
-            <p className="text-xs text-brand-950/50">
+            <p className="font-semibold text-brand-950 text-base">3 · Costos fijos y variables</p>
+            <p className="text-brand-950/50 text-xs">
               Fijos {result.fixedPercent.toFixed(2)}% · Variables {result.variablePercent.toFixed(2)}%
             </p>
           </div>
           <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
             {(['FIXED', 'VARIABLE'] as const).map((kind) => (
               <div key={kind}>
-                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+                <p className="mb-1 font-medium uppercase tracking-wide text-brand-950/40 text-xs">
                   {kind === 'FIXED' ? 'Fijos (prorrateados)' : 'Variables'}
                 </p>
                 {items
@@ -441,16 +441,16 @@ export function CostStructureCalculator({
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[11px] font-light text-brand-950/45">
+          <p className="mt-3 font-light text-brand-950/45 text-xs">
             Apagar un elemento aquí solo afecta este cálculo. Para cambiar los % del restaurante usa la pestaña "Elementos".
           </p>
         </section>
 
         {/* Precio */}
         <section className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
-          <p className="mb-3 text-sm font-semibold text-brand-950">4 · Precio de venta</p>
+          <p className="mb-3 font-semibold text-brand-950 text-base">4 · Precio de venta</p>
           <div className="flex flex-wrap items-end gap-4">
-            <label className="text-xs text-brand-950/60">
+            <label className="text-brand-950/60 text-sm font-medium">
               Precio (base, sin servicio/IVA)
               <div className="relative mt-1">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-brand-950/40">{symbol}</span>
@@ -470,18 +470,18 @@ export function CostStructureCalculator({
                 onClick={() => setPrice(String(result.suggestedPrice))}
                 className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left hover:bg-emerald-100"
               >
-                <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700">Sugerido para {config.targetNetMarginPercent}% de utilidad</p>
-                <p className="text-base font-bold text-emerald-700">{formatBase(result.suggestedPrice, symbol)}</p>
+                <p className="font-medium uppercase tracking-wide text-emerald-700 text-xs">Sugerido para {config.targetNetMarginPercent}% de utilidad</p>
+                <p className="font-bold text-emerald-700 text-base">{formatBase(result.suggestedPrice, symbol)}</p>
               </button>
             )}
             {result.breakEvenPrice != null && (
               <div className="rounded-xl border border-brand-950/10 px-3 py-2">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-brand-950/40">Precio de equilibrio</p>
-                <p className="text-base font-bold text-brand-950">{formatBase(result.breakEvenPrice, symbol)}</p>
+                <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">Precio de equilibrio</p>
+                <p className="font-bold text-brand-950 text-base">{formatBase(result.breakEvenPrice, symbol)}</p>
               </div>
             )}
             {result.suggestedPrice == null && result.materialsCost > 0 && (
-              <p className="text-xs text-red-600">Los % fijos + variables + utilidad objetivo llegan al 100 %: no hay precio que cierre.</p>
+              <p className="text-red-600 text-xs">Los % fijos + variables + utilidad objetivo llegan al 100 %: no hay precio que cierre.</p>
             )}
           </div>
         </section>
@@ -492,25 +492,25 @@ export function CostStructureCalculator({
         <div className="rounded-3xl bg-brand-950 p-5 text-white shadow-lg shadow-brand-950/20">
           <div className="mb-4 flex items-center gap-2">
             <Calculator className="h-4 w-4 text-sky-300" />
-            <p className="text-sm font-semibold">Estructura de costo</p>
+            <p className="font-semibold text-base">Estructura de costo</p>
           </div>
 
-          <p className="text-[11px] uppercase tracking-wide text-white/50">Utilidad neta por unidad</p>
+          <p className="uppercase tracking-wide text-white/50 text-xs">Utilidad neta por unidad</p>
           <p className={`text-3xl font-extrabold tracking-tight ${result.netProfit < 0 ? 'text-red-300' : 'text-emerald-300'}`}>
             {formatBase(result.netProfit, symbol)}
           </p>
-          <p className="mt-0.5 text-sm text-white/70">
+          <p className="mt-0.5 text-white/70 text-base">
             {result.netMarginPercent.toFixed(1)}% del precio · objetivo {config.targetNetMarginPercent}%
           </p>
           {belowTarget && (
-            <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+            <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 font-medium text-amber-200 text-xs">
               <AlertTriangle className="h-3 w-3" /> Por debajo del objetivo
             </p>
           )}
 
           {/* Barra de composición */}
           <div className="mt-5 flex h-3 w-full overflow-hidden rounded-full bg-white/10">
-            <div className="bg-sky-400" style={{ width: `${shares.materials}%` }} title="Materia prima" />
+            <div className="bg-brand-500" style={{ width: `${shares.materials}%` }} title="Materia prima" />
             <div className="bg-amber-400" style={{ width: `${shares.variable}%` }} title="Variables" />
             <div className="bg-rose-400" style={{ width: `${shares.fixed}%` }} title="Fijos" />
             <div className="bg-emerald-400" style={{ width: `${shares.profit}%` }} title="Utilidad" />
@@ -529,7 +529,7 @@ export function CostStructureCalculator({
             </div>
           </dl>
 
-          <p className="mt-4 text-[11px] text-white/45">
+          <p className="mt-4 text-white/45 text-xs">
             Food cost {result.foodCostPercent.toFixed(1)}% · Margen bruto{' '}
             {priceNum > 0 ? (((priceNum - result.materialsCost) / priceNum) * 100).toFixed(1) : '0.0'}%
           </p>
@@ -540,13 +540,13 @@ export function CostStructureCalculator({
           {selectedId ? (
             <>
               {stale && (
-                <p className="mb-2 flex items-start gap-1.5 text-[11px] text-amber-700">
+                <p className="mb-2 flex items-start gap-1.5 text-amber-700 text-xs">
                   <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                   La ficha guardada usó otro precio o % — vuelve a guardar para actualizarla.
                 </p>
               )}
               {sheet?.product.costSource === 'MANUAL' && (
-                <label className="mb-3 flex cursor-pointer items-start gap-2 text-xs text-brand-950/70">
+                <label className="mb-3 flex cursor-pointer items-start gap-2 text-brand-950/70 text-sm font-medium">
                   <input type="checkbox" checked={syncCost} onChange={(e) => setSyncCost(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-500" />
                   <span>
                     Actualizar el <b>costo del producto</b> con la materia prima ({formatBase(result.materialsCost, symbol)}) — así Margen de utilidad y KPI usan este número.
@@ -554,11 +554,11 @@ export function CostStructureCalculator({
                 </label>
               )}
               {sheet?.product.costSource === 'RECIPE' && (
-                <p className="mb-3 text-[11px] font-light text-brand-950/50">
+                <p className="mb-3 font-light text-brand-950/50 text-xs">
                   Este producto usa receta: su costo lo manda Inventario. Acá solo se guarda la ficha de estructura.
                 </p>
               )}
-              {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
+              {error && <p className="mb-2 text-red-600 text-xs">{error}</p>}
               <TextureButton variant="primary" size="sm" className="!w-full" onClick={save} disabled={saving || priceNum <= 0}>
                 {savedFlash ? (
                   <>
@@ -572,7 +572,7 @@ export function CostStructureCalculator({
               </TextureButton>
             </>
           ) : (
-            <p className="text-xs font-light text-brand-950/50">Elige un producto arriba para poder guardar esta estructura como su ficha.</p>
+            <p className="font-light text-brand-950/50 text-xs">Elige un producto arriba para poder guardar esta estructura como su ficha.</p>
           )}
         </div>
       </aside>

@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Search, Truck } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { shopMoneyFormatters, formatUnidad } from './shopFormat';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { Search,Truck } from 'lucide-react';
+import { useMemo,useState } from 'react';
+import { formatUnidad,shopMoneyFormatters } from './shopFormat';
 import type { ShopSession } from './shopSession';
 
 type Rango = 'week' | 'month' | 'all';
@@ -93,9 +93,9 @@ export default function ShopPurchasesPage({
           ...(pesoTotal > 0 ? [{ label: 'Peso recibido', value: formatUnidad(pesoTotal, 'KG'), sub: '' }] : []),
         ].map((c) => (
           <div key={c.label} className="rounded-2xl border border-brand-950/10 bg-white p-4">
-            <p className="text-[11px] font-bold uppercase text-brand-950/40">{c.label}</p>
+            <p className="font-bold uppercase text-brand-950/40 text-xs">{c.label}</p>
             <p className="text-xl font-bold text-brand-950 mt-1">{c.value}</p>
-            {c.sub && <p className="text-[12px] text-brand-950/40">{c.sub}</p>}
+            {c.sub && <p className="text-brand-950/40 text-xs">{c.sub}</p>}
           </div>
         ))}
       </div>
@@ -108,13 +108,13 @@ export default function ShopPurchasesPage({
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar producto o proveedor…"
-              className="w-full border border-brand-950/15 rounded-lg pl-9 pr-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg pl-9 pr-3 py-2 text-base"
             />
           </div>
           <select
             value={proveedor}
             onChange={(e) => setProveedor(e.target.value)}
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-base"
           >
             <option value="">Todos los proveedores</option>
             {proveedores.map((p) => (
@@ -124,7 +124,7 @@ export default function ShopPurchasesPage({
         </div>
 
         {filtradas.length === 0 ? (
-          <p className="text-sm text-brand-950/40 font-light py-4 text-center">
+          <p className="text-brand-950/40 font-light py-4 text-center text-base">
             Sin compras en este período. Cada lote que cargues desde Inventario aparece acá.
           </p>
         ) : (
@@ -177,7 +177,7 @@ export default function ShopPurchasesPage({
 
       {porProveedor.length > 1 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white p-4">
-          <p className="font-semibold text-brand-950 mb-3">Cuánto le compraste a cada uno</p>
+          <p className="font-semibold text-brand-950 mb-3 text-base">Cuánto le compraste a cada uno</p>
           <ul className="space-y-1.5">
             {porProveedor.map((p) => (
               <li key={p.nombre} className="flex items-center justify-between gap-3 text-sm">

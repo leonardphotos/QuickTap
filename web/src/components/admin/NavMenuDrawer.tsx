@@ -1,11 +1,12 @@
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { visibleNavLinks } from '@/pages/admin/nav-links';
+import { ArrowLeftRight,LogOut,Nfc,X } from 'lucide-react';
+import { AnimatePresence,motion,useReducedMotion } from 'motion/react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeftRight, LogOut, Nfc, X } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { TextureButton } from '@/components/ui/texture-button';
 import { QrNfcQuoteDialog } from './QrNfcQuoteDialog';
-import { visibleNavLinks } from '@/pages/admin/nav-links';
+import { primaryRestaurantLinks } from './RestaurantModuleNav';
 
 /** Curva de drawer estilo iOS (Ionic Framework): entra decidido, sin rebote. */
 const EASE_DRAWER: [number, number, number, number] = [0.32, 0.72, 0, 1];
@@ -18,6 +19,7 @@ const EASE_DRAWER: [number, number, number, number] = [0.32, 0.72, 0, 1];
 export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, restaurant, logout, switchToParent } = useAuth();
   const [showQrNfcQuote, setShowQrNfcQuote] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   // El diálogo de cotización se abre DESDE este menú (cerrándolo primero), así
   // que no puede depender de `open`: si no, al cerrar el menú también se
@@ -27,10 +29,7 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
   // Las secciones del panel (Cocina, Delivery, Productos, etc.) ya viven en la
   // cuadrícula de "Accesos rápidos" del Dashboard y en la barra/dock de navegación —
   // este menú queda solo para Ajustes y lo secundario, para no duplicarlas.
-  const settingsLink = visibleNavLinks(user?.role, restaurant, user?.canAccessInventory, user?.cashierFullAccess).find(
-    (l) => l.to === '/admin/settings',
-  );
-  const isTrialing = restaurant.subscriptionStatus === 'TRIALING';
+  const links = primaryRestaurantLinks(visibleNavLinks(user?.role, restaurant, user?.canAccessInventory, user?.cashierFullAccess));
 
   return (
     <>
@@ -48,36 +47,37 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
         />
         <motion.div
           className="relative w-72 max-w-[85vw] bg-white h-full shadow-xl p-5 flex flex-col overflow-y-auto"
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ duration: 0.3, ease: EASE_DRAWER }}
+          initial={{ opacity: reduceMotion ? 0 : 1, transform: reduceMotion ? 'translateX(0)' : 'translateX(100%)' }}
+          animate={{ opacity: 1, transform: 'translateX(0)' }}
+          exit={{ opacity: reduceMotion ? 0 : 1, transform: reduceMotion ? 'translateX(0)' : 'translateX(100%)' }}
+          transition={{ duration: reduceMotion ? 0.14 : 0.24, ease: EASE_DRAWER }}
         >
           <div className="flex items-center justify-between mb-4">
-            <p className="font-semibold text-brand-950">Menú</p>
-            <button onClick={onClose} aria-label="Cerrar">
+            <p className="font-semibold text-brand-950 text-base">Menú</p>
+            <button onClick={onClose} aria-label="Cerrar" className="flex h-10 w-10 items-center justify-center rounded-full transition-[background-color,transform] duration-150 ease-out-strong hover:bg-brand-950/[0.05] active:scale-95 motion-reduce:transition-none">
               <X className="h-5 w-5 text-brand-950/50" />
             </button>
           </div>
 
           <div className="space-y-1 flex-1">
-            {settingsLink && (
+            {links.map((settingsLink) => (
               <Link
+                key={settingsLink.to}
                 to={settingsLink.to}
                 onClick={onClose}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors"
+                className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-brand-950/[0.05] transition-[background-color,transform] duration-150 ease-out-strong active:scale-[0.985] motion-reduce:transition-none"
               >
                 <settingsLink.icon className="h-5 w-5 text-brand-500 shrink-0" />
                 <span className="text-sm font-medium text-brand-950">{settingsLink.label}</span>
               </Link>
-            )}
+            ))}
 
             <button
               onClick={() => {
                 onClose();
                 setShowQrNfcQuote(true);
               }}
-              className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors text-left"
+              className="w-full flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-brand-950/[0.05] transition-[background-color,transform] duration-150 ease-out-strong active:scale-[0.985] motion-reduce:transition-none text-left"
             >
               <Nfc className="h-5 w-5 text-brand-500 shrink-0" />
               <span className="text-sm font-medium text-brand-950">Cotiza tus QR NFC</span>
@@ -89,7 +89,7 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
                   onClose();
                   switchToParent();
                 }}
-                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors text-left"
+                className="w-full flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-brand-950/[0.05] transition-[background-color,transform] duration-150 ease-out-strong active:scale-[0.985] motion-reduce:transition-none text-left"
               >
                 <ArrowLeftRight className="h-5 w-5 text-brand-500 shrink-0" />
                 <span className="text-sm font-medium text-brand-950">Volver a sede principal</span>
@@ -98,17 +98,17 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
           </div>
 
           <div className="space-y-2 pt-3 border-t border-brand-950/10">
-            <Link to="/admin/billing" onClick={onClose} className="block">
+            {user && ['OWNER', 'ADMIN'].includes(user.role) && <Link to="/admin/billing" onClick={onClose} className="block">
               <TextureButton variant="brand" size="sm">
-                {isTrialing ? 'Activar plan' : 'Actualizar plan'}
+                Mi membresía
               </TextureButton>
-            </Link>
+            </Link>}
             <button
               onClick={() => {
                 onClose();
                 logout();
               }}
-              className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-[background-color,transform] duration-150 ease-out-strong active:scale-[0.98] motion-reduce:transition-none"
             >
               <LogOut className="h-4 w-4" /> Cerrar sesión
             </button>

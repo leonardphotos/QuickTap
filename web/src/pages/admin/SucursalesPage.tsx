@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, Building2, ChevronDown, Plus, TriangleAlert } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
-import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
+import { AdvisorLeadDialog } from '@/components/landing/AdvisorLeadDialog';
 import { BranchComparisonSection } from '@/components/admin/BranchComparisonSection';
-import type { OrderChannel, PaymentMethod } from '@/types';
+import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog.shared';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { OrderChannel,PaymentMethod } from '@/types';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
+import { ArrowRight,Building2,ChevronDown,Plus,TriangleAlert } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año', all: 'Todo' };
@@ -38,6 +40,8 @@ export default function SucursalesPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [advisor, setAdvisor] = useState(false);
+  const quotedBranches = restaurant?.subscriptionPlan === 'CONTROL';
   const [savingSetting, setSavingSetting] = useState<'inventoryMode' | 'casaMatriz' | null>(null);
   // Estos dos ajustes son de TODO el grupo (sede principal + sucursales) — solo se
   // muestran/cambian desde la sede principal (ver restaurant.service.ts update()).
@@ -75,10 +79,11 @@ export default function SucursalesPage() {
 
   return (
     <div className="space-y-8">
+      {advisor && <AdvisorLeadDialog onClose={() => setAdvisor(false)} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Sucursales</h1>
-          <p className="text-sm text-brand-950/60 font-light mt-1">
+          <p className="text-brand-950/60 font-light mt-1 text-base">
             Cada sucursal tiene su propio catálogo, inventario y equipo. Aquí ves el reporte consolidado de todas.
           </p>
         </div>
@@ -86,23 +91,23 @@ export default function SucursalesPage() {
           variant="brand"
           size="default"
           className="!w-auto flex items-center gap-2"
-          onClick={() => setShowAddDialog(true)}
+          onClick={() => quotedBranches ? setAdvisor(true) : setShowAddDialog(true)}
         >
-          <Plus className="h-4 w-4" /> Agregar sucursal
+          <Plus className="h-4 w-4" /> {quotedBranches ? 'Solicitar cotización para sedes' : 'Agregar sucursal'}
         </TextureButton>
       </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {branches.length === 0 ? (
-          <p className="p-5 text-sm text-brand-950/50 font-light">Todavía no tienes sucursales.</p>
+          <p className="p-5 text-brand-950/50 font-light text-base">Todavía no tienes sucursales.</p>
         ) : (
           branches.map((b) => (
             <div key={b.id} className="flex items-center justify-between gap-3 p-4">
               <div className="flex items-center gap-3">
                 <Building2 className="h-4 w-4 text-brand-500 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-brand-950">{b.name}</p>
-                  <p className="text-xs text-brand-950/50">{b.whatsappPhone ?? 'Sin WhatsApp configurado'}</p>
+                  <p className="font-medium text-brand-950 text-base">{b.name}</p>
+                  <p className="text-brand-950/50 text-xs">{b.whatsappPhone ?? 'Sin WhatsApp configurado'}</p>
                 </div>
               </div>
               <TextureButton
@@ -122,8 +127,8 @@ export default function SucursalesPage() {
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
           <div className="flex items-start justify-between gap-4 p-5">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-950">Inventario compartido entre sedes</p>
-              <p className="text-xs text-brand-950/50 font-light mt-0.5">
+              <p className="font-semibold text-brand-950 text-base">Inventario compartido entre sedes</p>
+              <p className="text-brand-950/50 font-light mt-0.5 text-xs">
                 Apagado (de siempre): cada sede tiene su propio stock. Encendido: la sede principal y todas sus
                 sucursales comparten una sola bolsa de stock en Insumos.
               </p>
@@ -139,7 +144,7 @@ export default function SucursalesPage() {
               }`}
             >
               <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-200 ease-out-strong motion-reduce:transition-none ${
                   restaurant?.inventoryMode === 'SHARED' ? 'left-[22px]' : 'left-0.5'
                 }`}
               />
@@ -147,8 +152,8 @@ export default function SucursalesPage() {
           </div>
           <div className="flex items-start justify-between gap-4 p-5">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-950">Casa Matriz</p>
-              <p className="text-xs text-brand-950/50 font-light mt-0.5">
+              <p className="font-semibold text-brand-950 text-base">Casa Matriz</p>
+              <p className="text-brand-950/50 font-light mt-0.5 text-xs">
                 Un segundo inventario, aparte del normal, para el sitio central donde tienen los insumos que
                 distribuyen a la sede principal y a las demás sucursales. Actívalo solo si tienes una casa matriz
                 de producción — se maneja desde una ventana propia en Inventario.
@@ -165,7 +170,7 @@ export default function SucursalesPage() {
               }`}
             >
               <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-200 ease-out-strong motion-reduce:transition-none ${
                   restaurant?.casaMatrizEnabled ? 'left-[22px]' : 'left-0.5'
                 }`}
               />
@@ -174,9 +179,9 @@ export default function SucursalesPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <AnimatedTabs tone="brand" className="flex flex-nowrap gap-2">
         {TABS.map((t) => (
-          <button
+          <AnimatedTab active={tab === t.id}
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -186,9 +191,9 @@ export default function SucursalesPage() {
             }`}
           >
             {t.label}
-          </button>
+          </AnimatedTab>
         ))}
-      </div>
+      </AnimatedTabs>
 
       {tab === 'summary' && <SummaryTab />}
       {tab === 'comparison' && <BranchComparisonSection />}
@@ -246,15 +251,15 @@ function SummaryTab() {
       <RangePicker range={range} onChange={setRange} />
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div>
-          <p className="text-xs text-brand-950/50">Sucursales</p>
+          <p className="text-brand-950/50 text-xs">Sucursales</p>
           <p className="text-2xl font-semibold text-brand-950">{result?.branchCount ?? '—'}</p>
         </div>
         <div>
-          <p className="text-xs text-brand-950/50">Pedidos (todas las sedes)</p>
+          <p className="text-brand-950/50 text-xs">Pedidos (todas las sedes)</p>
           <p className="text-2xl font-semibold text-brand-950">{result?.ordersCount ?? '—'}</p>
         </div>
         <div>
-          <p className="text-xs text-brand-950/50">Ventas totales</p>
+          <p className="text-brand-950/50 text-xs">Ventas totales</p>
           <p className="text-2xl font-semibold text-brand-950">{result ? formatBase(result.totalBase, symbol) : '—'}</p>
         </div>
       </div>
@@ -323,12 +328,12 @@ function SalesByBranchTab({ symbol }: { symbol: string }) {
             className="w-full flex items-center justify-between p-4 text-left hover:bg-brand-950/[0.02]"
           >
             <div>
-              <p className="text-sm font-medium text-brand-950">
+              <p className="font-medium text-brand-950 text-base">
                 {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
               </p>
-              <p className="text-xs text-brand-950/50">{r.ordersCount} pedidos</p>
+              <p className="text-brand-950/50 text-xs">{r.ordersCount} pedidos</p>
             </div>
-            <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
+            <p className="font-semibold text-brand-950 text-base">{formatBase(r.totalBase, symbol)}</p>
           </button>
         ))}
       </div>
@@ -377,9 +382,9 @@ function BranchSalesDialog({
         </DialogHeader>
 
         <div className="max-h-[60vh] overflow-y-auto space-y-1">
-          {loading && <p className="text-sm text-brand-950/40 font-light py-2">Cargando ventas…</p>}
+          {loading && <p className="text-brand-950/40 font-light py-2 text-base">Cargando ventas…</p>}
           {!loading && detail?.orders.length === 0 && (
-            <p className="text-sm text-brand-950/40 font-light py-2">Sin ventas en este período.</p>
+            <p className="text-brand-950/40 font-light py-2 text-base">Sin ventas en este período.</p>
           )}
           {!loading &&
             detail?.orders.map((sale) => (
@@ -389,26 +394,26 @@ function BranchSalesDialog({
                 className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-950/[0.04]"
               >
                 <div className="min-w-0">
-                  <p className="font-medium text-brand-950">
+                  <p className="font-medium text-brand-950 text-base">
                     #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
                   </p>
                 </div>
-                <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+                <p className="font-semibold text-brand-950 shrink-0 text-base">{formatBase(sale.totalBase, symbol)}</p>
               </button>
             ))}
         </div>
 
         {!loading && detail && detail.paymentTotals.length > 0 && (
           <div className="pt-3 border-t border-brand-950/10">
-            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Montos por método de pago</p>
+            <p className="font-medium text-brand-950/60 mb-1.5 text-xs">Montos por método de pago</p>
             <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
               {detail.paymentTotals.map((p) => (
                 <div key={p.method} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                  <p className="text-brand-950/80">{PAYMENT_LABELS[p.method as PaymentMethod] ?? p.method}</p>
-                  <p className="font-medium text-brand-950">{formatBase(p.amountBase, symbol)}</p>
+                  <p className="text-brand-950/80 text-base">{PAYMENT_LABELS[p.method as PaymentMethod] ?? p.method}</p>
+                  <p className="font-medium text-brand-950 text-base">{formatBase(p.amountBase, symbol)}</p>
                 </div>
               ))}
             </div>
@@ -432,20 +437,20 @@ function BranchSaleDetailDialog({ sale, symbol, onClose }: { sale: BranchSale; s
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <p className="text-xs text-brand-950/50 font-light">
+          <p className="text-brand-950/50 font-light text-xs">
             {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' })}
             {sale.customerName && ` · ${sale.customerName}`}
           </p>
 
           <div>
-            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Comanda</p>
+            <p className="font-medium text-brand-950/60 mb-1.5 text-xs">Comanda</p>
             <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
               {sale.items.map((item, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                  <p className="text-brand-950/80">
+                  <p className="text-brand-950/80 text-base">
                     {item.quantity}× {item.productName}
                   </p>
-                  <p className="font-medium text-brand-950 shrink-0">{formatBase(item.lineTotal, symbol)}</p>
+                  <p className="font-medium text-brand-950 shrink-0 text-base">{formatBase(item.lineTotal, symbol)}</p>
                 </div>
               ))}
             </div>
@@ -458,17 +463,17 @@ function BranchSaleDetailDialog({ sale, symbol, onClose }: { sale: BranchSale; s
           </div>
 
           <div>
-            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Pago{sale.payments.length === 1 ? '' : 's'}</p>
+            <p className="font-medium text-brand-950/60 mb-1.5 text-xs">Pago{sale.payments.length === 1 ? '' : 's'}</p>
             {sale.payments.length === 0 ? (
-              <p className="text-xs text-brand-950/40 font-light">
+              <p className="text-brand-950/40 font-light text-xs">
                 Sin pago registrado{sale.paymentMethod ? ` (método: ${PAYMENT_LABELS[sale.paymentMethod as PaymentMethod] ?? sale.paymentMethod})` : ''}.
               </p>
             ) : (
               <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
                 {sale.payments.map((p, i) => (
                   <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                    <p className="font-medium text-brand-950">{PAYMENT_LABELS[p.method as PaymentMethod] ?? p.method}</p>
-                    <p className="text-brand-950/60">{formatBase(p.amountBase, symbol)}</p>
+                    <p className="font-medium text-brand-950 text-base">{PAYMENT_LABELS[p.method as PaymentMethod] ?? p.method}</p>
+                    <p className="text-brand-950/60 text-base">{formatBase(p.amountBase, symbol)}</p>
                   </div>
                 ))}
               </div>
@@ -518,7 +523,7 @@ function InventoryByBranchTab() {
               onClick={() => setExpanded(isOpen ? null : r.branchId)}
               className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-brand-950/[0.02]"
             >
-              <p className="text-sm font-medium text-brand-950">
+              <p className="font-medium text-brand-950 text-base">
                 {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
               </p>
               <div className="flex items-center gap-2 shrink-0">
@@ -534,7 +539,7 @@ function InventoryByBranchTab() {
             {isOpen && (() => {
               const visibleItems = lowCount > 0 ? r.items.filter((i) => i.low) : r.items;
               if (visibleItems.length === 0) {
-                return <p className="px-4 pb-4 text-xs text-brand-950/50">Sin insumos cargados.</p>;
+                return <p className="px-4 pb-4 text-brand-950/50 text-xs">Sin insumos cargados.</p>;
               }
               return (
               <div className="px-4 pb-4 space-y-3">
@@ -555,7 +560,7 @@ function InventoryByBranchTab() {
                         </span>
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-brand-950/[0.08] overflow-hidden mt-1">
-                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${ratio * 100}%` }} />
+                        <div className={`h-full rounded-full transition-[width] duration-200 ease-out-strong motion-reduce:transition-none ${barColor}`} style={{ width: `${ratio * 100}%` }} />
                       </div>
                     </div>
                   );
@@ -593,11 +598,11 @@ function TopProductsTab({ symbol }: { symbol: string }) {
       <RangePicker range={range} onChange={setRange} />
       {rows.map((r) => (
         <div key={r.branchId} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4">
-          <p className="text-sm font-medium text-brand-950 mb-2">
+          <p className="font-medium text-brand-950 mb-2 text-base">
             {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
           </p>
           {r.topProducts.length === 0 ? (
-            <p className="text-xs text-brand-950/50">Sin ventas en este período.</p>
+            <p className="text-brand-950/50 text-xs">Sin ventas en este período.</p>
           ) : (
             <div className="space-y-1.5">
               {r.topProducts.map((p) => (
@@ -633,11 +638,11 @@ function EmployeesTab() {
     <div className="space-y-4">
       {rows.map((r) => (
         <div key={r.branchId} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4">
-          <p className="text-sm font-medium text-brand-950 mb-2">
+          <p className="font-medium text-brand-950 mb-2 text-base">
             {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
           </p>
           {r.employees.length === 0 ? (
-            <p className="text-xs text-brand-950/50">Sin equipo agregado todavía.</p>
+            <p className="text-brand-950/50 text-xs">Sin equipo agregado todavía.</p>
           ) : (
             <div className="space-y-1.5">
               {r.employees.map((e) => (
@@ -692,22 +697,22 @@ export function AddBranchDialog({ onClose, onCreated }: { onClose: () => void; o
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-brand-950 mb-1">Nombre de la sucursal</label>
+            <label className="block text-brand-950 mb-1 text-sm font-medium">Nombre de la sucursal</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: QuickTap Las Mercedes"
-              className="w-full rounded-xl border border-brand-950/15 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
+              className="w-full rounded-xl border border-brand-950/15 px-3.5 py-2.5 outline-none focus:border-brand-500 text-base"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-brand-950 mb-1">WhatsApp (opcional)</label>
+            <label className="block text-brand-950 mb-1 text-sm font-medium">WhatsApp (opcional)</label>
             <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </div>
 
           <div className="rounded-xl bg-brand-950/[0.03] p-4">
-            <p className="text-sm font-medium text-brand-950 mb-2">¿Vincular el catálogo?</p>
+            <p className="font-medium text-brand-950 mb-2 text-base">¿Vincular el catálogo?</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => setCopyCatalog(true)}
@@ -722,12 +727,12 @@ export function AddBranchDialog({ onClose, onCreated }: { onClose: () => void; o
                 Cargar productos nuevos desde cero
               </button>
             </div>
-            <p className="text-xs text-brand-950/40 font-light mt-2">
+            <p className="text-brand-950/40 font-light mt-2 text-xs">
               El inventario nunca se comparte: esta sucursal siempre arranca con su propio inventario vacío.
             </p>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
 
           <TextureButton variant="brand" size="default" disabled={submitting} onClick={submit} className="disabled:opacity-50">
             {submitting ? 'Creando…' : 'Crear sucursal'}

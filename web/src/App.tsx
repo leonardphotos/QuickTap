@@ -1,9 +1,14 @@
+import { subdomainHandle } from './pages/connect/connect-api';
 import { lazy, Suspense , useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { appFlavor, isInstalledApp } from './utils/native-platform';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
+const ConnectPage = lazy(() => import('./pages/connect/ConnectPage'));
+const ConnectTerms = lazy(() => import('./pages/connect/ConnectTerms'));
+const RecipeCostPage = lazy(() => import('./pages/tools/RecipeCostPage'));
+const RestaurantWelcomePage = lazy(() => import('./pages/RestaurantWelcomePage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 // QuickTap Wallet: portal del cliente final. Árbol propio y perezoso, igual que el panel y el
 // dashboard maestro — quien entra a ver sus compras no debe descargar nada de los otros dos.
@@ -31,6 +36,7 @@ const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
 const VerticalPage = lazy(() => import('./pages/seo/VerticalPage'));
 const ComparativaPage = lazy(() => import('./pages/seo/ComparativaPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
+const ChefRecipesPage = lazy(() => import('./pages/public/ChefRecipesPage'));
 const ShopStorefrontPage = lazy(() => import('./pages/public/shop/ShopStorefrontPage'));
 const ShopTicketPage = lazy(() => import('./pages/public/ShopTicketPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
@@ -49,12 +55,14 @@ const ProductsPage = lazy(() => import('./pages/admin/ProductsPage'));
 const TablesPage = lazy(() => import('./pages/admin/TablesPage'));
 const TableOrdersPage = lazy(() => import('./pages/admin/TableOrdersPage'));
 const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
+const AssistantPage = lazy(() => import('./pages/admin/AssistantPage'));
 const ScreenPage = lazy(() => import('./pages/admin/ScreenPage'));
 const BillingPage = lazy(() => import('./pages/admin/BillingPage'));
 const AdministrationPage = lazy(() => import('./pages/admin/AdministrationPage'));
 const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
 const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
 const PurchasesPage = lazy(() => import('./pages/admin/PurchasesPage'));
+const InternalMenuPage = lazy(() => import('./pages/admin/InternalMenuPage'));
 const SucursalesPage = lazy(() => import('./pages/admin/SucursalesPage'));
 const ReservationsPage = lazy(() => import('./pages/admin/ReservationsPage'));
 const SyncConflictsPage = lazy(() => import('./pages/admin/SyncConflictsPage'));
@@ -62,9 +70,12 @@ const QuotesPage = lazy(() => import('./pages/admin/QuotesPage'));
 const ComandaKioskPage = lazy(() => import('./pages/admin/ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./pages/admin/NumeroPage'));
 const WaiterTabletPage = lazy(() => import('./pages/admin/WaiterTabletPage').then((m) => ({ default: m.WaiterTabletPage })));
+const CourierPage = lazy(() => import('./pages/admin/CourierPage'));
 const WelcomePage = lazy(() => import('./pages/admin/WelcomePage'));
 const ClubPublicPage = lazy(() => import('./pages/public/ClubPublicPage'));
 const ClubTicketPage = lazy(() => import('./pages/public/ClubTicketPage'));
+const AppointmentBookingPage = lazy(() => import('./pages/public/AppointmentBookingPage'));
+const DeliveryTrackingPage = lazy(() => import('./pages/public/DeliveryTrackingPage'));
 const MasterLoginPage = lazy(() => import('./pages/master/MasterLoginPage'));
 const MasterLayout = lazy(() => import('./pages/master/MasterLayout'));
 const MasterRestaurantsPage = lazy(() => import('./pages/master/MasterRestaurantsPage'));
@@ -72,14 +83,19 @@ const MasterRestaurantDetailPage = lazy(() => import('./pages/master/MasterResta
 const MasterOlaClickImportPage = lazy(() => import('./pages/master/MasterOlaClickImportPage'));
 const MasterCatalogAiPage = lazy(() => import('./pages/master/MasterCatalogAiPage'));
 const MasterAiUsagePage = lazy(() => import('./pages/master/MasterAiUsagePage'));
+const MasterAssistantPage = lazy(() => import('./pages/master/MasterAssistantPage'));
 const MasterPromoCodesPage = lazy(() => import('./pages/master/MasterPromoCodesPage'));
 const MasterPaymentMethodsPage = lazy(() => import('./pages/master/MasterPaymentMethodsPage'));
 const MasterPlansPage = lazy(() => import('./pages/master/MasterPlansPage'));
 const MasterWhatsappPage = lazy(() => import('./pages/master/MasterWhatsappPage'));
 const MasterProofsPage = lazy(() => import('./pages/master/MasterProofsPage'));
 const MasterAdminsPage = lazy(() => import('./pages/master/MasterAdminsPage'));
+const MasterAppsPage = lazy(() => import('./pages/master/MasterAppsPage'));
 const MasterSummaryPage = lazy(() => import('./pages/master/MasterSummaryPage'));
+const MasterAdministrationPage = lazy(() => import('./pages/master/MasterAdministrationPage'));
 const MasterFunnelPage = lazy(() => import('./pages/master/MasterFunnelPage'));
+const MasterBillingNoticesPage = lazy(() => import('./pages/master/MasterBillingNoticesPage'));
+const MasterPrintingPage = lazy(() => import('./pages/master/MasterPrintingPage'));
 const MasterLivePage = lazy(() => import('./pages/master/MasterLivePage'));
 const MasterQuotesPage = lazy(() => import('./pages/master/MasterQuotesPage'));
 const MasterQrNfcRequestsPage = lazy(() => import('./pages/master/MasterQrNfcRequestsPage'));
@@ -101,16 +117,24 @@ function PlanesRedirect() {
 
 /** Cada área (público/admin/maestro) se carga por separado: un visitante del menú nunca descarga el panel. */
 function RouteFallback() {
-  return <div className="min-h-screen flex items-center justify-center text-brand-950/30 font-light text-sm">Cargando…</div>;
+  return <div className="min-h-screen flex items-center justify-center text-brand-950/30 font-light text-sm">Preparando todo para ti</div>;
 }
 
 export default function App() {
+  const profileHost = subdomainHandle(window.location.hostname);
+  if (profileHost) return <Suspense fallback={<RouteFallback />}><ConnectPage publicHandle={profileHost}/></Suspense>;
   return (
     <AuthProvider>
       <MasterAuthProvider>
         <Suspense fallback={<RouteFallback />}>
           <ScrollToTop />
           <Routes>
+            <Route path="/menu-gratis" element={<ConnectPage />} />
+            <Route path="/m/:handle" element={<ConnectPage />} />
+            <Route path="/menu-gratis/condiciones" element={<ConnectTerms />} />
+            <Route path="/connect" element={<ConnectPage />} />
+            <Route path="/connect/p/:handle" element={<ConnectPage />} />
+            <Route path="/connect/condiciones" element={<ConnectTerms />} />
             {/*
               Quien instala la app (Android o el escritorio de Windows) es personal del
               restaurante, no un visitante: la landing existe para vender el producto y ahí solo
@@ -131,6 +155,7 @@ export default function App() {
             {/* La página de soluciones se fusionó con la Landing (ahora vive debajo del hero). */}
             <Route path="/soluciones" element={<Navigate to="/" replace />} />
             {/* /precios es el slug SEO canónico (cluster de precio); /planes queda como redirección. */}
+            <Route path="/herramientas/calculadora-costo-plato" element={<RecipeCostPage />} />
             <Route path="/precios" element={<PlansPage />} />
             <Route path="/planes" element={<PlanesRedirect />} />
             <Route path="/legal" element={<LegalPage />} />
@@ -138,6 +163,7 @@ export default function App() {
             {/* QuickTap Wallet (quicktap.club/wallet) */}
             <Route path="/wallet" element={<WalletLoginPage />} />
             <Route path="/wallet/conoce" element={<WalletInfoPage />} />
+            <Route path="/bienvenida" element={<RestaurantWelcomePage />} />
             <Route path="/tutoriales" element={<TutorialsPage />} />
             <Route path="/wallet/mis-compras" element={<WalletDashboardPage />} />
             {/* El portal se llamó QuickTap Pass y su enlace circuló impreso y por WhatsApp:
@@ -160,6 +186,8 @@ export default function App() {
 
             {/* Menú público (QR de mesa o link general para delivery/pickup) */}
             <Route path="/r/:slug" element={<MenuPage />} />
+            {/* Acceso temporal de cocina: receta e ingredientes, sin sesión del panel. */}
+            <Route path="/recetas/:slug" element={<ChefRecipesPage />} />
 
             {/* Tienda virtual del Local Comercial: catálogo y pedido, sin cuenta. */}
             <Route path="/tienda/:slug" element={<ShopStorefrontPage />} />
@@ -169,6 +197,8 @@ export default function App() {
             {/* Club deportivo: reserva del jugador y su QR de acceso, sin cuenta. */}
             <Route path="/club/:slug" element={<ClubPublicPage />} />
             <Route path="/acceso/:accessToken" element={<ClubTicketPage />} />
+            <Route path="/citas/:slug" element={<AppointmentBookingPage />} />
+            <Route path="/delivery/seguimiento/:token" element={<DeliveryTrackingPage />} />
 
             {/* Panel del restaurante */}
             <Route path="/admin/login" element={<LoginPage />} />
@@ -192,11 +222,13 @@ export default function App() {
               <Route path="tables" element={<TablesPage />} />
               <Route path="table-orders" element={<TableOrdersPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="assistant" element={<AssistantPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="administration" element={<AdministrationPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="purchases" element={<PurchasesPage />} />
+              <Route path="internal-menu" element={<InternalMenuPage />} />
               <Route path="sucursales" element={<SucursalesPage />} />
               <Route path="reservations" element={<ReservationsPage />} />
               <Route path="pedidos-por-revisar" element={<SyncConflictsPage />} />
@@ -212,26 +244,34 @@ export default function App() {
                   teclado a pantalla completa — esta ruta solo existe para que /admin/waiter-tablet
                   matchee (y para que dueño/admin puedan entrar a previsualizarla). */}
               <Route path="waiter-tablet" element={<WaiterTabletPage />} />
+              {/* AdminLayout convierte este rol en su portal móvil exclusivo de entregas. */}
+              <Route path="motorizado" element={<CourierPage />} />
+              <Route path="citas/*" element={<DashboardPage />} />
             </Route>
 
             {/* Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) */}
             <Route path="/master/login" element={<MasterLoginPage />} />
             <Route path="/master" element={<MasterLayout />}>
-              {/* Entrar al dashboard maestro abre directo el Resumen, no la lista de locales. */}
-              <Route index element={<Navigate to="/master/summary" replace />} />
+              {/* Entrar al máster abre el panel de aplicaciones. */}
+              <Route index element={<Navigate to="/master/apps" replace />} />
               <Route path="restaurants" element={<MasterRestaurantsPage />} />
               <Route path="restaurants/:id" element={<MasterRestaurantDetailPage />} />
               <Route path="restaurants/:id/olaclick-import" element={<MasterOlaClickImportPage />} />
               <Route path="catalog-ai" element={<MasterCatalogAiPage />} />
               <Route path="ai-usage" element={<MasterAiUsagePage />} />
+              <Route path="assistant" element={<MasterAssistantPage />} />
               <Route path="promo-codes" element={<MasterPromoCodesPage />} />
               <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
               <Route path="plans" element={<MasterPlansPage />} />
               <Route path="whatsapp" element={<MasterWhatsappPage />} />
               <Route path="proofs" element={<MasterProofsPage />} />
+              <Route path="apps" element={<MasterAppsPage />} />
               <Route path="summary" element={<MasterSummaryPage />} />
+              <Route path="administration" element={<MasterAdministrationPage />} />
               <Route path="funnel" element={<MasterFunnelPage />} />
               <Route path="live" element={<MasterLivePage />} />
+              <Route path="printing" element={<MasterPrintingPage />} />
+              <Route path="billing-notices" element={<MasterBillingNoticesPage />} />
               <Route path="quotes" element={<MasterQuotesPage />} />
               <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />
               <Route path="advisor-leads" element={<MasterAdvisorLeadsPage />} />

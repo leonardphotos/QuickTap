@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
-import { MessageCircle, Plus, Search, Trash2, UserRound } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { downloadQuotePdf } from '@/utils/quote-pdf';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { MessageCircle,Plus,Search,Trash2,UserRound } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { InlinePanel } from '../InlinePanel';
 import {
-  crmApi,
-  SEGMENT_LABELS,
-  waPhoneOf,
-  type CrmCustomer,
-  type CrmProfile,
-  type CrmSegment,
-  type CrmSummary,
+crmApi,
+SEGMENT_LABELS,
+waPhoneOf,
+type CrmCustomer,
+type CrmProfile,
+type CrmSegment,
+type CrmSummary,
 } from './crmApi';
 
 const card = 'rounded-2xl border border-brand-950/10 bg-white shadow-sm';
@@ -113,8 +114,8 @@ export function CustomersSection() {
       {/* Interruptor de datos obligatorios: es lo que garantiza que las listas se llenen. */}
       <div className={`${card} flex flex-wrap items-center gap-3 p-4`}>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-semibold text-brand-950">Exigir datos del cliente</p>
-          <p className="text-[12px] font-light text-brand-950/50">
+          <p className="font-semibold text-brand-950 text-base">Exigir datos del cliente</p>
+          <p className="font-light text-brand-950/50 text-xs">
             Con esto activo, toda venta pide nombre y teléfono obligatorios — así se llenan las listas del CRM y las
             promociones llegan a gente real.
           </p>
@@ -172,7 +173,7 @@ export function CustomersSection() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <div className={`${card} overflow-x-auto`}>
         <div className="flex min-w-[640px] items-center gap-3 border-b border-brand-950/[0.06] px-5 py-2 text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
@@ -184,7 +185,7 @@ export function CustomersSection() {
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
           {customers.length === 0 && (
-            <p className="p-5 text-sm font-light text-brand-950/40">
+            <p className="p-5 font-light text-brand-950/40 text-base">
               {segment === 'ALL'
                 ? 'Todavía no hay clientes registrados. Se crean solos con cada venta que capture nombre y teléfono.'
                 : 'Ningún cliente cae en este segmento por ahora.'}
@@ -259,14 +260,14 @@ function CustomerForm({ symbol: _symbol, onClose, onSaved }: { symbol: string; o
         <input value={form.phone} onChange={set('phone')} placeholder="Teléfono *" className={inputCls} />
         <input value={form.idNumber} onChange={set('idNumber')} placeholder="RIF / Cédula *" required className={inputCls} />
         <input value={form.email} onChange={set('email')} placeholder="Correo" className={inputCls} />
-        <label className="block">
+        <label className="block text-sm font-medium">
           <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Cumpleaños</span>
           <input type="date" value={form.birthday} onChange={set('birthday')} className={inputCls} />
         </label>
         <input value={form.address} onChange={set('address')} placeholder="Dirección" className={`${inputCls} sm:self-end`} />
         <textarea value={form.notes} onChange={set('notes')} placeholder="Nota (alergias, preferencias…)" rows={2} className={`${inputCls} sm:col-span-2`} />
       </div>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-red-600 text-base">{error}</p>}
       <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="mt-3 !w-auto disabled:opacity-50">
         {saving ? 'Guardando…' : 'Guardar cliente'}
       </TextureButton>
@@ -276,6 +277,7 @@ function CustomerForm({ symbol: _symbol, onClose, onSaved }: { symbol: string; o
 
 /** La ficha del cliente: datos editables, historial, promos y canjes. */
 function CustomerProfile({ id, symbol, onClose }: { id: string; symbol: string; onClose: () => void }) {
+  const { restaurant } = useAuth();
   const [profile, setProfile] = useState<CrmProfile | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', idNumber: '', email: '', birthday: '', address: '', notes: '' });
   const [saving, setSaving] = useState(false);
@@ -346,7 +348,7 @@ function CustomerProfile({ id, symbol, onClose }: { id: string; symbol: string; 
   if (!profile) {
     return (
       <InlinePanel title="Ficha del cliente" onClose={onClose} closeLabel="← Volver">
-        <p className="text-sm font-light text-brand-950/40">{error ?? 'Cargando…'}</p>
+        <p className="font-light text-brand-950/40 text-base">{error ?? 'Cargando…'}</p>
       </InlinePanel>
     );
   }
@@ -371,21 +373,21 @@ function CustomerProfile({ id, symbol, onClose }: { id: string; symbol: string; 
     >
       <div className="grid gap-5 lg:grid-cols-2">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">Datos</p>
+          <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">Datos</p>
           <div className="grid gap-2 sm:grid-cols-2">
             <input value={form.name} onChange={set('name')} placeholder="Nombre *" className={inputCls} />
             <input value={form.phone} onChange={set('phone')} placeholder="Teléfono *" className={inputCls} />
             <input value={form.idNumber} onChange={set('idNumber')} placeholder="Cédula/RIF" className={inputCls} />
             <input value={form.email} onChange={set('email')} placeholder="Correo" className={inputCls} />
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Cumpleaños</span>
               <input type="date" value={form.birthday} onChange={set('birthday')} className={inputCls} />
             </label>
             <input value={form.address} onChange={set('address')} placeholder="Dirección" className={`${inputCls} sm:self-end`} />
             <textarea value={form.notes} onChange={set('notes')} placeholder="Nota (alergias, preferencias…)" rows={2} className={`${inputCls} sm:col-span-2`} />
           </div>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          {message && <p className="mt-2 text-sm text-brand-500">{message}</p>}
+          {error && <p className="mt-2 text-red-600 text-base">{error}</p>}
+          {message && <p className="mt-2 text-brand-500 text-base">{message}</p>}
           <div className="mt-3 flex items-center gap-2">
             <TextureButton variant="brand" size="sm" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
               {saving ? 'Guardando…' : 'Guardar cambios'}
@@ -403,11 +405,15 @@ function CustomerProfile({ id, symbol, onClose }: { id: string; symbol: string; 
         </div>
 
         <div className="flex flex-col gap-4">
+          {!!profile.quotes?.length && <section className={`${card} p-4 space-y-2`}>
+            <h3 className="text-sm font-bold">Cotizaciones del cliente</h3>
+            {profile.quotes.map(q => <div key={q.id} className="flex justify-between gap-2 text-sm"><span>{fmtDate(q.createdAt)} · {q.currency} {Number(q.totalBase).toFixed(2)} · {q.paymentTerms === 'CREDIT' ? 'Crédito' : 'Contado'}</span><button type="button" className="text-brand-500" onClick={() => downloadQuotePdf(q, restaurant?.name ?? '')}>PDF</button></div>)}
+          </section>}
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">Historial reciente</p>
+            <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">Historial reciente</p>
             <div className={`${card} divide-y divide-brand-950/[0.06] overflow-hidden`}>
               {profile.history.length === 0 && (
-                <p className="p-4 text-sm font-light text-brand-950/40">Sin compras registradas todavía.</p>
+                <p className="p-4 font-light text-brand-950/40 text-base">Sin compras registradas todavía.</p>
               )}
               {profile.history.map((h, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
@@ -420,10 +426,10 @@ function CustomerProfile({ id, symbol, onClose }: { id: string; symbol: string; 
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">Promociones</p>
+            <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">Promociones</p>
             <div className={`${card} divide-y divide-brand-950/[0.06] overflow-hidden`}>
               {profile.promotions.length === 0 && (
-                <p className="p-4 text-sm font-light text-brand-950/40">No está en ninguna campaña todavía.</p>
+                <p className="p-4 font-light text-brand-950/40 text-base">No está en ninguna campaña todavía.</p>
               )}
               {profile.promotions.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 px-4 py-2 text-sm">
@@ -449,7 +455,7 @@ function CustomerProfile({ id, symbol, onClose }: { id: string; symbol: string; 
 
           {profile.redemptions.length > 0 && (
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">Canjes</p>
+              <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">Canjes</p>
               <div className={`${card} divide-y divide-brand-950/[0.06] overflow-hidden`}>
                 {profile.redemptions.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 px-4 py-2 text-sm">

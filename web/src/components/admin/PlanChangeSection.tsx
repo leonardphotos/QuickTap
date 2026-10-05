@@ -97,9 +97,10 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
    * porque es la parte fácil de malentender.
    */
   async function bajarA(plan: string, nombre: string, mensual: number) {
+    if (['ESSENTIAL', 'OPERATIONS', 'CONTROL'].includes(plan)) { onGoToBilling?.(); return; }
     if (
       !window.confirm(
-        `¿Bajar a ${nombre}?\n\nNo hay devolución: tu plan actual sigue activo hasta su vencimiento. Desde la próxima renovación pagas $${mensual.toFixed(2)}/mes y tu cuenta pasa a ${nombre}.`,
+        `¿Bajar a ${nombre}?\n\nNo hay devolución: tu plan actual sigue activo hasta su vencimiento. Desde la próxima renovación pagas €${mensual.toFixed(2)}/mes y tu cuenta pasa a ${nombre}.`,
       )
     ) {
       return;
@@ -149,7 +150,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
         </span>
         <div>
           <h2 className="text-sm font-semibold text-brand-950">Mi plan</h2>
-          <p className="text-[11.5px] font-light text-brand-950/50">Lo que tienes hoy, y a qué puedes subir.</p>
+          <p className="font-light text-brand-950/50 text-base">Lo que tienes hoy, y a qué puedes subir.</p>
         </div>
       </div>
 
@@ -157,17 +158,17 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
       <div className="mt-4 rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <p className="text-[15px] font-bold text-brand-950">{datos.nombre ?? 'Sin plan activo'}</p>
-            {datos.subtitulo && <p className="text-[12px] font-light text-brand-950/50">{datos.subtitulo}</p>}
+            <p className="font-bold text-brand-950 text-base">{datos.nombre ?? 'Sin plan activo'}</p>
+            {datos.subtitulo && <p className="font-light text-brand-950/50 text-xs">{datos.subtitulo}</p>}
           </div>
           {datos.mensualUsd != null && (
-            <p className="text-right">
-              <span className="text-[17px] font-bold tabular-nums text-brand-950">${datos.mensualUsd.toFixed(2)}</span>
+            <p className="text-right text-base">
+              <span className="text-[17px] font-bold tabular-nums text-brand-950">€{datos.mensualUsd.toFixed(2)}</span>
               <span className="text-[11.5px] font-light text-brand-950/50">/mes · plan {CICLOS[datos.billingCycle] ?? ''}</span>
             </p>
           )}
         </div>
-        <p className="mt-1 text-[11.5px] font-light text-brand-950/50">
+        <p className="mt-1 font-light text-brand-950/50 text-base">
           {datos.activo ? `Activo · vence el ${vence} (${datos.diasRestantes} días)` : 'Sin período activo'}
         </p>
         {datos.beneficios.length > 0 && (
@@ -184,7 +185,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
       {/* ---------- Mejoras ---------- */}
       {datos.superiores.length > 0 && (
         <div className="mt-4 space-y-2.5">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-brand-950/45">Sube de plan</p>
+          <p className="font-semibold uppercase tracking-wide text-brand-950/45 text-xs">Sube de plan</p>
           {datos.superiores.map((sPlan) => {
             const abiertoAqui = abierto === sPlan.plan;
             return (
@@ -203,11 +204,11 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-[14px] font-bold text-brand-950">{sPlan.nombre}</p>
-                    <p className="text-[11.5px] font-light text-brand-950/50">{sPlan.subtitulo}</p>
+                    <p className="font-bold text-brand-950 text-base">{sPlan.nombre}</p>
+                    <p className="font-light text-brand-950/50 text-base">{sPlan.subtitulo}</p>
                   </div>
-                  <p className="text-right">
-                    <span className="text-[15px] font-bold tabular-nums text-brand-950">${sPlan.mensualUsd.toFixed(2)}</span>
+                  <p className="text-right text-base">
+                    <span className="text-[15px] font-bold tabular-nums text-brand-950">€{sPlan.mensualUsd.toFixed(2)}</span>
                     <span className="text-[11px] font-light text-brand-950/50">/mes</span>
                   </p>
                 </div>
@@ -227,12 +228,12 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                           }}
                         >
                           {sPlan.esOferta
-                            ? `Pásate a ${sPlan.nombre} por $${sPlan.pagoHoyUsd.toFixed(2)}`
-                            : `Cambiar a este plan — paga solo $${sPlan.pagoHoyUsd.toFixed(2)}`}
+                            ? `Pásate a ${sPlan.nombre} por €${sPlan.pagoHoyUsd.toFixed(2)}`
+                            : `Cambiar a este plan — paga solo €${sPlan.pagoHoyUsd.toFixed(2)}`}
                         </TextureButton>
                         {sPlan.esOferta && sPlan.pagoNormalUsd != null && (
                           <span className="text-[12.5px] font-medium text-brand-950/45">
-                            <span className="line-through">${sPlan.pagoNormalUsd.toFixed(2)}</span>{' '}
+                            <span className="line-through">€{sPlan.pagoNormalUsd.toFixed(2)}</span>{' '}
                             <span className="font-bold text-brand-600">
                               ahorras ${(sPlan.pagoNormalUsd - sPlan.pagoHoyUsd).toFixed(2)}
                             </span>
@@ -265,14 +266,14 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                     </ul>
 
                     {listo ? (
-                      <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-[13px] font-medium text-emerald-700">
+                      <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 font-medium text-emerald-700 text-base">
                         Solicitud enviada. En cuanto verifiquemos tu pago, tu cuenta pasa a {sPlan.nombre} — sin mover tu
                         fecha de vencimiento.
                       </p>
                     ) : (
                       <>
                         <div className="mt-4 rounded-xl bg-brand-500/[0.06] px-4 py-3">
-                          <p className="text-[13px] font-semibold text-brand-950">
+                          <p className="font-semibold text-brand-950 text-base">
                             Hoy pagas ${sPlan.pagoHoyUsd?.toFixed(2)}
                             {sPlan.esOferta && sPlan.pagoNormalUsd != null && (
                               <span className="ml-1.5 text-[12px] font-medium text-brand-950/40 line-through">
@@ -281,7 +282,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                             )}
                             <span className="font-light text-brand-950/55">
                               {sPlan.esOferta
-                                ? ` — y estrenas todo ${sPlan.nombre} hasta tu vencimiento actual. Tu fecha no cambia; desde la próxima renovación pagas la mensualidad normal de ${sPlan.nombre} ($${sPlan.mensualUsd.toFixed(2)}/mes).`
+                                ? ` — y estrenas todo ${sPlan.nombre} hasta tu vencimiento actual. Tu fecha no cambia; desde la próxima renovación pagas la mensualidad normal de ${sPlan.nombre} (€${sPlan.mensualUsd.toFixed(2)}/mes).`
                                 : ' — la diferencia entre los dos planes. Tu fecha de vencimiento no cambia, y la próxima renovación ya va con la tarifa del plan nuevo.'}
                             </span>
                           </p>
@@ -325,7 +326,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                             value={referencia}
                             onChange={(e) => setReferencia(e.target.value)}
                             placeholder="Número de referencia del pago"
-                            className="w-full max-w-xs rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                            className="w-full max-w-xs rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                           />
                           <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => setProof(e.target.files?.[0] ?? null)} />
                           <button
@@ -339,7 +340,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                           </button>
                         </div>
 
-                        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                        {error && <p className="mt-2 text-red-600 text-base">{error}</p>}
 
                         <div className="mt-3 flex items-center gap-3">
                           <TextureButton
@@ -349,7 +350,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                             className="!w-auto px-6 disabled:opacity-50"
                             onClick={() => pedirMejora(sPlan.plan)}
                           >
-                            {enviando ? 'Enviando…' : `Confirmar cambio — $${sPlan.pagoHoyUsd?.toFixed(2)}`}
+                            {enviando ? 'Enviando…' : `Confirmar cambio — €${sPlan.pagoHoyUsd?.toFixed(2)}`}
                           </TextureButton>
                           <button onClick={() => setAbierto(null)} className="text-[12.5px] font-medium text-brand-950/50">
                             Cancelar
@@ -368,7 +369,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
       {/* ---------- Baja programada ---------- */}
       {datos.bajaPendiente && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-[13px] text-amber-800">
+          <p className="text-amber-800 text-base">
             <span className="font-semibold">Baja programada a {datos.bajaPendiente.nombre}.</span> Tu plan actual sigue
             hasta el {vence}; desde la próxima renovación pagas la tarifa del plan nuevo.
           </p>
@@ -381,20 +382,20 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
       {/* ---------- Bajar de plan ---------- */}
       {!datos.bajaPendiente && datos.inferiores.length > 0 && (
         <div className="mt-4 space-y-2.5">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-brand-950/45">Baja de plan</p>
+          <p className="font-semibold uppercase tracking-wide text-brand-950/45 text-xs">Baja de plan</p>
           {datos.inferiores.map((inf) => (
             <div key={inf.plan} className="rounded-xl border border-brand-950/10 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-[14px] font-bold text-brand-950">{inf.nombre}</p>
-                  <p className="text-[11.5px] font-light text-brand-950/50">{inf.subtitulo}</p>
+                  <p className="font-bold text-brand-950 text-base">{inf.nombre}</p>
+                  <p className="font-light text-brand-950/50 text-base">{inf.subtitulo}</p>
                 </div>
-                <p className="text-right">
-                  <span className="text-[15px] font-bold tabular-nums text-brand-950">${inf.mensualUsd.toFixed(2)}</span>
+                <p className="text-right text-base">
+                  <span className="text-[15px] font-bold tabular-nums text-brand-950">€{inf.mensualUsd.toFixed(2)}</span>
                   <span className="text-[11px] font-light text-brand-950/50">/mes</span>
                 </p>
               </div>
-              <p className="mt-2 text-[11.5px] font-light text-brand-950/55">
+              <p className="mt-2 font-light text-brand-950/55 text-base">
                 Sin devolución: tu plan actual sigue hasta el vencimiento y la próxima renovación se cobra con esta tarifa.
               </p>
               <button

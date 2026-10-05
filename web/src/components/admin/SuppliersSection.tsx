@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { Clock,Pencil,Plus,Receipt,Trash2,Wallet } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { CATEGORY_LABELS,DOCUMENT_TYPE_LABELS,type ExpenseCategory,type ExpenseDocumentType } from './ExpenseFormDialog.shared';
 import { InlinePanel } from './InlinePanel';
 import { MetricCard } from './MetricCard';
-import { Wallet, Receipt, Clock } from 'lucide-react';
-import { CATEGORY_LABELS, DOCUMENT_TYPE_LABELS, type ExpenseCategory, type ExpenseDocumentType } from './ExpenseFormDialog';
 
 interface Supplier {
   id: string;
@@ -62,8 +61,8 @@ export function SuppliersSection() {
 
   useEffect(load, [load]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!suppliers) return <p className="text-sm text-brand-950/40 font-light">Cargando proveedores…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
+  if (!suppliers) return <p className="text-brand-950/40 font-light text-base">Cargando proveedores…</p>;
 
   if (selected) {
     return <SupplierStatement supplier={selected} onClose={() => setSelected(null)} />;
@@ -96,15 +95,15 @@ export function SuppliersSection() {
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
           {suppliers.length === 0 && (
-            <p className="p-5 text-sm text-brand-950/40 font-light">
+            <p className="p-5 text-brand-950/40 font-light text-base">
               Todavía no tienes proveedores. Agrégalos aquí o desde el formulario de gastos.
             </p>
           )}
           {suppliers.map((s) => (
             <div key={s.id} className="flex items-center gap-3 px-5 py-3">
               <button type="button" onClick={() => setSelected(s)} className="min-w-0 flex-1 text-left hover:opacity-80">
-                <p className="text-sm font-medium text-brand-950 truncate">{s.name}</p>
-                <p className="text-xs text-brand-950/40 font-light">
+                <p className="font-medium text-brand-950 truncate text-base">{s.name}</p>
+                <p className="text-brand-950/40 font-light text-xs">
                   {s.taxId ? `RIF: ${s.taxId}` : 'Sin RIF'}
                   {s.phone && ` · ${s.phone}`}
                 </p>
@@ -187,20 +186,20 @@ function SupplierForm({
     <InlinePanel title={supplier ? 'Editar proveedor' : 'Agregar proveedor'} onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nombre</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Nombre</p>
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Distribuidora La Espiga" className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">RIF o cédula (opcional)</p>
+            <p className="font-medium text-brand-950/50 mb-1.5 text-xs">RIF o cédula (opcional)</p>
             <input value={taxId} onChange={(e) => setTaxId(e.target.value)} placeholder="J-12345678-9" className={inputCls} />
           </div>
           <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Teléfono (opcional)</p>
+            <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Teléfono (opcional)</p>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0412-1234567" className={inputCls} />
           </div>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <div className="flex items-center gap-2">
           <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
             {saving ? 'Guardando…' : supplier ? 'Guardar cambios' : 'Agregar proveedor'}
@@ -287,7 +286,7 @@ function SupplierStatement({ supplier, onClose }: { supplier: Supplier; onClose:
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
 
         <div className="rounded-xl border border-brand-950/10 overflow-hidden">
           <div className="hidden sm:flex items-center gap-3 px-4 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
@@ -297,13 +296,13 @@ function SupplierStatement({ supplier, onClose }: { supplier: Supplier; onClose:
           </div>
           <div className="divide-y divide-brand-950/[0.06]">
             {rows?.length === 0 && (
-              <p className="p-4 text-sm text-brand-950/40 font-light">Sin compras a este proveedor en el período.</p>
+              <p className="p-4 text-brand-950/40 font-light text-base">Sin compras a este proveedor en el período.</p>
             )}
             {rows?.map((r) => (
               <div key={r.id} className="flex items-start gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-brand-950 truncate">{r.description}</p>
-                  <p className="text-xs text-brand-950/40 font-light">
+                  <p className="font-medium text-brand-950 truncate text-base">{r.description}</p>
+                  <p className="text-brand-950/40 font-light text-xs">
                     {r.category ? CATEGORY_LABELS[r.category] : 'Sin categoría'}
                     {r.referenceNumber && ` · Ref. ${r.referenceNumber}`}
                     {r.documentType && ` · ${DOCUMENT_TYPE_LABELS[r.documentType]}`}
@@ -311,7 +310,7 @@ function SupplierStatement({ supplier, onClose }: { supplier: Supplier; onClose:
                     {r.isRecurring && ' · Recurrente'}
                   </p>
                   {(r.receiptImageUrl || r.quoteImageUrl || r.paymentProofImageUrl || r.notes) && (
-                    <p className="mt-0.5 text-[11px] text-brand-950/40 font-light">
+                    <p className="mt-0.5 text-brand-950/40 font-light text-xs">
                       {r.receiptImageUrl && (
                         <a href={r.receiptImageUrl} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">
                           Factura

@@ -1,0 +1,11 @@
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthContext } from '../src/context/AuthContext.shared';
+import { CheckoutExtrasSection } from '../src/components/admin/CheckoutExtrasSection';
+import { PaymentDialog } from '../src/components/admin/PaymentDialog';
+import { MoneyVisibilityProvider } from '../src/context/MoneyVisibilityContext';
+import '../src/index.css';
+const order = {id:'preview-order',orderNumber:78,channel:'EXPRESS',status:'PENDING',subtotalBase:'15.00',serviceChargeBase:'0',ivaBase:'0',deliveryFeeBase:'0',envaseFeeBase:'0',tipBase:'0',totalBase:'15.00',totalBs:'1500',exchangeRate:'100',currency:'EUR',customerName:null,customerPhone:null,customerAddress:null,customerIdNumber:null,customerNote:null,createdAt:new Date().toISOString(),table:null,placedByUser:null,acceptedByUserId:null,awaitingPayment:false,payments:[],items:[{id:'pizza',productId:'pizza',productName:'Pizza Capri',quantity:1,unitPrice:'15.00',lineTotal:'15.00',paidQuantity:0,modifiers:[]}]};
+const auth={user:{id:'demo',name:'Cajero',role:'OWNER'},restaurant:{id:'preview-crotone',name:'Crotone',baseCurrency:'EUR',paymentMethodsConfig:{CASH_USD:{enabled:true}},serviceChargeEnabled:false},refresh:async()=>{}};
+const paying=new URLSearchParams(location.search).get('view')==='payment';
+createRoot(document.getElementById('root')!).render(<BrowserRouter><AuthContext.Provider value={auth as any}><MoneyVisibilityProvider>{paying ? <PaymentDialog order={order as any} mode="full" onClose={()=>{}} onPaid={()=>{}}/> : <main className="min-h-screen bg-slate-50 p-5 sm:p-10 text-brand-950"><div className="max-w-3xl mx-auto"><img src="/logo/logo-central.png" alt="QuickTap" className="w-28 mb-9"/><p className="text-sm text-brand-950/50 mb-2">Crotone · Ajustes · Pagos y moneda</p><h1 className="text-3xl font-semibold tracking-tight mb-6">Extras al cobrar</h1><CheckoutExtrasSection/></div></main>}</MoneyVisibilityProvider></AuthContext.Provider></BrowserRouter>);

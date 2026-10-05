@@ -72,7 +72,7 @@ export default function ShopSkuScanDialog({ open, onOpenChange, onScan, onManual
         )}
         {cameraError && (
           <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/80">
-            <p className="text-sm text-white text-center">{cameraError} Revisa los permisos de cámara del navegador.</p>
+            <p className="text-white text-center text-base">{cameraError} Revisa los permisos de cámara del navegador.</p>
           </div>
         )}
       </div>
@@ -80,15 +80,15 @@ export default function ShopSkuScanDialog({ open, onOpenChange, onScan, onManual
       {detected ? (
         <div className="rounded-xl border border-brand-950/10 p-3.5 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[12px] text-brand-950/50">Código detectado</p>
-            <p className="text-[14px] font-semibold text-brand-950 truncate">{detected}</p>
+            <p className="text-brand-950/50 text-xs">Código detectado</p>
+            <p className="font-semibold text-brand-950 truncate text-base">{detected}</p>
           </div>
           <TextureButton variant="minimal" size="sm" className="!w-auto shrink-0" onClick={resumeScanning}>
             Reintentar
           </TextureButton>
         </div>
       ) : (
-        <p className="text-[13px] text-brand-950/40 text-center flex items-center justify-center gap-1.5">
+        <p className="text-brand-950/40 text-center flex items-center justify-center gap-1.5 text-base">
           <ScanLine className="h-3.5 w-3.5" /> Apunta la cámara al código de barras
         </p>
       )}

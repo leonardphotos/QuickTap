@@ -1,0 +1,25 @@
+.qt-membership{max-width:1100px;margin:0 auto;padding:28px;color:#202120;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fafaf9;border-radius:28px;line-height:1.5}
+.qt-membership-heading{max-width:680px;margin-bottom:28px}
+.qt-membership-eyebrow{display:block;color:#05a5f5;font-size:12px;letter-spacing:1.8px;font-weight:700;margin-bottom:12px}
+.qt-membership-heading h1{color:#202120;font-size:32px;font-weight:600;letter-spacing:-1.2px;line-height:1.15}
+.qt-membership-heading p{font-size:16px;line-height:1.65;color:#73777b;margin-top:12px;font-weight:400}
+.qt-membership-current{padding:22px 24px;background:#eef8fe;border:1px solid #dceef8;border-radius:18px;margin-bottom:26px}
+.qt-membership-current h2{color:#22516c;font-size:14px;font-weight:600}
+.qt-membership-current p{font-size:16px;color:#587084;line-height:1.7;max-width:760px}
+.qt-membership-current button{background:#05a5f5;border:0;border-radius:11px;font-size:12px;font-weight:600;padding:11px 16px;min-height:44px;margin-top:14px}
+.qt-membership-plans{margin-top:26px}
+.qt-membership-plans article{min-width:0;border:1px solid #e7e8e6;border-radius:22px;padding:24px;background:#fff;color:#202120;box-shadow:0 8px 28px #171b2105}
+.qt-membership-plans article h3{font-size:19px;font-weight:600;letter-spacing:-.5px}
+.qt-membership-plans article>p:nth-of-type(1){font-size:16px;color:#73777b;min-height:36px;line-height:1.5}
+.qt-membership-plans article>p:nth-of-type(2){font-size:32px;font-weight:600;letter-spacing:-1px;margin-top:16px}
+.qt-membership-plans article>p:nth-of-type(2) span{font-size:16px;letter-spacing:0;color:#73777b}
+.qt-membership-plans article>p:nth-of-type(3){font-size:16px;font-weight:500;line-height:1.65;color:#587084;background:#f4f8fa;padding:12px;border-radius:10px;min-height:62px}
+.qt-membership-plans article ul{border-top:1px solid #eff0ee;padding-top:18px;margin:20px 0;font-size:12px;line-height:1.65;color:#63696e}
+.qt-membership-plans article>button:first-of-type{background:#05a5f5;border:0;border-radius:12px;font-size:12px;line-height:1.5;font-weight:600;min-height:58px;padding:10px 14px;transition:background .15s}
+.qt-membership-plans article>button:first-of-type:hover,.qt-membership-current button:hover{background:#05a5f5}
+.qt-membership-plans article>button:last-of-type{color:#52778c;font-size:11px;min-height:40px;text-underline-offset:4px;margin-top:8px}
+.qt-membership-plans>div>p{font-size:16px;line-height:1.7;color:#85898c;max-width:760px;margin:22px auto 0}
+.qt-membership button:focus-visible{outline:3px solid #05a5f5;outline-offset:3px}
+@media(max-width:767px){.qt-membership{padding:20px 14px;border-radius:20px}.qt-membership-heading h1{font-size:28px}.qt-membership-current{padding:18px}.qt-membership-current button{width:100%}.qt-membership-plans article{padding:22px}.qt-membership-plans article>p:nth-of-type(1),.qt-membership-plans article>p:nth-of-type(3){min-height:0}.qt-membership-plans article>button:first-of-type{min-height:46px}}
+@media(prefers-reduced-motion:reduce){.qt-membership button{transition:none}}
+.qt-addon-section{margin:28px 0;padding:24px;background:white;border:1px solid #e7e8e6;border-radius:22px}.qt-addon-section h2{font-size:20px;font-weight:600}.qt-addon-section p{font-size:16px;color:#657078;line-height:1.6;margin:8px 0 18px}.qt-addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.qt-addon-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border:1px solid #e7e8e6;border-radius:12px}.qt-addon-card strong,.qt-addon-card small,.qt-addon-card b{display:block}.qt-addon-card strong{font-size:13px}.qt-addon-card small{font-size:12px;color:#758088;margin:5px 0}.qt-addon-card b{font-size:12px;color:#05a5f5}.qt-addon-card input[type=number]{width:68px;padding:8px;border:1px solid #ddd;border-radius:8px}.qt-addon-card input[type=checkbox]{width:22px;height:22px;accent-color:#05a5f5;flex-shrink:0}.qt-addon-total{margin-top:22px}.qt-addon-total button{background:#05a5f5;color:white;padding:12px 18px;border-radius:12px;font-size:13px}.qt-addon-total button:disabled{opacity:.5}@media(max-width:650px){.qt-addon-grid{grid-template-columns:1fr}.qt-addon-section{padding:18px}}

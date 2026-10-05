@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, ShoppingCart } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
-import { TextureButton } from '@/components/ui/texture-button';
+import { ExpenseFormDialog,type EditableExpense } from '@/components/admin/ExpenseFormDialog';
+import { DOCUMENT_TYPE_LABELS,type ExpenseDocumentType } from '@/components/admin/ExpenseFormDialog.shared';
 import { MetricCard } from '@/components/admin/MetricCard';
-import { ExpenseFormDialog, DOCUMENT_TYPE_LABELS, type ExpenseDocumentType, type EditableExpense } from '@/components/admin/ExpenseFormDialog';
-import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
-import type { PaymentMethod, Supplier } from '@/types';
+import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog.shared';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { PaymentMethod,Supplier } from '@/types';
+import { formatBase } from '@/utils/format';
+import { Plus,ShoppingCart } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año', all: 'Todo' };
@@ -35,6 +36,7 @@ interface PurchaseRow {
   spentByName?: string | null;
   inventoryItem?: { id: string; name: string } | null;
   inventoryQuantity?: string | null;
+  inventoryRestocks?: { inventoryItemId: string | null; itemName: string; unit: string; quantity: string }[];
 }
 
 const card = 'rounded-2xl border border-brand-950/10 bg-white shadow-sm';
@@ -106,7 +108,7 @@ export function PurchasesRegisterSection() {
         <select
           value={supplierId}
           onChange={(e) => setSupplierId(e.target.value)}
-          className="text-xs font-medium border border-brand-950/15 rounded-full px-2.5 py-1.5 text-brand-950/60"
+          className="font-medium border border-brand-950/15 rounded-full px-2.5 py-1.5 text-brand-950/60 text-base"
         >
           <option value="">Todos los proveedores</option>
           {suppliers.map((s) => (
@@ -122,7 +124,7 @@ export function PurchasesRegisterSection() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard icon={ShoppingCart} title={`Comprado · ${periodLabel}`} value={formatBase(total, symbol)} caption={`${rows?.length ?? 0} compra${rows?.length === 1 ? '' : 's'}`} />
@@ -140,7 +142,7 @@ export function PurchasesRegisterSection() {
           <span className="w-24 shrink-0 text-right">Monto</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-          {rows?.length === 0 && <p className="p-5 text-sm font-light text-brand-950/40">Sin compras en este filtro.</p>}
+          {rows?.length === 0 && <p className="p-5 font-light text-brand-950/40 text-base">Sin compras en este filtro.</p>}
           {rows?.map((r) => (
             <button
               key={r.id}
@@ -154,7 +156,9 @@ export function PurchasesRegisterSection() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium text-brand-950">{r.description}</span>
                 <span className="block truncate text-xs font-light text-brand-950/40">
-                  {r.inventoryItem && `Repuso ${Number(r.inventoryQuantity ?? 0)} de ${r.inventoryItem.name} · `}
+                  {r.inventoryRestocks?.length
+                    ? `Repuso ${r.inventoryRestocks.map((line) => `${Number(line.quantity)} ${line.unit} de ${line.itemName}`).join(', ')} · `
+                    : r.inventoryItem && `Repuso ${Number(r.inventoryQuantity ?? 0)} de ${r.inventoryItem.name} · `}
                   {r.referenceNumber && `Ref. ${r.referenceNumber} · `}
                   {r.isCredit
                     ? r.creditPaidAt

@@ -98,19 +98,19 @@ export function SupplierRatingsSection() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] font-light text-brand-950/50">
+        <p className="font-light text-brand-950/50 text-base">
           Califica a cada proveedor por calidad, precio, puntualidad y atención. El ranking usa el promedio de todas
           sus evaluaciones.
         </p>
         {avgAll != null && (
-          <p className="text-[13px] text-brand-950/60">
+          <p className="text-brand-950/60 text-base">
             Promedio general <span className="font-bold text-brand-950">{avgAll.toFixed(1)}</span> · {rated.length} calificado
             {rated.length === 1 ? '' : 's'}
           </p>
         )}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <div className={`${card} overflow-x-auto`}>
         <div className="flex min-w-[720px] items-center gap-3 border-b border-brand-950/[0.06] px-5 py-2 text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
@@ -125,7 +125,7 @@ export function SupplierRatingsSection() {
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
           {rows?.length === 0 && (
-            <p className="p-5 text-sm font-light text-brand-950/40">Todavía no hay proveedores. Créalos en la pestaña Proveedores.</p>
+            <p className="p-5 font-light text-brand-950/40 text-base">Todavía no hay proveedores. Créalos en la pestaña Proveedores.</p>
           )}
           {rows?.map((r, i) => (
             <div key={r.id} className="flex min-w-[720px] items-center gap-3 px-5 py-2.5 text-sm">
@@ -213,8 +213,8 @@ function RateSupplierPanel({ supplier, onClose, onSaved }: { supplier: SupplierR
           {CRITERIA.map((c) => (
             <div key={c.key} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-950/10 px-3.5 py-2.5">
               <div>
-                <p className="text-sm font-medium text-brand-950">{c.label}</p>
-                <p className="text-[11px] font-light text-brand-950/45">{c.hint}</p>
+                <p className="font-medium text-brand-950 text-base">{c.label}</p>
+                <p className="font-light text-brand-950/45 text-xs">{c.hint}</p>
               </div>
               <StarPicker value={scores[c.key]} onChange={(n) => setScores((s) => ({ ...s, [c.key]: n }))} />
             </div>
@@ -224,24 +224,24 @@ function RateSupplierPanel({ supplier, onClose, onSaved }: { supplier: SupplierR
             onChange={(e) => setComment(e.target.value)}
             rows={2}
             placeholder="Comentario (opcional): qué salió bien o mal en esta compra"
-            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
           />
           {preview != null && (
-            <p className="flex items-center gap-2 text-sm text-brand-950/70">
+            <p className="flex items-center gap-2 text-brand-950/70 text-base">
               Esta evaluación: <Stars value={preview} size="md" /> <span className="font-semibold text-brand-950">{preview.toFixed(1)}</span>
             </p>
           )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {message && <p className="text-sm text-brand-500">{message}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
+          {message && <p className="text-brand-500 text-base">{message}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar calificación'}
           </TextureButton>
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">Historial</p>
+          <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">Historial</p>
           <div className={`${card} divide-y divide-brand-950/[0.06] overflow-hidden`}>
-            {supplier.history.length === 0 && <p className="p-4 text-sm font-light text-brand-950/40">Sin evaluaciones todavía.</p>}
+            {supplier.history.length === 0 && <p className="p-4 font-light text-brand-950/40 text-base">Sin evaluaciones todavía.</p>}
             {supplier.history.map((h) => {
               const avg = (h.quality + h.price + h.punctuality + h.service) / 4;
               return (
@@ -254,10 +254,10 @@ function RateSupplierPanel({ supplier, onClose, onSaved }: { supplier: SupplierR
                       Eliminar
                     </button>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-brand-950/50">
+                  <p className="mt-0.5 text-brand-950/50 text-xs">
                     Calidad {h.quality} · Precio {h.price} · Puntualidad {h.punctuality} · Atención {h.service}
                   </p>
-                  {h.comment && <p className="mt-1 text-xs font-light text-brand-950/70">{h.comment}</p>}
+                  {h.comment && <p className="mt-1 font-light text-brand-950/70 text-xs">{h.comment}</p>}
                 </div>
               );
             })}

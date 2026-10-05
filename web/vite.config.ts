@@ -1,5 +1,4 @@
 import path from 'path';
-import { writeFileSync } from 'fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -16,8 +15,8 @@ export default defineConfig({
     tailwindcss(),
     {
       name: 'emit-build-id',
-      closeBundle() {
-        writeFileSync(path.resolve(__dirname, 'dist/version.json'), JSON.stringify({ buildId }));
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId }) });
       },
     },
   ],
@@ -31,6 +30,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // La previsualización por túnel llega con un Host público temporal; Vite lo bloquea por
+    // defecto aunque el túnel apunte a localhost. Esto solo afecta al servidor de desarrollo.
+    allowedHosts: true,
     proxy: {
       '/api': 'http://localhost:4000',
       '/uploads': 'http://localhost:4000',

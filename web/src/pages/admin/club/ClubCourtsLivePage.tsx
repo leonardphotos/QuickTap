@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { BellRing, ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Users, Utensils } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
+import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog.shared';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { cn } from '@/lib/utils';
-import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
-import { clubApi, COURT_TYPE_LABELS, type ClubBooking, type PanelCourt, type ReportedPayment } from './clubApi';
-import { card, CourtIllustration } from './clubStyle';
+import { formatBase,formatBsAbsolute } from '@/utils/format';
+import { BellRing,ChevronRight,Clock,CreditCard,ShoppingBag,SplitSquareHorizontal,Users,Utensils } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { clubApi,COURT_TYPE_LABELS,type ClubBooking,type PanelCourt,type ReportedPayment } from './clubApi';
 import { ClubPaymentDialog } from './ClubPaymentDialog';
+import { card,CourtIllustration } from './clubStyle';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
@@ -109,7 +109,7 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
       <div>
         <h1 className="text-[20px] font-bold text-brand-950 tracking-tight">Canchas</h1>
         {courts && courts.length > 0 && (
-          <p className="mt-0.5 text-[13px] font-light text-brand-950/50">
+          <p className="mt-0.5 font-light text-brand-950/50 text-base">
             {playing} de {courts.length} en juego ahora
           </p>
         )}
@@ -122,28 +122,28 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
         <section className={cn(card, 'overflow-hidden !border-amber-300')}>
           <div className="flex items-center gap-2 bg-amber-50 px-4 py-2.5">
             <BellRing className="h-4 w-4 shrink-0 text-amber-600" />
-            <p className="text-[13px] font-bold text-amber-900">
+            <p className="font-bold text-amber-900 text-base">
               {reported.length === 1 ? '1 pago por verificar' : `${reported.length} pagos por verificar`} · reportados
               desde la cancha
             </p>
           </div>
-          {reviewError && <p className="px-4 pt-2 text-[12px] font-medium text-red-600">{reviewError}</p>}
+          {reviewError && <p className="px-4 pt-2 font-medium text-red-600 text-xs">{reviewError}</p>}
           <div className="divide-y divide-brand-950/[0.06]">
             {reported.map((p) => (
               <div key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[14px] font-semibold text-brand-950">
+                  <p className="truncate font-semibold text-brand-950 text-base">
                     {p.playerName} · {p.courtName}
                   </p>
-                  <p className="truncate text-[12px] font-light text-brand-950/50">
+                  <p className="truncate font-light text-brand-950/50 text-xs">
                     {PAYMENT_LABELS[p.method] ?? p.method}
                     {p.referenceNumber && ` · Ref. ${p.referenceNumber}`}
                     {` · ${hhmm(p.createdAt)}`}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-[15px] font-bold text-brand-950">{money(Number(p.amountBase))}</p>
-                  <p className="text-[11px] font-light text-brand-950/40">{formatBsAbsolute(p.amountBs)}</p>
+                  <p className="font-bold text-brand-950 text-base">{money(Number(p.amountBase))}</p>
+                  <p className="font-light text-brand-950/40 text-xs">{formatBsAbsolute(p.amountBs)}</p>
                 </div>
                 {canPay && (
                   <div className="flex shrink-0 gap-1.5">
@@ -171,12 +171,12 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
         </section>
       )}
 
-      {courts === null && <p className="font-light text-brand-950/40">Cargando…</p>}
+      {courts === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
 
       {courts?.length === 0 && (
         <div className={cn(card, 'p-8 text-center')}>
-          <p className="font-semibold text-brand-950">Todavía no tienes canchas</p>
-          <p className="mt-1 text-[13px] font-light text-brand-950/50">
+          <p className="font-semibold text-brand-950 text-base">Todavía no tienes canchas</p>
+          <p className="mt-1 font-light text-brand-950/50 text-base">
             Créalas en Ajustes para empezar a recibir reservas.
           </p>
         </div>
@@ -225,7 +225,7 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                 {isBooking && cur ? (
                   <>
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="truncate text-[15px] font-bold text-brand-950">
+                      <p className="truncate font-bold text-brand-950 text-base">
                         {cur.booking?.playerName ?? 'Sin nombre'}
                       </p>
                       {cur.booking && (
@@ -239,8 +239,8 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                     <div className="mt-3 flex items-center justify-between rounded-2xl bg-brand-950/[0.04] px-3.5 py-2.5">
                       <Figure value={humanMinutes(cur.playedMinutes)} label="jugados" />
                       <div className="text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-brand-950/40">termina</p>
-                        <p className="text-[13px] font-bold text-brand-950">{hhmm(cur.endsAt)}</p>
+                        <p className="font-bold uppercase tracking-wide text-brand-950/40 text-xs">termina</p>
+                        <p className="font-bold text-brand-950 text-base">{hhmm(cur.endsAt)}</p>
                       </div>
                       <Figure value={humanMinutes(cur.remainingMinutes)} label="restante" align="right" />
                     </div>
@@ -264,7 +264,7 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                         <span className="ml-auto text-[14px] font-bold text-amber-900">{money(cur.openTab.balance)}</span>
                       </div>
                     ) : (
-                      <p className="mt-2.5 text-[12px] font-light text-brand-950/35">Sin cuenta abierta en tienda</p>
+                      <p className="mt-2.5 font-light text-brand-950/35 text-xs">Sin cuenta abierta en tienda</p>
                     )}
 
                     {/* Lo pedido desde la tablet de la cancha. Va aparte de la
@@ -280,11 +280,11 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                     )}
                   </>
                 ) : c.busy && cur ? (
-                  <p className="text-[13px] font-light text-brand-950/60">
+                  <p className="font-light text-brand-950/60 text-base">
                     {cur.note ?? 'No disponible'} · hasta {hhmm(cur.endsAt)}
                   </p>
                 ) : (
-                  <p className="text-[13px] font-light text-brand-950/45">Nadie jugando ahora</p>
+                  <p className="font-light text-brand-950/45 text-base">Nadie jugando ahora</p>
                 )}
 
                 <div className="mt-3 flex items-center gap-1.5 border-t border-brand-950/[0.06] pt-3 text-[12px] font-light text-brand-950/50">
@@ -307,11 +307,11 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
             {canPay && isBooking && payable && (
               <div className="border-t border-brand-950/[0.06] px-4 pb-4 pt-3">
                 {settled ? (
-                  <p className="text-[12px] font-semibold text-emerald-600">✓ Pagado</p>
+                  <p className="font-semibold text-emerald-600 text-xs">✓ Pagado</p>
                 ) : (
                   <>
                     {Number(payable.paidBase) > 0 && (
-                      <p className="mb-1.5 text-[11px] font-light text-brand-950/40">
+                      <p className="mb-1.5 font-light text-brand-950/40 text-xs">
                         Pagado {money(Number(payable.paidBase))} de {money(Number(payable.dueBase))} · falta{' '}
                         {money(Number(payable.balanceBase))}
                       </p>
@@ -368,7 +368,7 @@ function Figure({ value, label, align }: { value: string; label: string; align?:
   return (
     <div className={align === 'right' ? 'text-right' : ''}>
       <p className="text-[19px] font-bold leading-none tracking-tight text-brand-950">{value}</p>
-      <p className="mt-1 text-[11px] font-medium text-brand-950/40">{label}</p>
+      <p className="mt-1 font-medium text-brand-950/40 text-xs">{label}</p>
     </div>
   );
 }

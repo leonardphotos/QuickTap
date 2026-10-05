@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 interface Props {
   /** Opcional: el login no lleva título porque el logo completo ya dice dónde estás. */
   title?: string;
+  className?: string;
   children: ReactNode;
   footer?: ReactNode;
 }
@@ -13,11 +14,11 @@ interface Props {
  * "flotan" directamente sobre la página, con espacio generoso arriba
  * para que el logo quede centrado por completo.
  */
-export default function AuthLayout({ title, children, footer }: Props) {
+export default function AuthLayout({ title, children, footer, className = '' }: Props) {
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center px-6 pt-20 pb-16 sm:pt-28">
+    <div className={`min-h-screen bg-white flex flex-col items-center px-6 pt-20 pb-16 sm:pt-28 ${className}`}>
       <Link to="/" className="mb-10">
-        <img src="/logo/logo-central.png" alt="QuickTap" className="h-12 w-auto mx-auto" />
+        <img src="/logo/logo-central.png?v=20261002" alt="QuickTap" className="h-12 w-auto mx-auto" />
       </Link>
 
       <div className="w-full max-w-sm">

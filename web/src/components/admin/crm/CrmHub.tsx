@@ -1,10 +1,14 @@
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { useState } from 'react';
 import { CustomersSection } from './CustomersSection';
 import { PartnersSection } from './PartnersSection';
 import { PromotionsSection } from './PromotionsSection';
+import { FollowupsSection } from './FollowupsSection';
+import { useAuth } from '@/context/AuthContext.shared';
 
 const TABS = [
   { id: 'customers', label: 'Clientes' },
+  { id: 'followups', label: 'Seguimiento' },
   // Socios va justo debajo de Clientes: es la misma gente del directorio, pero su consumo no
   // es una venta. Se separa para que no aparezcan mezclados con la clientela normal.
   { id: 'partners', label: 'Socios' },
@@ -18,14 +22,16 @@ const TABS = [
  * la página de Clientes.
  */
 export function CrmHub() {
+  const { restaurant, user } = useAuth();
+  const canFollowup = restaurant?.businessType === 'SHOP' && ['OWNER','ADMIN'].includes(user?.role ?? '');
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('customers');
 
   return (
     <div className="flex flex-col gap-5">
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-          {TABS.map((t) => (
-            <button
+        <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+          {TABS.filter(t => t.id !== 'followups' || canFollowup).map((t) => (
+            <AnimatedTab active={tab === t.id}
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
@@ -34,12 +40,13 @@ export function CrmHub() {
               }`}
             >
               {t.label}
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </div>
 
       {tab === 'customers' && <CustomersSection />}
+      {tab === 'followups' && canFollowup && <FollowupsSection />}
       {tab === 'partners' && <PartnersSection />}
       {tab === 'promotions' && <PromotionsSection />}
     </div>

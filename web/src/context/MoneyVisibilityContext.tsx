@@ -1,12 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-
-interface MoneyVisibilityState {
-  hidden: boolean;
-  toggle: () => void;
-}
-
-const MoneyVisibilityContext = createContext<MoneyVisibilityState | null>(null);
+import { useEffect,useState } from 'react';
+import { MoneyVisibilityContext } from './MoneyVisibilityContext.shared';
 
 const STORAGE_KEY = 'quicktap_master_hide_amounts';
 
@@ -29,10 +23,4 @@ export function MoneyVisibilityProvider({ children }: { children: ReactNode }) {
       {children}
     </MoneyVisibilityContext.Provider>
   );
-}
-
-export function useMoneyVisibility(): MoneyVisibilityState {
-  const ctx = useContext(MoneyVisibilityContext);
-  if (!ctx) throw new Error('useMoneyVisibility debe usarse dentro de <MoneyVisibilityProvider>');
-  return ctx;
 }

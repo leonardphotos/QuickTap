@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Printer } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import type { ShopProduct } from './shopSession';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { Printer } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { useState } from 'react';
 import { shopMoneyFormatters } from './shopFormat';
-import type { AuthRestaurant } from '@/context/AuthContext';
+import type { ShopProduct } from './shopSession';
 
 /**
  * Etiquetas de precio para impresora térmica de rollo (una etiqueta angosta autoadhesiva por
@@ -56,12 +56,12 @@ export function ShopPriceLabelsDialog({ product, restaurant, onClose }: Props) {
           <DialogHeader>
             <DialogTitle>Etiquetas — {product.name}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm font-light text-brand-950/60">
+          <p className="font-light text-brand-950/60 text-base">
             Una etiqueta por cantidad. Arranca con lo que hay en existencia; ajústalo si necesitas otra cantidad.
           </p>
           <div className="mt-3 space-y-2">
             {product.variants.map((v) => (
-              <label key={v.v1 + v.v2} className="flex items-center justify-between gap-3 text-sm">
+              <label key={v.v1 + v.v2} className="flex items-center justify-between gap-3 text-sm font-medium">
                 <span className="text-brand-950/70">
                   {v.v1 === 'Único' && !v.v2 ? product.name : [v.v1, v.v2].filter(Boolean).join(' · ')}
                 </span>
@@ -70,13 +70,13 @@ export function ShopPriceLabelsDialog({ product, restaurant, onClose }: Props) {
                   min="0"
                   value={cantidades[v.v1 + v.v2] ?? ''}
                   onChange={(e) => setCantidades((prev) => ({ ...prev, [v.v1 + v.v2]: e.target.value }))}
-                  className="w-20 rounded-lg border border-brand-950/15 px-2 py-1.5 text-center"
+                  className="w-20 rounded-lg border border-brand-950/15 px-2 py-1.5 text-center text-base"
                 />
               </label>
             ))}
           </div>
           {!product.sku && (
-            <p className="mt-2 text-xs text-amber-600">
+            <p className="mt-2 text-amber-600 text-xs">
               Este producto no tiene SKU cargado — la etiqueta va sin código escaneable, solo con el nombre y el precio.
             </p>
           )}
@@ -87,12 +87,12 @@ export function ShopPriceLabelsDialog({ product, restaurant, onClose }: Props) {
         <div id="shop-labels-print" className="hidden print:block">
           {etiquetas.map((e, i) => (
             <div key={i} className="shop-label flex h-[26mm] w-[46mm] flex-col items-center justify-center gap-0.5 p-1 text-center">
-              <p className="max-w-full truncate text-[8px] font-medium text-black">{restaurant.name}</p>
-              <p className="line-clamp-2 max-w-full text-[9px] font-bold leading-tight text-black">{product.name}</p>
-              {e.variante && <p className="text-[8px] text-black">{e.variante}</p>}
-              <p className="text-[13px] font-black text-black">{money(e.precio)}</p>
+              <p className="max-w-full truncate font-medium text-black text-base">{restaurant.name}</p>
+              <p className="line-clamp-2 max-w-full font-bold leading-tight text-black text-base">{product.name}</p>
+              {e.variante && <p className="text-black text-base">{e.variante}</p>}
+              <p className="font-black text-black text-base">{money(e.precio)}</p>
               <QRCodeSVG value={e.codigo} size={40} />
-              {product.sku && <p className="text-[7px] text-black">{product.sku}</p>}
+              {product.sku && <p className="text-black text-base">{product.sku}</p>}
             </div>
           ))}
         </div>

@@ -3,11 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase } from '@/utils/format';
 import { MaskedAmount } from '@/components/master/MaskedAmount';
+import { RestaurantReset } from '@/components/master/RestaurantReset';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PasswordInput } from '@/components/ui/password-input';
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
+import { useMasterAuth } from '@/context/MasterAuthContext.shared';
+import { canManagePlatform, canManageRestaurant, canManageRestaurantBilling, canSupportRestaurant } from '@/utils/master-rbac';
 
 interface RestaurantUser {
   id: string;
@@ -41,6 +44,7 @@ interface RestaurantDetail {
   fiscalInvoicingConfig: { enabled: boolean; environment: string; username: string; updatedAt: string } | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
+  membershipTerms?: { inherited?: boolean; monthlyPrice?: number; customMonthlyPrice?: number; prices?: Record<string, number>; currency?: string; version?: string };
   billingCycle: string | null;
   periodEnd: string;
   createdAt: string;
@@ -64,33 +68,35 @@ interface RestaurantDetail {
 // SUCURSALES/DELIVERY_SUCURSALES son planes legados (ya no se ofrecen a clientes nuevos, ver
 // CLAUDE.md) — se mantienen acá solo para poder seguir gestionando a los restaurantes que ya
 // los tienen activos.
-const RESTAURANT_PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
+const RESTAURANT_PLAN_OPTIONS = ['ESSENTIAL', 'OPERATIONS', 'CONTROL', 'DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
 // Locales Comerciales (businessType SHOP) tienen un único plan — no comparten los planes de
 // Restaurante (Delivery/Pro/Elite/Sucursales no aplican a una tienda o barbería).
 const SHOP_PLAN_OPTIONS = ['SHOP', 'ELITE_SHOP'] as const;
 const PLAN_OPTIONS = [...RESTAURANT_PLAN_OPTIONS, ...SHOP_PLAN_OPTIONS] as const;
 const PLAN_OPTION_LABELS: Record<(typeof PLAN_OPTIONS)[number], string> = {
-  DELIVERY: 'DELIVERY — Solo Delivery',
-  PRO: 'PRO — Plan Pro',
-  ELITE: 'ELITE — Plan Elite',
+  ESSENTIAL: 'Esencial — €24,99', OPERATIONS: 'Operación — €39,99', CONTROL: 'Control — €59,99',
+  DELIVERY: 'Esencial — contrato heredado (DELIVERY)',
+  PRO: 'Operación — contrato heredado (PRO)',
+  ELITE: 'Control — contrato heredado (ELITE)',
   SUCURSALES: 'SUCURSALES — Plan Sucursales (legado)',
   DELIVERY_SUCURSALES: 'DELIVERY_SUCURSALES — Delivery Sucursales (legado)',
   SHOP: 'SHOP — QuickTap Shop',
   ELITE_SHOP: 'ELITE_SHOP — Elite Shop (contabilidad + sucursales)',
 };
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
-const BRANCH_PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'ELITE_SHOP'] as const;
+const BRANCH_PLAN_OPTIONS = ['CONTROL', 'DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'ELITE_SHOP'] as const;
 // Un local solo puede tener sucursales con Elite Shop.
 const SHOP_BRANCH_PLAN_OPTIONS = ['ELITE_SHOP'] as const;
 
 export default function MasterRestaurantDetailPage() {
+  const { admin } = useMasterAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [plan, setPlan] = useState<(typeof PLAN_OPTIONS)[number]>('PRO');
+  const [plan, setPlan] = useState<(typeof PLAN_OPTIONS)[number]>('OPERATIONS');
   const [cycle, setCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
   const [extendDays, setExtendDays] = useState(30);
   const [exactPeriodEnd, setExactPeriodEnd] = useState('');
@@ -124,7 +130,7 @@ export default function MasterRestaurantDetailPage() {
     masterApi.get(`/master/restaurants/${id}`).then((res) => {
       const data: RestaurantDetail = res.data.data;
       setDetail(data);
-      setPlan(data.businessType === 'SHOP' ? 'ELITE_SHOP' : 'PRO');
+      setPlan(PLAN_OPTIONS.find(p => p === data.subscriptionPlan) ?? (data.businessType === 'SHOP' ? 'ELITE_SHOP' : 'OPERATIONS'));
       setExactPeriodEnd(data.periodEnd.slice(0, 10));
       if (data.fiscalInvoicingConfig) {
         setFiscalEnvironment(data.fiscalInvoicingConfig.environment as 'QA' | 'PRODUCTION');
@@ -463,7 +469,12 @@ export default function MasterRestaurantDetailPage() {
     }
   }
 
-  if (!detail) return <p className="text-brand-950/50 font-light">Cargando…</p>;
+  if (!detail) return <p className="text-brand-950/50 font-light text-base">Cargando…</p>;
+
+  const mayManagePlatform = !!admin && canManagePlatform(admin.role);
+  const mayManageRestaurant = !!admin && canManageRestaurant(admin.role);
+  const maySupportRestaurant = !!admin && canSupportRestaurant(admin.role);
+  const mayManageBilling = !!admin && canManageRestaurantBilling(admin.role);
 
   // El input emite solo dígitos en formato internacional, igual que se guarda en la base.
   const billingPhoneDirty = billingPhoneInput !== (detail.billingPhone ?? '');
@@ -473,9 +484,9 @@ export default function MasterRestaurantDetailPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-brand-950">{detail.name}</h1>
-          <p className="text-sm text-brand-950/40 font-light">/{detail.slug}</p>
+          <p className="text-brand-950/40 font-light text-base">/{detail.slug}</p>
         </div>
-        <TextureButton
+        {maySupportRestaurant && <TextureButton
           variant="brand"
           size="sm"
           disabled={impersonating}
@@ -483,28 +494,28 @@ export default function MasterRestaurantDetailPage() {
           onClick={impersonate}
         >
           {impersonating ? 'Entrando…' : 'Entrar sin contraseña'}
-        </TextureButton>
+        </TextureButton>}
       </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-2">
-        <p className="font-semibold text-brand-950 mb-1">Información del local</p>
-        <p className="text-sm text-brand-950/70">
+        <p className="font-semibold text-brand-950 mb-1 text-base">Información del local</p>
+        <p className="text-brand-950/70 text-base">
           <span className="text-brand-950/50">Nombre: </span>
           {detail.name}
         </p>
-        <p className="text-sm text-brand-950/70">
+        <p className="text-brand-950/70 text-base">
           <span className="text-brand-950/50">Teléfono: </span>
           {detail.whatsappPhone ?? 'No registrado'}
         </p>
-        <p className="text-sm text-brand-950/70">
+        <p className="text-brand-950/70 text-base">
           <span className="text-brand-950/50">Correo: </span>
           {detail.users.find((u) => u.role === 'OWNER')?.email ?? 'No registrado'}
         </p>
-        <p className="text-sm text-brand-950/70">
+        <p className="text-brand-950/70 text-base">
           <span className="text-brand-950/50">RIF: </span>
           {detail.rif?.trim() || 'No registrado'}
         </p>
-        <p className="text-sm text-brand-950/70">
+        <p className="text-brand-950/70 text-base">
           <span className="text-brand-950/50">Registrado: </span>
           {new Date(detail.createdAt).toLocaleString('es-VE', {
             day: '2-digit',
@@ -516,10 +527,10 @@ export default function MasterRestaurantDetailPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+      {mayManageRestaurant && <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-brand-950">IVA (16%)</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1">
+          <p className="font-semibold text-brand-950 text-base">IVA (16%)</p>
+          <p className="text-brand-950/60 font-light mt-1 text-base">
             {detail.rif?.trim()
               ? 'Este restaurante tiene RIF registrado, puedes activarle el IVA.'
               : 'No se puede activar: este restaurante todavía no tiene RIF registrado en Ajustes.'}
@@ -534,23 +545,23 @@ export default function MasterRestaurantDetailPage() {
         >
           {detail.ivaEnabled ? 'Desactivar IVA' : 'Activar IVA'}
         </TextureButton>
-      </div>
+      </div>}
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+      {mayManageBilling && <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-brand-950">Reportes con IA</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1">Permite solo a {detail.name} pedir estadísticas y descargarlas en Excel. Consume Gemini únicamente al generar un reporte.</p>
+          <p className="font-semibold text-brand-950 text-base">IA del negocio</p>
+          <p className="text-brand-950/60 font-light mt-1 text-base">Activa para {detail.name} el asistente de voz y los reportes inteligentes. El acceso solo puede habilitarse o deshabilitarse desde este Dashboard Máster.</p>
         </div>
         <TextureButton variant={detail.aiReportsEnabled ? 'destructive' : 'brand'} size="sm" disabled={busy} className="!w-auto shrink-0 disabled:opacity-50" onClick={toggleAiReports}>
           {detail.aiReportsEnabled ? 'Desactivar IA' : 'Activar IA'}
         </TextureButton>
-      </div>
+      </div>}
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
+      {mayManageRestaurant && <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-brand-950">Facturación fiscal (SENIAT — Unidigital)</p>
-            <p className="text-sm text-brand-950/60 font-light mt-1">
+            <p className="font-semibold text-brand-950 text-base">Facturación fiscal (SENIAT — Unidigital)</p>
+            <p className="text-brand-950/60 font-light mt-1 text-base">
               {detail.rif?.trim()
                 ? 'Cada pedido saldado por completo generará automáticamente una Factura fiscal vía Unidigital.'
                 : 'No se puede activar: este restaurante todavía no tiene RIF registrado en Ajustes.'}
@@ -564,17 +575,17 @@ export default function MasterRestaurantDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
+          <label className="text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Usuario Unidigital</span>
             <input
               type="text"
               value={fiscalUsername}
               onChange={(e) => setFiscalUsername(e.target.value)}
               placeholder="usuario@empresa.com"
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-56"
+              className="border border-brand-950/15 rounded-lg px-3 py-2 w-56 text-base"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Contraseña</span>
             <PasswordInput
               value={fiscalPassword}
@@ -583,12 +594,12 @@ export default function MasterRestaurantDetailPage() {
               className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-56"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Ambiente</span>
             <select
               value={fiscalEnvironment}
               onChange={(e) => setFiscalEnvironment(e.target.value as 'QA' | 'PRODUCTION')}
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-base"
             >
               <option value="QA">Pruebas (QA)</option>
               <option value="PRODUCTION">Producción</option>
@@ -618,12 +629,12 @@ export default function MasterRestaurantDetailPage() {
             </TextureButton>
           )}
         </div>
-      </div>
+      </div>}
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+      {maySupportRestaurant && <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-brand-950">Migración desde OlaClick</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1">
+          <p className="font-semibold text-brand-950 text-base">Migración desde OlaClick</p>
+          <p className="text-brand-950/60 font-light mt-1 text-base">
             Herramienta interna de onboarding — trae el menú del restaurante
             desde su cuenta de OlaClick. El restaurante no ve esta pantalla.
           </p>
@@ -636,7 +647,7 @@ export default function MasterRestaurantDetailPage() {
         >
           Migrar menú
         </TextureButton>
-      </div>
+      </div>}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
         <Stat label="Usuarios" value={detail.users.length} />
@@ -645,11 +656,11 @@ export default function MasterRestaurantDetailPage() {
         <Stat label="Pedidos" value={detail._count.orders} />
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
+      {mayManageBilling ? <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-brand-950">Suscripción</p>
-            <p className="text-sm text-brand-950/60 font-light mt-1">
+            <p className="font-semibold text-brand-950 text-base">Suscripción</p>
+            <p className="text-brand-950/60 font-light mt-1 text-base">
               {detail.suspended
                 ? 'Bloqueada manualmente desde el Dashboard maestro.'
                 : detail.locked
@@ -676,14 +687,14 @@ export default function MasterRestaurantDetailPage() {
         <div className="pt-1 border-t border-brand-950/[0.06]" />
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-2">Editar plan</p>
+          <p className="font-medium text-brand-950/70 mb-2 text-base">Editar plan</p>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="text-sm">
+            <label className="text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">Plan</span>
               <select
                 value={plan}
                 onChange={(e) => setPlan(e.target.value as (typeof PLAN_OPTIONS)[number])}
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               >
                 {(detail.businessType === 'SHOP' ? SHOP_PLAN_OPTIONS : RESTAURANT_PLAN_OPTIONS).map((p) => (
                   <option key={p} value={p}>
@@ -692,12 +703,12 @@ export default function MasterRestaurantDetailPage() {
                 ))}
               </select>
             </label>
-            <label className="text-sm">
+            <label className="text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">Ciclo</span>
               <select
                 value={cycle}
                 onChange={(e) => setCycle(e.target.value as (typeof CYCLE_OPTIONS)[number])}
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               >
                 {CYCLE_OPTIONS.map((c) => (
                   <option key={c} value={c}>
@@ -715,15 +726,15 @@ export default function MasterRestaurantDetailPage() {
         <div className="pt-1 border-t border-brand-950/[0.06]" />
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-2">Ajustar días de vencimiento</p>
+          <p className="font-medium text-brand-950/70 mb-2 text-base">Ajustar días de vencimiento</p>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="text-sm">
+            <label className="text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">Días (negativo para recortar)</span>
               <input
                 type="number"
                 value={extendDays}
                 onChange={(e) => setExtendDays(Number(e.target.value))}
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-32"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 w-32 text-base"
               />
             </label>
             <TextureButton
@@ -741,15 +752,15 @@ export default function MasterRestaurantDetailPage() {
         <div className="pt-1 border-t border-brand-950/[0.06]" />
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-2">Establecer fecha exacta de vencimiento</p>
+          <p className="font-medium text-brand-950/70 mb-2 text-base">Establecer fecha exacta de vencimiento</p>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="text-sm">
+            <label className="text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">Día / mes / año</span>
               <input
                 type="date"
                 value={exactPeriodEnd}
                 onChange={(e) => setExactPeriodEnd(e.target.value)}
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               />
             </label>
             <TextureButton
@@ -764,26 +775,37 @@ export default function MasterRestaurantDetailPage() {
           </div>
         </div>
 
-        {message && <p className="text-sm text-brand-950/70">{message}</p>}
-      </div>
+        {message && <p className="text-brand-950/70 text-base">{message}</p>}
+      </div> : (
+        <div className="rounded-2xl border border-brand-950/10 bg-white p-6 shadow-sm">
+          <p className="font-semibold text-brand-950 text-base">Suscripción</p>
+          <p className="mt-1 font-light text-brand-950/60 text-base">
+            {detail.suspended
+              ? 'Bloqueada manualmente.'
+              : detail.locked
+                ? 'Bloqueada por falta de pago.'
+                : `${detail.subscriptionStatus === 'TRIALING' ? 'En prueba' : `Plan ${detail.subscriptionPlan}`} · vence en ${detail.daysRemaining} día(s) (${new Date(detail.periodEnd).toLocaleDateString('es-VE')}).`}
+          </p>
+        </div>
+      )}
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
+      {mayManageBilling && <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
         <div>
-          <p className="font-semibold text-brand-950">Cobro</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1">
+          <p className="font-semibold text-brand-950 text-base">Cobro</p>
+          <p className="text-brand-950/60 font-light mt-1 text-base">
             Lo que este restaurante paga: su mensualidad y los cargos puntuales que se le sumen
             aparte. El restaurante lo ve desglosado al momento de pagar.
           </p>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-2">Precio mensual acordado</p>
-          <p className="text-xs text-brand-950/40 font-light mb-2">
+          <p className="font-medium text-brand-950/70 mb-2 text-base">Precio mensual acordado</p>
+          <p className="text-brand-950/40 font-light mb-2 text-xs">
             Reemplaza la tarifa pública de su plan. Déjalo vacío para volver a cobrarle el precio
             de lista.
           </p>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="text-sm">
+            <label className="text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">USD / mes</span>
               <input
                 type="number"
@@ -792,7 +814,7 @@ export default function MasterRestaurantDetailPage() {
                 value={customPriceInput}
                 onChange={(e) => setCustomPriceInput(e.target.value)}
                 placeholder="Precio de lista"
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-40"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 w-40 text-base"
               />
             </label>
             <TextureButton variant="minimal" size="default" disabled={busy} className="!w-auto" onClick={saveCustomPrice}>
@@ -804,8 +826,9 @@ export default function MasterRestaurantDetailPage() {
         <div className="pt-1 border-t border-brand-950/[0.06]" />
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-2">Número de cobranza</p>
-          <p className="text-xs text-brand-950/40 font-light mb-2">
+          <div className="mb-4 rounded-xl bg-blue-50 p-4 text-sm"><strong>{detail.membershipTerms?.inherited ? 'Contrato heredado: conservar condiciones' : 'Nueva oferta comercial'}</strong><p>Moneda: EUR · Tarifa: {detail.membershipTerms?.customMonthlyPrice ?? detail.membershipTerms?.monthlyPrice ?? detail.membershipTerms?.prices?.[detail.billingCycle ?? 'MONTHLY'] ?? 'Según acuerdo vigente'} · El vencimiento no se modifica al cambiar textos públicos.</p></div>
+          <p className="font-medium text-brand-950/70 mb-2 text-base">Número de cobranza</p>
+          <p className="text-brand-950/40 font-light mb-2 text-xs">
             A este número se cobra la mensualidad, con los datos de pago y el pedido del
             comprobante. El botón arma el mensaje y lo copia para que lo pegues tú en el chat de
             WhatsApp: el envío automático está fuera de servicio mientras se migra a la API
@@ -855,15 +878,15 @@ export default function MasterRestaurantDetailPage() {
             </TextureButton>
           </div>
           {billingPhoneDirty && (
-            <p className="text-xs text-amber-600 font-light mt-2">Guarda el número antes de copiar el cobro.</p>
+            <p className="text-amber-600 font-light mt-2 text-xs">Guarda el número antes de copiar el cobro.</p>
           )}
-          {billingMessage && <p className="text-sm text-brand-950/70 mt-2">{billingMessage}</p>}
+          {billingMessage && <p className="text-brand-950/70 mt-2 text-base">{billingMessage}</p>}
           {copiedMessage && (
             <textarea
               readOnly
               value={copiedMessage}
               onFocus={(e) => e.currentTarget.select()}
-              className="mt-2 w-full h-40 rounded-xl border border-brand-950/15 p-3 text-xs font-mono"
+              className="mt-2 w-full h-40 rounded-xl border border-brand-950/15 p-3 font-mono text-base"
             />
           )}
         </div>
@@ -874,14 +897,21 @@ export default function MasterRestaurantDetailPage() {
 
         <div className="pt-1 border-t border-brand-950/[0.06]" />
 
-        <CustomizationsBlock restaurantId={id!} />
+        <CustomizationsBlock restaurantId={id!} canEdit={mayManageRestaurant} />
       </div>
+      }
 
-      {!detail.parentRestaurantId && (
+      {mayManageRestaurant && !mayManageBilling && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white p-6 shadow-sm">
+          <CustomizationsBlock restaurantId={id!} canEdit />
+        </div>
+      )}
+
+      {mayManageRestaurant && !detail.parentRestaurantId && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
           <div>
-            <p className="font-semibold text-brand-950">Sucursales</p>
-            <p className="text-sm text-brand-950/60 font-light mt-1">
+            <p className="font-semibold text-brand-950 text-base">Sucursales</p>
+            <p className="text-brand-950/60 font-light mt-1 text-base">
               Si todavía no tiene ninguna, crea la primera sucursal — sin pasar por el
               autoservicio del restaurante.
             </p>
@@ -889,7 +919,7 @@ export default function MasterRestaurantDetailPage() {
 
           {detail.branches.length === 0 ? (
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm text-brand-950/60 font-light">
+              <p className="text-brand-950/60 font-light text-base">
                 Este restaurante todavía no tiene sucursales. Si su plan actual no incluye
                 sucursales, se activará automáticamente en el plan elegido al crearla.
               </p>
@@ -904,7 +934,7 @@ export default function MasterRestaurantDetailPage() {
             </div>
           ) : (
             <div>
-              <p className="text-sm font-medium text-brand-950/70 mb-2">
+              <p className="font-medium text-brand-950/70 mb-2 text-base">
                 Sucursales ({detail.branches.length})
               </p>
               <ul className="space-y-1.5 text-sm">
@@ -915,7 +945,7 @@ export default function MasterRestaurantDetailPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-brand-950/40 font-light mt-2">
+              <p className="text-brand-950/40 font-light mt-2 text-xs">
                 Sucursales adicionales las agrega el propio restaurante desde su panel.
               </p>
             </div>
@@ -927,10 +957,10 @@ export default function MasterRestaurantDetailPage() {
         <AddBranchDialog busy={busy} isShop={detail.businessType === 'SHOP'} onClose={() => setShowAddBranchDialog(false)} onCreate={createBranch} />
       )}
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+      {maySupportRestaurant && <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-brand-950">Avisar sistema listo</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1">
+          <p className="font-semibold text-brand-950 text-base">Avisar sistema listo</p>
+          <p className="text-brand-950/60 font-light mt-1 text-base">
             Manda por WhatsApp la lista de usuarios creados (correo y rol) más el monto de
             instalación a cancelar, con el Pago Móvil de QuickTap.
             {detail.installationNoticeSentAt && (
@@ -943,9 +973,9 @@ export default function MasterRestaurantDetailPage() {
         <TextureButton variant="brand" size="sm" className="!w-auto shrink-0" onClick={openReadyDialog}>
           Avisar sistema listo
         </TextureButton>
-      </div>
+      </div>}
 
-      {showReadyDialog && (
+      {maySupportRestaurant && showReadyDialog && (
         <Dialog open onOpenChange={(o) => !o && setShowReadyDialog(false)}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -953,37 +983,37 @@ export default function MasterRestaurantDetailPage() {
             </DialogHeader>
             {readySent ? (
               <div className="space-y-3">
-                <p className="text-sm text-emerald-700">Aviso enviado por WhatsApp.</p>
+                <p className="text-emerald-700 text-base">Aviso enviado por WhatsApp.</p>
                 <TextureButton variant="minimal" size="default" onClick={() => setShowReadyDialog(false)}>
                   Cerrar
                 </TextureButton>
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-xs text-brand-950/50 font-light">
+                <p className="text-brand-950/50 font-light text-xs">
                   Se enviará al WhatsApp del restaurante ({detail.whatsappPhone ?? 'sin número registrado'}) con la
                   lista de {detail.users.length} usuario{detail.users.length === 1 ? '' : 's'} creado
                   {detail.users.length === 1 ? '' : 's'}, el monto de instalación y el Pago Móvil de QuickTap.
                 </p>
                 <div>
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto de instalación ($)</p>
+                  <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Monto de instalación ($)</p>
                   <input
                     autoFocus
                     inputMode="decimal"
                     value={readyAmountUsd}
                     onChange={(e) => setReadyAmountUsd(e.target.value.replace(/[^0-9.]/g, ''))}
                     placeholder="0.00"
-                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                   {readyAmountUsd && readyRateBs && Number(readyAmountUsd) > 0 && (
-                    <p className="text-xs text-brand-950/40 font-light mt-1.5">
+                    <p className="text-brand-950/40 font-light mt-1.5 text-xs">
                       ≈ Bs {(Number(readyAmountUsd) * readyRateBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                       a la tasa del día (Bs {readyRateBs.toLocaleString('es-VE')})
                     </p>
                   )}
-                  {!readyRateBs && <p className="text-xs text-amber-600 font-light mt-1.5">No se pudo cargar la tasa del día.</p>}
+                  {!readyRateBs && <p className="text-amber-600 font-light mt-1.5 text-xs">No se pudo cargar la tasa del día.</p>}
                 </div>
-                {readyError && <p className="text-sm text-red-600">{readyError}</p>}
+                {readyError && <p className="text-red-600 text-base">{readyError}</p>}
                 <TextureButton
                   variant="brand"
                   size="default"
@@ -1000,13 +1030,14 @@ export default function MasterRestaurantDetailPage() {
       )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-        <p className="font-semibold text-brand-950 mb-3">Equipo</p>
+        <p className="font-semibold text-brand-950 mb-3 text-base">Equipo</p>
         <ul className="space-y-2 text-sm">
           {detail.users.map((u) => (
             <li key={u.id}>
               <button
-                onClick={() => setEditingUser(u)}
-                className="w-full flex items-center justify-between text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-brand-950/[0.04] transition-colors"
+                onClick={() => maySupportRestaurant && setEditingUser(u)}
+                disabled={!maySupportRestaurant}
+                className="w-full flex items-center justify-between text-left rounded-lg px-2 py-1.5 -mx-2 enabled:hover:bg-brand-950/[0.04] transition-colors disabled:cursor-default"
               >
                 <span className="text-brand-950/80">
                   {u.name} <span className="text-brand-950/40 font-light">· {u.email}</span>
@@ -1018,7 +1049,7 @@ export default function MasterRestaurantDetailPage() {
         </ul>
       </div>
 
-      {editingUser && (
+      {maySupportRestaurant && editingUser && (
         <EditUserDialog
           user={editingUser}
           busy={busy}
@@ -1029,11 +1060,11 @@ export default function MasterRestaurantDetailPage() {
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
         <div className="flex items-center gap-2 mb-3">
-          <p className="font-semibold text-brand-950">Pedidos recientes</p>
+          <p className="font-semibold text-brand-950 text-base">Pedidos recientes</p>
           <MoneyVisibilityToggle />
         </div>
         {detail.recentOrders.length === 0 ? (
-          <p className="text-sm text-brand-950/40 font-light">Sin pedidos todavía.</p>
+          <p className="text-brand-950/40 font-light text-base">Sin pedidos todavía.</p>
         ) : (
           <ul className="space-y-2 text-sm">
             {detail.recentOrders.map((o) => (
@@ -1050,10 +1081,11 @@ export default function MasterRestaurantDetailPage() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-red-200 bg-red-50/50 shadow-sm p-6 flex items-start justify-between gap-3">
+      {mayManagePlatform && detail.businessType === 'RESTAURANT' && <RestaurantReset id={detail.id} onReset={load} />}
+      {mayManagePlatform && <div className="rounded-2xl border border-red-200 bg-red-50/50 shadow-sm p-6 flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-red-700">Zona de peligro</p>
-          <p className="text-sm text-red-700/70 font-light mt-1">
+          <p className="font-semibold text-red-700 text-base">Zona de peligro</p>
+          <p className="text-red-700/70 font-light mt-1 text-base">
             Elimina el restaurante y todos sus datos (usuarios, pedidos, productos, mesas, etc.). No se puede deshacer.
           </p>
         </div>
@@ -1065,9 +1097,9 @@ export default function MasterRestaurantDetailPage() {
         >
           Eliminar restaurante
         </TextureButton>
-      </div>
+      </div>}
 
-      {showDeleteDialog && (
+      {mayManagePlatform && showDeleteDialog && (
         <DeleteRestaurantDialog
           slug={detail.slug}
           busy={deleting}
@@ -1087,7 +1119,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <p className="text-2xl font-semibold text-brand-950">{value}</p>
-      <p className="text-xs text-brand-950/50 font-light">{label}</p>
+      <p className="text-brand-950/50 font-light text-xs">{label}</p>
     </div>
   );
 }
@@ -1114,24 +1146,24 @@ function EditUserDialog({
           <DialogTitle>Editar usuario · {user.role}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Nombre</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Correo</span>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Nueva contraseña</span>
             <PasswordInput
               value={password}
@@ -1174,7 +1206,7 @@ function AddBranchDialog({
 }) {
   const [name, setName] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
-  const [plan, setPlan] = useState<(typeof BRANCH_PLAN_OPTIONS)[number]>(isShop ? 'ELITE_SHOP' : 'ELITE');
+  const [plan, setPlan] = useState<(typeof BRANCH_PLAN_OPTIONS)[number]>(isShop ? 'ELITE_SHOP' : 'CONTROL');
   const planOptions: readonly (typeof BRANCH_PLAN_OPTIONS)[number][] = isShop ? SHOP_BRANCH_PLAN_OPTIONS : BRANCH_PLAN_OPTIONS.filter((p) => p !== 'ELITE_SHOP');
   const [billingCycle, setBillingCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
   const [copyCatalog, setCopyCatalog] = useState(false);
@@ -1186,26 +1218,26 @@ function AddBranchDialog({
           <DialogTitle>Agregar sucursal</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">Nombre de la sucursal</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               autoFocus
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">WhatsApp (opcional)</span>
             <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </label>
           <div className="flex gap-3">
-            <label className="text-sm flex-1">
+            <label className="flex-1 text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">Plan</span>
               <select
                 value={plan}
                 onChange={(e) => setPlan(e.target.value as (typeof BRANCH_PLAN_OPTIONS)[number])}
-                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               >
                 {planOptions.map((p) => (
                   <option key={p} value={p}>
@@ -1214,12 +1246,12 @@ function AddBranchDialog({
                 ))}
               </select>
             </label>
-            <label className="text-sm flex-1">
+            <label className="flex-1 text-sm font-medium">
               <span className="block text-brand-950/70 mb-1">Ciclo</span>
               <select
                 value={billingCycle}
                 onChange={(e) => setBillingCycle(e.target.value as (typeof CYCLE_OPTIONS)[number])}
-                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               >
                 {CYCLE_OPTIONS.map((c) => (
                   <option key={c} value={c}>
@@ -1229,10 +1261,10 @@ function AddBranchDialog({
               </select>
             </label>
           </div>
-          <p className="text-xs text-brand-950/40 font-light">
+          <p className="text-brand-950/40 font-light text-xs">
             Solo se aplica si el restaurante todavía no está en un plan con sucursales.
           </p>
-          <label className="flex items-center gap-2 text-sm text-brand-950/70">
+          <label className="flex items-center gap-2 text-brand-950/70 text-sm font-medium">
             <input type="checkbox" checked={copyCatalog} onChange={(e) => setCopyCatalog(e.target.checked)} />
             Copiar catálogo (categorías/productos) de la sede principal
           </label>
@@ -1273,21 +1305,21 @@ function DeleteRestaurantDialog({
           <DialogTitle>Eliminar restaurante</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-sm text-brand-950/70">
+          <p className="text-brand-950/70 text-base">
             Esto borra el restaurante, su equipo, pedidos, productos, mesas y todo lo demás. No se puede deshacer.
           </p>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="block text-brand-950/70 mb-1">
               Escribe <span className="font-semibold text-brand-950">{slug}</span> para confirmar
             </span>
             <input
               value={confirmSlug}
               onChange={(e) => setConfirmSlug(e.target.value)}
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               autoFocus
             />
           </label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton
             variant="destructive"
             size="default"
@@ -1330,7 +1362,7 @@ const CUSTOMIZATION_STATUS: { value: Customization['status']; label: string; cla
  * adicional que se crea solo al marcarla Entregada. Un cargo se cobra una vez y desaparece del
  * pendiente, mientras que la personalización sigue viva en el producto para siempre.
  */
-function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
+function CustomizationsBlock({ restaurantId, canEdit }: { restaurantId: string; canEdit: boolean }) {
   const [items, setItems] = useState<Customization[]>([]);
   const [title, setTitle] = useState('');
   const [detail, setDetail] = useState('');
@@ -1404,24 +1436,24 @@ function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
 
   return (
     <div>
-      <p className="font-semibold text-brand-950">Personalizaciones</p>
-      <p className="text-sm text-brand-950/60 font-light mt-1 mb-4">
+      <p className="font-semibold text-brand-950 text-base">Personalizaciones</p>
+      <p className="text-brand-950/60 font-light mt-1 mb-4 text-base">
         Lo que se le construyó a medida a este negocio. Al marcar una como <strong className="font-medium">Entregada</strong>{' '}
         se le genera el cargo por su monto, que entra en la próxima mensualidad y que el local ve desglosado en su
         Facturación. Se cobra una sola vez: volver a marcarla entregada no la vuelve a cobrar.
       </p>
 
-      <div className="flex flex-wrap items-end gap-3 mb-2">
-        <label className="text-sm flex-1 min-w-[14rem]">
+      {canEdit && <><div className="flex flex-wrap items-end gap-3 mb-2">
+        <label className="flex-1 min-w-[14rem] text-sm font-medium">
           <span className="block text-brand-950/70 mb-1">Qué se personalizó</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Ej: Control de lotes por peso"
-            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
           />
         </label>
-        <label className="text-sm">
+        <label className="text-sm font-medium">
           <span className="block text-brand-950/70 mb-1">Monto (USD)</span>
           <input
             type="number"
@@ -1430,7 +1462,7 @@ function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-32"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 w-32 text-base"
           />
         </label>
         <TextureButton
@@ -1443,20 +1475,20 @@ function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
           {busy ? 'Registrando…' : 'Registrar'}
         </TextureButton>
       </div>
-      <label className="block text-sm mb-3">
+      <label className="block mb-3 text-sm font-medium">
         <span className="block text-brand-950/70 mb-1">Nota interna (opcional)</span>
         <textarea
           value={detail}
           onChange={(e) => setDetail(e.target.value)}
           placeholder="Qué pidió exactamente, qué se hizo, cualquier cosa que sirva para retomarlo dentro de un año. Esto no lo ve el local."
-          className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm h-16 resize-none"
+          className="w-full border border-brand-950/15 rounded-lg px-3 py-2 h-16 resize-none text-base"
         />
-      </label>
+      </label></>}
 
-      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+      {error && <p className="text-red-600 mb-2 text-base">{error}</p>}
 
       {items.length === 0 ? (
-        <p className="text-sm text-brand-950/40 font-light">Sin personalizaciones registradas.</p>
+        <p className="text-brand-950/40 font-light text-base">Sin personalizaciones registradas.</p>
       ) : (
         <>
           <div className="flex flex-wrap gap-4 text-xs text-brand-950/50 mb-2">
@@ -1472,9 +1504,9 @@ function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
                 <li key={c.id} className="rounded-xl border border-brand-950/10 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-950">{c.title}</p>
-                      {c.detail && <p className="text-xs text-brand-950/50 font-light mt-0.5 whitespace-pre-wrap">{c.detail}</p>}
-                      <p className="text-[11px] text-brand-950/40 mt-1">
+                      <p className="font-medium text-brand-950 text-base">{c.title}</p>
+                      {c.detail && <p className="text-brand-950/50 font-light mt-0.5 whitespace-pre-wrap text-xs">{c.detail}</p>}
+                      <p className="text-brand-950/40 mt-1 text-xs">
                         Pedida el {new Date(c.requestedAt).toLocaleDateString('es-VE')}
                         {c.deliveredAt && ` · entregada el ${new Date(c.deliveredAt).toLocaleDateString('es-VE')}`}
                         {c.additionalCharge
@@ -1491,7 +1523,7 @@ function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${badge.className}`}>{badge.label}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {canEdit && <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {CUSTOMIZATION_STATUS.filter((s) => s.value !== c.status).map((s) => (
                       <button
                         key={s.value}
@@ -1504,7 +1536,7 @@ function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
                     <button onClick={() => remove(c)} className="text-[11px] text-red-600 hover:text-red-700 ml-auto">
                       Eliminar
                     </button>
-                  </div>
+                  </div>}
                 </li>
               );
             })}
@@ -1591,15 +1623,15 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
 
   return (
     <div>
-      <p className="text-sm font-medium text-brand-950/70 mb-2">Costos adicionales</p>
-      <p className="text-xs text-brand-950/40 font-light mb-3">
+      <p className="font-medium text-brand-950/70 mb-2 text-base">Costos adicionales</p>
+      <p className="text-brand-950/40 font-light mb-3 text-xs">
         Mientras estén pendientes, aparecen en el aviso de "Sistema listo" y en el recordatorio de
         mensualidad por WhatsApp. Si el restaurante ya pagó por su cuenta, márcalo como pagado; si
         no, se suman solos a la próxima mensualidad al aprobarse el pago.
       </p>
 
       <div className="flex flex-wrap items-end gap-3 mb-3">
-        <label className="text-sm">
+        <label className="text-sm font-medium">
           <span className="block text-brand-950/70 mb-1">Monto (USD)</span>
           <input
             type="number"
@@ -1608,16 +1640,16 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-32"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 w-32 text-base"
           />
         </label>
-        <label className="text-sm flex-1 min-w-[12rem]">
+        <label className="flex-1 min-w-[12rem] text-sm font-medium">
           <span className="block text-brand-950/70 mb-1">Motivo</span>
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Ej: 20 QR NFC, diseño de menú…"
-            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
           />
         </label>
         <TextureButton
@@ -1631,11 +1663,11 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
         </TextureButton>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+      {error && <p className="text-red-600 mb-2 text-base">{error}</p>}
 
       {pending.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 mb-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-2">
+          <p className="font-semibold uppercase tracking-wide text-amber-800 mb-2 text-xs">
             Pendientes de cobrar · ${pendingTotal.toFixed(2)}
           </p>
           <ul className="space-y-1.5">
@@ -1659,7 +1691,7 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
 
       {charged.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40 mb-1.5">Ya cobrados</p>
+          <p className="font-semibold uppercase tracking-wide text-brand-950/40 mb-1.5 text-xs">Ya cobrados</p>
           <ul className="space-y-1 text-sm">
             {charged.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-3 text-brand-950/50">
@@ -1674,7 +1706,7 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
       )}
 
       {charges.length === 0 && (
-        <p className="text-sm text-brand-950/40 font-light">Sin cargos adicionales.</p>
+        <p className="text-brand-950/40 font-light text-base">Sin cargos adicionales.</p>
       )}
     </div>
   );

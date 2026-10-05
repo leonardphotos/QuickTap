@@ -59,12 +59,12 @@ export function SeatDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
-          <p className="text-sm text-brand-950/60">
+          <p className="text-brand-950/60 text-base">
             Se le abre la cuenta a <span className="font-semibold text-brand-950">{personName}</span> en la mesa que elijas.
           </p>
 
           {free.length === 0 ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 text-base">
               No hay mesas libres en este momento.
             </p>
           ) : (
@@ -84,18 +84,18 @@ export function SeatDialog({
           )}
 
           {needsIdNumber && (
-            <label className="block text-sm text-brand-950/60">
+            <label className="block text-brand-950/60 text-sm font-medium">
               Cédula <span className="text-brand-950/35">(opcional)</span>
               <input
                 value={idNumber}
                 onChange={(e) => setIdNumber(e.target.value)}
                 placeholder="V-12345678"
-                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm text-brand-950 focus:border-brand-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-brand-950 focus:border-brand-500 focus:outline-none text-base"
               />
             </label>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
 
           <TextureButton
             variant="brand"
@@ -124,7 +124,7 @@ function TableGroup({
 }) {
   return (
     <div>
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-brand-950/40">{label}</p>
+      <p className="mb-1 font-bold uppercase tracking-wider text-brand-950/40 text-xs">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {tables.map((t) => (
           <button

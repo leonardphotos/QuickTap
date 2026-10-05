@@ -1,50 +1,44 @@
-import { useEffect, useState } from 'react';
+import { CheckoutExtrasSection } from '@/components/admin/CheckoutExtrasSection';
+import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
+import { ClubLinkSection } from '@/components/admin/ClubLinkSection';
+import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection';
+import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
+import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
+import { DemoAdminUnlockSection } from '@/components/admin/DemoAdminUnlockSection';
+import { DesktopShortcutSection } from '@/components/admin/DesktopShortcutSection';
+import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
+import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
+import { OfflineRelaySection } from '@/components/admin/OfflineRelaySection';
+import { PantallaSection } from '@/components/admin/PantallaSection';
+import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
+import { PrintStationSection } from '@/components/admin/PrintStationSection';
+import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
+import { ScheduleSection } from '@/components/admin/ScheduleSection';
+import { FullWidth,SettingsCategory,SettingsWorkspace,type SettingsOption } from '@/components/admin/SettingsWorkspace';
+import { TeamSection } from '@/components/admin/TeamSection';
+import { ThemeSection } from '@/components/admin/ThemeSection';
+import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
+import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
+import { TextureButton } from '@/components/ui/texture-button';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
 import {
-  Building2,
-  ChevronDown,
-  Clock,
-  MessageCircle,
-  Wallet,
-  Bike,
-  Palette,
-  ShieldCheck,
-  Database,
-  Printer,
-  MonitorPlay,
-  Crown,
+Bike,
+Building2,
+Database,
+MessageCircle,
+Palette,
+Printer,
+ShieldCheck,
+Users,
+Wallet,
 } from 'lucide-react';
+import { useEffect,useState } from 'react';
 import { api } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext.shared';
 import type { Currency } from '../../types';
 import { formatBsAbsolute } from '../../utils/format';
 import { canManageTeam } from '../../utils/roles';
-import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/components/admin/SettingsCategory';
-import { TeamSection } from '@/components/admin/TeamSection';
-import { ThemeSection } from '@/components/admin/ThemeSection';
-import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
-import { DesktopShortcutSection } from '@/components/admin/DesktopShortcutSection';
-import { ClubLinkSection } from '@/components/admin/ClubLinkSection';
-import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
-import { CHATBOTS_ENABLED } from '@/config/features';
-import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
-import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
-import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
-import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
-import { ScheduleSection } from '@/components/admin/ScheduleSection';
-import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
-import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
-import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
-import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
-import { PrintStationSection } from '@/components/admin/PrintStationSection';
-import { OfflineRelaySection } from '@/components/admin/OfflineRelaySection';
-import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection';
-import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
-import { DemoAdminUnlockSection } from '@/components/admin/DemoAdminUnlockSection';
-import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
-import { PantallaSection } from '@/components/admin/PantallaSection';
 
 interface RateInfo {
   currency: Currency;
@@ -136,86 +130,50 @@ export default function SettingsPage() {
     }
   }
 
-  const CATEGORIES = [
-    { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
-    { id: 'plan', title: 'Mi plan', icon: <Crown className="h-4 w-4" /> },
-    { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
-    { id: 'pagos', title: 'Pagos y moneda', icon: <Wallet className="h-4 w-4" /> },
-    { id: 'delivery', title: 'Delivery', icon: <Bike className="h-4 w-4" /> },
-    { id: 'apariencia', title: 'Apariencia del menú público', icon: <Palette className="h-4 w-4" /> },
-    { id: 'pantalla', title: 'Pantalla', icon: <MonitorPlay className="h-4 w-4" /> },
-    ...(isManager ? [{ id: 'equipo', title: 'Equipo y seguridad', icon: <ShieldCheck className="h-4 w-4" /> }] : []),
-    { id: 'impresion', title: 'Estación de impresión', icon: <Printer className="h-4 w-4" /> },
-    ...(isManager ? [{ id: 'datos', title: 'Datos y reportes', icon: <Database className="h-4 w-4" /> }] : []),
-    ...(!isManager ? [{ id: 'seguridad', title: 'Seguridad', icon: <Clock className="h-4 w-4" /> }] : []),
+  const CATEGORIES: SettingsOption[] = [
+    { id: 'negocio', title: 'Información y horarios', description: 'Los datos de tu restaurante y cuándo atiendes a tus clientes.', group: 'negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'apariencia', title: 'Menú y pantallas', description: 'Personaliza la imagen del menú digital y la pantalla del local.', group: 'negocio', icon: <Palette className="h-4 w-4" /> },
+    { id: 'whatsapp', title: 'WhatsApp', description: 'Configura los mensajes y la conexión de tu negocio.', group: 'negocio', icon: <MessageCircle className="h-4 w-4" /> },
+    { id: 'pagos', title: 'Cobros y moneda', description: 'Métodos de pago, tasa de cambio y preferencias al cobrar.', group: 'operacion', icon: <Wallet className="h-4 w-4" /> },
+    { id: 'delivery', title: 'Delivery y repartidores', description: 'Organiza tus entregas, las tarifas de envío y el equipo de reparto.', group: 'operacion', icon: <Bike className="h-4 w-4" /> },
+    { id: 'impresion', title: 'Impresión y dispositivos', description: 'Conecta las impresoras y configura los equipos del restaurante.', group: 'operacion', icon: <Printer className="h-4 w-4" /> },
+    ...(isManager ? [{ id: 'equipo', title: 'Equipo', description: 'Gestiona los usuarios y sus responsabilidades en el restaurante.', group: 'administracion' as const, icon: <Users className="h-4 w-4" /> }] : []),
+    { id: 'seguridad', title: 'Seguridad', description: 'Protege el acceso al panel y las acciones sensibles.', group: 'administracion', icon: <ShieldCheck className="h-4 w-4" /> },
+    ...(isManager ? [{ id: 'datos', title: 'Datos y exportaciones', description: 'Consulta las opciones para exportar la información de tu negocio.', group: 'administracion' as const, icon: <Database className="h-4 w-4" /> }] : []),
   ];
 
-  // Vacío = todas las categorías cerradas al entrar a Ajustes; el staff abre la que necesite.
-  const [openCategory, setOpenCategory] = useState<string>('');
+  const [openCategory, setOpenCategory] = useState<string>(() => {
+    const section = new URLSearchParams(window.location.search).get('section');
+    return CATEGORIES.some(category => category.id === section) ? section! : 'negocio';
+  });
 
   function selectCategory(id: string) {
     setOpenCategory(id);
-    scrollToSettingsCategory(id);
   }
 
   function toggleCategory(id: string) {
-    setOpenCategory((current) => (current === id ? '' : id));
+    setOpenCategory(id);
   }
 
-  const currentCategory = CATEGORIES.find((c) => c.id === openCategory);
-
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Ajustes</h1>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-full border border-brand-950/10 bg-white px-4 py-2 text-sm font-medium text-brand-950 shadow-sm hover:bg-brand-950/[0.03]"
-            >
-              {currentCategory?.icon}
-              {currentCategory?.title ?? 'Elige una categoría'}
-              <ChevronDown className="h-3.5 w-3.5 text-brand-950/40" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {CATEGORIES.map((c) => (
-              <DropdownMenuItem key={c.id} onClick={() => selectCategory(c.id)}>
-                {c.icon}
-                {c.title}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+    <SettingsWorkspace options={CATEGORIES} active={openCategory} onSelect={selectCategory}>
 
       <SettingsCategory id="negocio" title="Negocio" icon={<Building2 className="h-4 w-4" />} open={openCategory === 'negocio'} onToggle={toggleCategory}>
         <RestaurantInfoSection />
-        <DesktopShortcutSection />
         <ScheduleSection />
         {isManager && <FullWidth><ClubLinkSection /></FullWidth>}
       </SettingsCategory>
 
-      <SettingsCategory id="plan" title="Mi plan" icon={<Crown className="h-4 w-4" />} open={openCategory === 'plan'} onToggle={toggleCategory}>
-        <FullWidth><PlanChangeSection onGoToBilling={() => { window.location.href = '/admin/billing'; }} /></FullWidth>
-      </SettingsCategory>
-
       <SettingsCategory id="whatsapp" title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />} open={openCategory === 'whatsapp'} onToggle={toggleCategory}>
+        <WhatsappLinkSection titulo="WhatsApp del negocio" />
         <WhatsappMessageSection />
-        {CHATBOTS_ENABLED && <WhatsappBotSection />}
-        {/* WhatsApp vinculado por Evolution (independiente de los chatbots viejos): cada
-            negocio con plan Elite conecta SU número. El backend responde 403 en planes
-            menores y la tarjeta se esconde sola si Evolution no está configurada. */}
-        <WhatsappLinkSection />
       </SettingsCategory>
 
       <SettingsCategory id="pagos" title="Pagos y moneda" icon={<Wallet className="h-4 w-4" />} open={openCategory === 'pagos'} onToggle={toggleCategory}>
         <TextureCard>
           <TextureCardHeader className="px-6">
             <TextureCardTitle className="pl-0">Tasa cambiaria</TextureCardTitle>
-            <p className="text-sm text-brand-950/60 font-light">
+            <p className="text-brand-950/60 font-light text-base">
               Elige en qué moneda colocas tus precios. La conversión a bolívares que ven tus clientes se calcula
               automáticamente con la tasa oficial del Banco Central de Venezuela (BCV).
             </p>
@@ -237,8 +195,8 @@ export default function SettingsPage() {
 
             <div className="flex items-start justify-between gap-4 rounded-xl border border-brand-950/10 bg-brand-50/40 px-4 py-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-brand-950">Fijar tasa manualmente</p>
-                <p className="mt-0.5 text-xs font-light text-brand-950/50">
+                <p className="font-medium text-brand-950 text-base">Fijar tasa manualmente</p>
+                <p className="mt-0.5 font-light text-brand-950/50 text-xs">
                   En vez de usar la tasa BCV automática, coloca tú mismo el valor en Bs y no cambiará hasta que lo
                   edites.
                 </p>
@@ -269,7 +227,7 @@ export default function SettingsPage() {
                 value={manualRateInput}
                 onChange={(e) => setManualRateInput(e.target.value)}
                 placeholder="Ej: 55.30"
-                className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
               <span className="text-sm text-brand-950/50">Bs / {baseCurrency === 'USD' ? '$1' : '€1'}</span>
               <TextureButton
@@ -292,7 +250,7 @@ export default function SettingsPage() {
                       / {baseCurrency === 'USD' ? '$1' : '€1'}
                     </p>
                   ) : (
-                    <p className="text-amber-600">Activaste la tasa manual pero aún no has guardado un valor.</p>
+                    <p className="text-amber-600 text-base">Activaste la tasa manual pero aún no has guardado un valor.</p>
                   )
                 ) : activeRate.rateBs ? (
                   <>
@@ -300,18 +258,18 @@ export default function SettingsPage() {
                       Tasa BCV vigente: <span className="font-semibold">{formatBsAbsolute(activeRate.rateBs)}</span> /{' '}
                       {baseCurrency === 'USD' ? '$1' : '€1'}
                     </p>
-                    <p className="text-xs text-brand-950/50 font-light">
+                    <p className="text-brand-950/50 font-light text-xs">
                       Actualizada: {new Date(activeRate.fetchedAt!).toLocaleString('es-VE')} · Fuente: {activeRate.source}
                     </p>
                     {activeRate.stale && (
-                      <p className="text-xs text-amber-600">
+                      <p className="text-amber-600 text-xs">
                         ⚠️ Esta tasa tiene más de{' '}
                         {Math.round((Date.now() - new Date(activeRate.fetchedAt!).getTime()) / 3600000)}h de antigüedad.
                       </p>
                     )}
                   </>
                 ) : (
-                  <p className="text-amber-600">Aún no se ha obtenido una tasa BCV para esta moneda.</p>
+                  <p className="text-amber-600 text-base">Aún no se ha obtenido una tasa BCV para esta moneda.</p>
                 )}
                 {!activeRate.manual && (
                   <button
@@ -325,8 +283,8 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {message && <p className="text-sm text-brand-500">{message}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
+            {message && <p className="text-brand-500 text-base">{message}</p>}
 
             <TextureButton variant="brand" size="default" disabled={saving} onClick={saveCurrency} className="!w-auto disabled:opacity-50">
               {saving ? 'Guardando…' : 'Guardar cambios'}
@@ -335,6 +293,7 @@ export default function SettingsPage() {
         </TextureCard>
         <PaymentMethodsSection />
         <CheckoutSettingsSection />
+        <CheckoutExtrasSection />
       </SettingsCategory>
 
       <SettingsCategory id="delivery" title="Delivery" icon={<Bike className="h-4 w-4" />} open={openCategory === 'delivery'} onToggle={toggleCategory}>
@@ -355,15 +314,6 @@ export default function SettingsPage() {
         <FullWidth>
           <ThemeSection />
         </FullWidth>
-      </SettingsCategory>
-
-      <SettingsCategory
-        id="pantalla"
-        title="Pantalla"
-        icon={<MonitorPlay className="h-4 w-4" />}
-        open={openCategory === 'pantalla'}
-        onToggle={toggleCategory}
-      >
         <FullWidth>
           <PantallaSection />
         </FullWidth>
@@ -378,8 +328,6 @@ export default function SettingsPage() {
           onToggle={toggleCategory}
         >
           <TeamSection />
-          <DeleteOrderPinSection />
-          <LockScreenSettingsSection />
         </SettingsCategory>
       )}
 
@@ -392,6 +340,7 @@ export default function SettingsPage() {
       >
         <PrintStationSection />
         <OfflineRelaySection />
+        <DesktopShortcutSection />
       </SettingsCategory>
 
       {isManager && (
@@ -407,17 +356,16 @@ export default function SettingsPage() {
         </SettingsCategory>
       )}
 
-      {!isManager && (
         <SettingsCategory
           id="seguridad"
           title="Seguridad"
-          icon={<Clock className="h-4 w-4" />}
+          icon={<ShieldCheck className="h-4 w-4" />}
           open={openCategory === 'seguridad'}
           onToggle={toggleCategory}
         >
+          {isManager && <DeleteOrderPinSection />}
           <LockScreenSettingsSection />
         </SettingsCategory>
-      )}
-    </div>
+    </SettingsWorkspace>
   );
 }

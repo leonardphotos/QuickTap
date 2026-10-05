@@ -71,14 +71,14 @@ export default function ProductBarcodeScanDialog({ open, onOpenChange, products,
         )}
         {cameraError && (
           <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/80">
-            <p className="text-sm text-white text-center">{cameraError} Revisa los permisos de cámara del navegador.</p>
+            <p className="text-white text-center text-base">{cameraError} Revisa los permisos de cámara del navegador.</p>
           </div>
         )}
       </div>
 
       {notFoundCode && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 flex items-center justify-between gap-2">
-          <p className="text-[13px] text-amber-700">
+          <p className="text-amber-700 text-base">
             Sin coincidencias para el código <span className="font-semibold">{notFoundCode}</span>. Revisa que el
             producto tenga ese SKU cargado.
           </p>

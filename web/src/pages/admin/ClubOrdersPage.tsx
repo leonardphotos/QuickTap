@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import { apiOrigin } from '@/utils/apiOrigin';
-import { Check, ChefHat, Clock, Phone, Users, Wallet, X } from 'lucide-react';
-import { clubLinkApi, type CourtPayment, type KitchenClubOrder } from '@/api/clubLink';
 import { getToken } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
-import { formatBase } from '@/utils/format';
+import { clubLinkApi,type CourtPayment,type KitchenClubOrder } from '@/api/clubLink';
+import { TextureCard,TextureCardContent } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
 import { cn } from '@/lib/utils';
+import { apiOrigin } from '@/utils/apiOrigin';
+import { formatBase } from '@/utils/format';
+import { Check,ChefHat,Clock,Phone,Users,Wallet,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { io } from 'socket.io-client';
 
 /** Nombres de los métodos de cobro, para leer un pago reportado. */
 const PAYMENT_LABELS: Record<string, string> = {
@@ -112,7 +112,7 @@ export default function ClubOrdersPage() {
               {payments.length}
             </span>
           </h2>
-          <p className="mb-3 max-w-2xl text-[13px] font-light text-brand-950/50">
+          <p className="mb-3 max-w-2xl font-light text-brand-950/50 text-base">
             Pagos que los jugadores reportaron desde la tablet de su cancha. Revisa que la referencia esté en tu cuenta
             antes de aprobar: hasta que lo hagas, su cuenta contigo sigue abierta.
           </p>
@@ -122,22 +122,22 @@ export default function ClubOrdersPage() {
                 <TextureCardContent className="space-y-2.5 py-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-[15px] font-bold leading-tight text-brand-950">{p.player.name}</p>
-                      <p className="truncate text-xs font-light text-brand-950/45">
+                      <p className="truncate font-bold leading-tight text-brand-950 text-base">{p.player.name}</p>
+                      <p className="truncate font-light text-brand-950/45 text-xs">
                         {p.courtName} · {p.club.name}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-lg font-bold tabular-nums text-brand-950">{money(p.amountBase)}</p>
-                      <p className="text-[11px] font-medium tabular-nums text-brand-500">Bs {p.amountBs}</p>
+                      <p className="font-medium tabular-nums text-brand-500 text-xs">Bs {p.amountBs}</p>
                     </div>
                   </div>
 
                   <div className="rounded-xl bg-brand-950/[0.04] px-3 py-2">
-                    <p className="text-[12px] font-bold text-brand-950">
+                    <p className="font-bold text-brand-950 text-xs">
                       {PAYMENT_LABELS[p.method] ?? p.method}
                     </p>
-                    <p className="text-[12px] font-light text-brand-950/60">
+                    <p className="font-light text-brand-950/60 text-xs">
                       {p.referenceNumber ? (
                         <>
                           <span className="text-brand-950/40">Referencia:</span>{' '}
@@ -147,7 +147,7 @@ export default function ClubOrdersPage() {
                         'Sin referencia'
                       )}
                     </p>
-                    <p className="text-[11px] font-light text-brand-950/40">
+                    <p className="font-light text-brand-950/40 text-xs">
                       Reportado {hhmm(p.createdAt)} · {p.player.phone}
                     </p>
                   </div>
@@ -177,13 +177,13 @@ export default function ClubOrdersPage() {
         </section>
       )}
 
-      {orders === null && <p className="font-light text-brand-950/40">Cargando…</p>}
+      {orders === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
 
       {orders?.length === 0 && (
         <TextureCard>
           <TextureCardContent className="py-10 text-center">
-            <p className="font-semibold text-brand-950">No hay pedidos de canchas ahora</p>
-            <p className="mt-1 text-sm font-light text-brand-950/50">
+            <p className="font-semibold text-brand-950 text-base">No hay pedidos de canchas ahora</p>
+            <p className="mt-1 font-light text-brand-950/50 text-base">
               Cuando un jugador pida desde la tablet de su cancha, la comanda aparece acá al instante.
             </p>
           </TextureCardContent>
@@ -203,7 +203,7 @@ export default function ClubOrdersPage() {
                     <span className="font-medium text-brand-950/45">Pedido desde </span>
                     {o.courtName}
                   </p>
-                  <p className="truncate text-xs font-light text-brand-950/45">{o.club.name}</p>
+                  <p className="truncate font-light text-brand-950/45 text-xs">{o.club.name}</p>
                 </div>
                 <span
                   className={cn(
@@ -216,7 +216,7 @@ export default function ClubOrdersPage() {
               </div>
 
               <div className="rounded-2xl bg-brand-950/[0.04] px-3 py-2.5">
-                <p className="truncate text-sm font-semibold text-brand-950">{o.player.name}</p>
+                <p className="truncate font-semibold text-brand-950 text-base">{o.player.name}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] font-light text-brand-950/55">
                   <span className="flex items-center gap-1">
                     <Phone className="h-3 w-3" />
@@ -245,13 +245,13 @@ export default function ClubOrdersPage() {
               </ul>
 
               {o.clubItemCount > 0 && (
-                <p className="text-[11px] font-light text-brand-950/40">
+                <p className="font-light text-brand-950/40 text-xs">
                   + {o.clubItemCount} {o.clubItemCount === 1 ? 'artículo' : 'artículos'} de la tienda del club (lo
                   despacha el club)
                 </p>
               )}
 
-              <p className="text-[11px] font-light text-brand-950/40">
+              <p className="font-light text-brand-950/40 text-xs">
                 Pedido {hhmm(o.createdAt)} · lo cobra el club en su caja
               </p>
 

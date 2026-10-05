@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useState } from 'react';
 
 /** Código de 6 dígitos que el Mesero debe ingresar para eliminar una comanda. Solo Dueño/Admin lo crean o cambian. */
 export function DeleteOrderPinSection() {
@@ -42,7 +42,7 @@ export function DeleteOrderPinSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Código para eliminar comandas</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           El Mesero debe ingresar este código de 6 dígitos para poder eliminar una comanda desde Pedidos.{' '}
           {restaurant?.hasDeleteOrderPin ? (
             <span className="text-emerald-600 font-medium">Ya está configurado.</span>
@@ -58,19 +58,19 @@ export function DeleteOrderPinSection() {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             inputMode="numeric"
             placeholder="Código de 6 dígitos"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
           <input
             value={confirmPin}
             onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             inputMode="numeric"
             placeholder="Confirmar código"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : restaurant?.hasDeleteOrderPin ? 'Cambiar código' : 'Crear código'}

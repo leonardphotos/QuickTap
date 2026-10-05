@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { Download, FileSpreadsheet, TrendingDown, TrendingUp, Upload, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
-import { MetricCard } from './MetricCard';
-import { CATEGORY_LABELS, DOCUMENT_TYPE_LABELS, type ExpenseCategory, type ExpenseDocumentType } from './ExpenseFormDialog';
-import { INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
-import { PAYMENT_LABELS } from './PaymentDialog';
+import { useAuth } from '@/context/AuthContext.shared';
 import type { PaymentMethod } from '@/types';
+import { formatBase,formatBsAbsolute } from '@/utils/format';
+import { Download,FileSpreadsheet,TrendingDown,TrendingUp,Upload,Wallet } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
+import { CATEGORY_LABELS,DOCUMENT_TYPE_LABELS,type ExpenseCategory,type ExpenseDocumentType } from './ExpenseFormDialog.shared';
+import { INCOME_CATEGORY_LABELS,type IncomeCategory } from './IncomeFormDialog.shared';
+import { MetricCard } from './MetricCard';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año', all: 'Todo' };
@@ -183,17 +183,17 @@ export function MovementsLedgerSection() {
 
       {importResult && (
         <div className={`rounded-2xl border p-4 ${importResult.errors.length ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50'}`}>
-          <p className="text-sm font-medium text-brand-950">
+          <p className="font-medium text-brand-950 text-base">
             {importResult.created} movimiento{importResult.created === 1 ? '' : 's'} importado{importResult.created === 1 ? '' : 's'}
             {importResult.errors.length > 0 && ` · ${importResult.errors.length} fila${importResult.errors.length === 1 ? '' : 's'} con error`}
           </p>
           {importResult.errors.slice(0, 5).map((e) => (
-            <p key={e.row} className="mt-0.5 text-xs text-brand-950/60 font-light">
+            <p key={e.row} className="mt-0.5 text-brand-950/60 font-light text-xs">
               Fila {e.row}: {e.message}
             </p>
           ))}
           {importResult.errors.length > 5 && (
-            <p className="mt-0.5 text-xs text-brand-950/40 font-light">…y {importResult.errors.length - 5} más.</p>
+            <p className="mt-0.5 text-brand-950/40 font-light text-xs">…y {importResult.errors.length - 5} más.</p>
           )}
         </div>
       )}
@@ -221,7 +221,7 @@ export function MovementsLedgerSection() {
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value as ExpenseCategory | '')}
-          className="text-xs font-medium border border-brand-950/15 rounded-full px-2.5 py-1.5 text-brand-950/60"
+          className="font-medium border border-brand-950/15 rounded-full px-2.5 py-1.5 text-brand-950/60 text-base"
         >
           <option value="">Todas las categorías</option>
           {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
@@ -255,7 +255,7 @@ export function MovementsLedgerSection() {
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {result && (
         <div className="grid sm:grid-cols-3 gap-4">
@@ -321,7 +321,7 @@ export function MovementsLedgerSection() {
           <span className="w-24 shrink-0 text-right">Monto</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-          {rows.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin movimientos en este filtro.</p>}
+          {rows.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin movimientos en este filtro.</p>}
           {rows.map((m) => (
             <div key={m.id} className="flex items-center gap-3 px-5 py-2.5 text-sm min-w-[680px]">
               <span className="w-20 shrink-0 text-xs text-brand-950/50">

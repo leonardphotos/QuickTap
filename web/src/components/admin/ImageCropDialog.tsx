@@ -71,7 +71,7 @@ export function ImageCropDialog({ imageSrc, aspect, onCancel, onCropped }: Props
               onCropComplete={(_croppedArea, croppedAreaPixels) => setArea(croppedAreaPixels)}
             />
           </div>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Zoom</span>
             <input
               type="range"
@@ -83,7 +83,7 @@ export function ImageCropDialog({ imageSrc, aspect, onCancel, onCropped }: Props
               className="w-full mt-1 accent-brand-500"
             />
           </label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <div className="flex items-center gap-2">
             <TextureButton variant="brand" size="default" disabled={processing} className="!w-auto" onClick={confirm}>
               {processing ? 'Recortando…' : 'Usar esta imagen'}

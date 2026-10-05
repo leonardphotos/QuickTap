@@ -26,7 +26,7 @@ export default function ImpersonatePage() {
 
   return (
     <AuthLayout title="Entrando al panel…">
-      <p className="text-center text-sm text-brand-950/60 font-light">
+      <p className="text-center text-brand-950/60 font-light text-base">
         {error ?? 'Un momento, te estamos llevando al panel del restaurante.'}
       </p>
     </AuthLayout>

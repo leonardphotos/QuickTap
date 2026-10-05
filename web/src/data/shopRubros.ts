@@ -7,6 +7,8 @@
  */
 
 export interface ShopVariant {
+  /** Id persistido. Las variantes de plantillas locales todavía pueden no tenerlo. */
+  id?: string;
   v1: string;
   v2: string;
   stock: number;
@@ -23,6 +25,7 @@ export interface ShopVariant {
 }
 
 export interface ShopProductSeed {
+  priceTiers?: { minQty: number; price: number }[];
   id: string;
   name: string;
   category: string;

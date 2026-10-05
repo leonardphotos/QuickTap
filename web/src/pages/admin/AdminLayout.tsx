@@ -1,58 +1,68 @@
-import { lazy, useState } from 'react';
-import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Boxes, CalendarDays, Home, Menu, PanelLeftOpen, Plus, Share2, TriangleAlert } from 'lucide-react';
-import { api } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
-import { TextureButton } from '@/components/ui/texture-button';
-import { Toast } from '@/components/ui/toast';
-import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
+import { billingReturn } from '@/utils/billing-return';
+import { MembershipExpired } from '@/components/admin/MembershipExpired';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { BusinessVoiceAssistant } from '@/components/admin/BusinessVoiceAssistant';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
-import { TodayPaymentMethodsDialog } from '@/components/admin/TodayPaymentMethodsDialog';
+import { ConnectivityBanner } from '@/components/admin/ConnectivityBanner';
+import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
+import { EditOrderDialog } from '@/components/admin/LiveOrdersPanel';
+import { type LiveOrder } from '@/components/admin/LiveOrdersPanel.shared';
+import { LockScreen } from '@/components/admin/LockScreen';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
+import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
+import { RestaurantModuleNav } from '@/components/admin/RestaurantModuleNav';
+import { OrdersVisualUpdateNotice } from '@/components/admin/OrdersVisualUpdateNotice';
+import { PlanLimitDialog } from '@/components/admin/PlanLimitDialog';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
-import { LockScreen } from '@/components/admin/LockScreen';
-import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
-import { EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
+import { TodayPaymentMethodsDialog } from '@/components/admin/TodayPaymentMethodsDialog';
+import { VersionBanner } from '@/components/admin/VersionBanner';
+import { TextureButton } from '@/components/ui/texture-button';
+import { Toast } from '@/components/ui/toast';
+import { useSyncConflictsCount } from '@/hooks/useSyncConflicts';
+import { ArrowLeft,Bike,Boxes,CalendarDays,Home,Menu,PanelLeftOpen,Plus,Share2 } from 'lucide-react';
+import { lazy,useState } from 'react';
+import { Link,Navigate,Outlet,useLocation,useNavigate } from 'react-router-dom';
+import { api } from '../../api/client';
+import { useAuth } from '../../context/AuthContext.shared';
 import { useCopyToast } from '../../hooks/useCopyToast';
+import { useIsLandscapeTablet } from '../../hooks/useIsLandscapeTablet';
+import { useLockScreen } from '../../hooks/useLockScreen';
+import { useLowStockItems } from '../../hooks/useLowStockItems';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { usePushRegistration } from '../../hooks/usePushRegistration';
-import { useLowStockItems } from '../../hooks/useLowStockItems';
-import { useLockScreen } from '../../hooks/useLockScreen';
-import { useIsLandscapeTablet } from '../../hooks/useIsLandscapeTablet';
 import {
-  RESTRICTED_ROLES,
-  canAccessPath,
-  defaultPathFor,
-  isAdminCashier,
-  isCanchaRole,
-  isKioskRole,
-  isNumeroRole,
-  isScreenRole,
-  isWaiterTabletRole,
+RESTRICTED_ROLES,
+canAccessPath,
+defaultPathFor,
+isAdminCashier,
+isCanchaRole,
+isCourierRole,
+isKioskRole,
+isNumeroRole,
+isScreenRole,
+isWaiterTabletRole,
 } from '../../utils/roles';
-import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
+import { daysRemaining,graceHoursRemaining,hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
-import { useSyncConflictsCount } from '@/hooks/useSyncConflicts';
-import { ConnectivityBanner } from '@/components/admin/ConnectivityBanner';
-import { VersionBanner } from '@/components/admin/VersionBanner';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
 const LandscapeStaffLayout = lazy(() => import('./landscape/LandscapeStaffLayout'));
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
 const WaiterTabletPage = lazy(() => import('./WaiterTabletPage').then((m) => ({ default: m.WaiterTabletPage })));
+const CourierPage = lazy(() => import('./CourierPage'));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
 const OfficeLayout = lazy(() => import('./office/OfficeLayout'));
 const ClubLayout = lazy(() => import('./club/ClubLayout'));
 const CoachLayout = lazy(() => import('./club/CoachLayout'));
 const ClubTabletPage = lazy(() => import('./club/ClubTabletPage'));
+const AppointmentLayout = lazy(() => import('./appointments/AppointmentLayout'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const { copy, toastMessage } = useCopyToast();
   // Arriba de cualquier return condicional: un hook no puede llamarse a veces sí y a veces no.
@@ -89,8 +99,14 @@ export default function AdminLayout() {
     setCreateOrderOpen(true);
   }
 
-  if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
-  if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6 text-center text-sm font-light text-brand-950/50">
+        Preparando todo para ti
+      </div>
+    );
+  }
+  if (!user || !restaurant) return <Navigate to={pathname === '/admin/billing' ? billingReturn(search).loginPath : '/admin/login'} replace />;
 
   // Pantalla de bloqueo: cubre TODO lo que cuelga de AdminLayout (Shop, Waiter, Screen,
   // Kiosco, Numero, panel normal — ver ramas debajo), porque se resuelve antes que cualquiera
@@ -103,23 +119,8 @@ export default function AdminLayout() {
   // Cuenta bloqueada por falta de pago: nada de panel hasta que el Dashboard
   // maestro la reactive (ver src/utils/subscription.ts en el backend).
   if (restaurant.locked) {
-    return (
-      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center px-6">
-        <div className="max-w-sm text-center">
-          <TriangleAlert className="h-10 w-10 text-amber-500 mx-auto mb-4" />
-          <h1 className="text-xl font-semibold text-brand-950 mb-2">Cuenta bloqueada</h1>
-          <p className="text-sm text-brand-950/60 font-light">
-            {restaurant.suspended
-              ? `${restaurant.name} fue bloqueada por el equipo de QuickTap. Contáctanos para más información.`
-              : `${restaurant.name} está bloqueada por falta de pago. Contacta al equipo de QuickTap para reactivarla.`}{' '}
-            Solo se puede desbloquear desde el Dashboard de administrador.
-          </p>
-          <TextureButton variant="minimal" size="default" className="mt-6 !w-auto" onClick={logout}>
-            Cerrar sesión
-          </TextureButton>
-        </div>
-      </div>
-    );
+    if (pathname === '/admin/billing' && ['OWNER', 'ADMIN'].includes(user.role)) return <div className="min-h-screen bg-slate-50 p-4 sm:p-8"><Outlet /></div>;
+    return <MembershipExpired restaurantName={restaurant.name} periodEnd={restaurant.periodEnd} suspended={restaurant.suspended} canPay={['OWNER', 'ADMIN'].includes(user.role)} onLogout={logout} />;
   }
 
   // Plan recién activado/cambiado (pago manual aprobado o webhook de Ramblay):
@@ -134,6 +135,10 @@ export default function AdminLayout() {
   // propia navegación interna (Panel administrativo / Venta / Inventario).
   if (restaurant.businessType === 'SHOP') {
     return <ShopLayout />;
+  }
+
+  if (restaurant.businessType === 'APPOINTMENTS') {
+    return <AppointmentLayout />;
   }
 
   // Club deportivo (canchas): mismo criterio que Locales — panel propio, con su
@@ -198,20 +203,26 @@ export default function AdminLayout() {
     return <WaiterTabletPage />;
   }
 
+  // Motorizado: portal de entregas a pantalla completa. Sin navegación administrativa;
+  // el mapa y la entrega activa son toda su superficie de trabajo.
+  if (isCourierRole(user.role)) {
+    return <CourierPage />;
+  }
+
   // Tablet real en horizontal (Mesero, o Cajero SIN acceso completo): sidebar de iconos + POS en
   // vez del layout móvil de siempre — ver useIsLandscapeTablet/LandscapeStaffLayout. Dueño/Admin
   // (y Cajero con acceso completo) en tablet horizontal siguen viendo el panel de escritorio
   // completo (no tiene sentido limitarlos a 4 pestañas). Mismo criterio de "reemplaza el Outlet
   // normal" que WaiterLayout debajo.
   if (isLandscapeTablet && (user.role === 'WAITER' || (user.role === 'CASHIER' && !user.cashierFullAccess))) {
-    return <LandscapeStaffLayout />;
+    return <><LandscapeStaffLayout /><OrdersVisualUpdateNotice /></>;
   }
 
   // Mesero: panel simplificado con pestañas arriba en vez del menú lateral/dock — ver
   // WaiterLayout. Reemplaza el <Outlet/> normal (ignora qué ruta /admin/* haya
   // matcheado; WaiterLayout renderiza sus propias pestañas internamente).
   if (user.role === 'WAITER') {
-    return <WaiterLayout />;
+    return <><WaiterLayout /><OrdersVisualUpdateNotice /></>;
   }
 
   // Mismo criterio que nav-links.ts: canAccessInventory solo aplica a roles restringidos
@@ -225,7 +236,11 @@ export default function AdminLayout() {
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
   const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory, user.cashierFullAccess, syncConflicts);
-  const canCreateOrder = isAdminCashier(user.role, user.cashierFullAccess);
+  // Caja puede operar pedidos sin recibir acceso administrativo completo.
+  const canCreateOrder = user.role === 'CASHIER' || isAdminCashier(user.role, user.cashierFullAccess);
+  // Caja recibe los pedidos entrantes aunque sus permisos administrativos completos estén
+  // apagados. Es quien debe aceptar cobros, Delivery y Pick-up durante el turno.
+  const canReceiveIncomingOrders = isAdminCashier(user.role, user.cashierFullAccess) || user.role === 'CASHIER';
 
   // Dock flotante de celular: se arma como lista (en vez de JSX fijo) para poder insertar el
   // botón verde "Crear pedido" justo en el medio de los íconos, sin importar cuáles de los
@@ -306,6 +321,9 @@ export default function AdminLayout() {
       ),
     });
   }
+  if (navLinks.some(link => link.to === '/admin/delivery')) {
+    dockItems.push({ key: 'repartos', node: <Link to="/admin/delivery" aria-label="Repartos" aria-current={pathname === '/admin/delivery' ? 'page' : undefined} className={`flex h-11 w-11 items-center justify-center rounded-full border ${pathname === '/admin/delivery' ? 'border-brand-500 bg-brand-500 text-white' : 'border-brand-950/10 bg-white text-brand-950/70'}`}><Bike className="h-5 w-5" /></Link> });
+  }
   if (canCreateOrder) {
     dockItems.splice(Math.ceil(dockItems.length / 2), 0, {
       key: 'create-order',
@@ -316,9 +334,12 @@ export default function AdminLayout() {
       ),
     });
   }
+  if (user.role === 'OWNER' || user.role === 'ADMIN') {
+    dockItems.push({ key: 'voice-ai', node: <BusinessVoiceAssistant compact /> });
+  }
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className={`min-h-screen bg-background ${pathname === '/admin' ? 'restaurant-dashboard-shell' : ''}`}>
       {showExpirationWarning && (
         <Link
           to="/admin/billing"
@@ -336,7 +357,7 @@ export default function AdminLayout() {
         type="button"
         onClick={() => setMenuOpen(true)}
         aria-label="Abrir menú"
-        className="lg:hidden fixed top-4 right-4 z-30 h-9 w-9 rounded-full bg-white border border-brand-950/10 flex items-center justify-center shadow-sm"
+        className="lg:hidden fixed right-4 top-[max(1rem,env(safe-area-inset-top))] z-30 flex h-11 w-11 items-center justify-center rounded-full border border-brand-950/10 bg-white/90 shadow-[0_8px_24px_-14px_rgba(0,27,67,0.45)] backdrop-blur-xl transition-[background-color,transform] duration-150 ease-out-strong hover:bg-white active:scale-95 motion-reduce:transition-none"
       >
         <Menu className="h-4.5 w-4.5 text-brand-950/70" />
       </button>
@@ -368,7 +389,7 @@ export default function AdminLayout() {
           aria-label="Mostrar menú lateral"
           title="Mostrar menú lateral"
           style={{ animation: 'var(--animate-rise)' }}
-          className="hidden lg:flex motion-reduce:!opacity-100 fixed top-5 left-5 z-40 items-center justify-center h-10 w-10 rounded-xl bg-brand-950 text-white/80 hover:text-white shadow-lg shadow-brand-950/20 hover:bg-brand-900 transition-colors"
+          className="hidden lg:flex motion-reduce:!opacity-100 fixed top-5 left-5 z-40 items-center justify-center h-10 w-10 rounded-xl bg-brand-950 text-white/80 hover:text-white shadow-lg shadow-brand-950/20 hover:bg-brand-900 transition-[color,background-color,transform] duration-150 ease-out-strong active:scale-95 motion-reduce:transition-none"
         >
           <PanelLeftOpen className="h-[18px] w-[18px]" />
         </button>
@@ -379,26 +400,29 @@ export default function AdminLayout() {
           página no quede pegado al botón flotante de arriba. La transición del padding acompaña
           la del menú lateral, para que ambos se sientan como un solo movimiento. */}
       <div
-        className={`transition-[padding-left] duration-300 ease-out motion-reduce:transition-none ${
+        className={`transition-[padding-left] duration-220 ease-out-strong motion-reduce:transition-none ${
           sidebarHidden ? 'lg:pl-0' : 'lg:pl-[264px]'
         }`}
       >
         <VersionBanner />
+        <OrdersVisualUpdateNotice />
+        <PlanLimitDialog />
         <ConnectivityBanner />
         <main
-          className={`max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 pb-28 lg:pb-12 transition-[padding-top] duration-300 ease-out motion-reduce:transition-none ${
+          className={`max-w-5xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-28 lg:pb-12 transition-[padding-top] duration-220 ease-out-strong motion-reduce:transition-none ${
             sidebarHidden ? 'lg:pt-20' : 'lg:pt-8'
           }`}
         >
           {/* Cajero SIN acceso completo no ve Administración en absoluto (ver canAccessPath) —
               abrir/cerrar caja y ver movimientos del día por método de pago son las dos
               habilidades que conserva igual, así que van sueltas acá arriba en vez de perderse. */}
-          {user.role === 'CASHIER' && !user.cashierFullAccess && (
+          {((user.role === 'CASHIER' && !user.cashierFullAccess) || (restaurant.subscriptionPlan === 'ESSENTIAL' && ['OWNER', 'ADMIN', 'CASHIER'].includes(user.role))) && (
             <div className="flex flex-wrap items-center gap-2 mb-6">
               <CashSessionControl />
-              <TodayPaymentMethodsDialog />
+              {restaurant.subscriptionPlan !== 'ESSENTIAL' && <TodayPaymentMethodsDialog />}
             </div>
           )}
+          <RestaurantModuleNav links={navLinks} />
           <Outlet />
         </main>
       </div>
@@ -406,10 +430,10 @@ export default function AdminLayout() {
       {/* Dock flotante: navegación en celular/tablet vertical (la barra superior fija ya cubre logo +
           menú; este dock es para las acciones frecuentes — Inicio, Compartir, etc. — más el botón
           verde de "Crear pedido" en el centro). */}
-      <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2.5 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
+      <div className="lg:hidden fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] inset-x-0 z-30 flex justify-center pointer-events-none px-3">
+        <div className="pointer-events-auto flex max-w-full items-center gap-2 overflow-x-auto rounded-full border border-white/80 bg-white/88 px-3 py-3 shadow-[0_16px_44px_-20px_rgba(0,27,67,0.42)] backdrop-blur-xl">
           {dockItems.map((item) => (
-            <div key={item.key}>{item.node}</div>
+            <div key={item.key} className="shrink-0">{item.node}</div>
           ))}
         </div>
       </div>
@@ -420,10 +444,12 @@ export default function AdminLayout() {
       <LowStockAlert />
       {/* "Pedido Listo" es solo para Caja — Admin/Dueño no cobran ni despachan a diario, y
           verlo aquí solo distrae. Mesero tampoco lo ve (no está montado en WaiterLayout). */}
-      {user.role === 'CASHIER' && <OrderReadyToast />}
+      {user.role === 'CASHIER' && pathname !== '/admin/kitchen' && <OrderReadyToast />}
       {/* Pedido nuevo que espera aceptación (mesa del cliente, o delivery/pickup): Caja/Admin/
           Dueño lo ven aquí para poder aceptarlo aunque estén con otro diálogo abierto. */}
-      {isAdminCashier(user.role, user.cashierFullAccess) && <NewOrderAlert onNavigate={() => navigate('/admin')} />}
+      {canReceiveIncomingOrders && pathname !== '/admin/kitchen' && (
+        <NewOrderAlert onNavigate={(orderId) => navigate(`/admin/comandas?order=${encodeURIComponent(orderId)}`)} />
+      )}
 
       {/* "Crear pedido" global (botón verde del dock): mismo wizard de 3 pasos que en
           WaiterLayout, disponible desde cualquier pestaña del panel. */}

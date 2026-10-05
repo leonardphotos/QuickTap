@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Calendar, MapPin, MessageCircle, Store, Ticket, User, Users } from 'lucide-react';
 import { publicPriceLabel } from '@/utils/format';
@@ -73,6 +73,7 @@ export function TickeraStorefront({
 }) {
   const [tab, setTab] = useState<Tab>('eventos');
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [openProduct, setOpenProduct] = useState<StorefrontProduct | null>(null);
   const [infoEvento, setInfoEvento] = useState<StorefrontProduct | null>(null);
   // Elección de pago del detalle del evento; viaja con el pedido al confirmar el carrito.
@@ -86,15 +87,51 @@ export function TickeraStorefront({
     [allProducts],
   );
 
+  // Tickera usa su propio árbol visual, por eso restaura aquí el mismo carrito persistente
+  // del catálogo general y lo reconcilia con precio, disponibilidad y stock actuales.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`quicktap-shop-cart:${shop.slug}`) ?? '[]') as {
+        productId: string;
+        variantId: string;
+        qty: number;
+      }[];
+      const restored = saved.flatMap((line) => {
+        const product = allProducts.find((candidate) => candidate.id === line.productId);
+        const variant = product?.variants.find((candidate) => candidate.id === line.variantId);
+        if (!product || !variant?.available || !Number.isFinite(line.qty) || line.qty <= 0) return [];
+        const qty = Math.min(line.qty, variant.stockRemaining ?? line.qty);
+        return qty > 0 ? [{ product, variant, qty }] : [];
+      });
+      setCart(restored);
+    } catch {
+      localStorage.removeItem(`quicktap-shop-cart:${shop.slug}`);
+    } finally {
+      setCartHydrated(true);
+    }
+  }, [allProducts, shop.slug]);
+
+  useEffect(() => {
+    if (!cartHydrated) return;
+    localStorage.setItem(
+      `quicktap-shop-cart:${shop.slug}`,
+      JSON.stringify(cart.map((line) => ({ productId: line.product.id, variantId: line.variant.id, qty: line.qty }))),
+    );
+  }, [cart, cartHydrated, shop.slug]);
+
   const cartCount = cart.reduce((acc, l) => acc + l.qty, 0);
   const subtotalLabel = publicPriceLabel(cartSubtotal(cart), shop);
 
   function addToCart(product: StorefrontProduct, variant: StorefrontVariant, qty: number) {
     setCart((prev) => {
-      const index = prev.findIndex((l) => sameLine(l, { productId: product.id, v1: variant.v1, v2: variant.v2 }));
-      if (index === -1) return [...prev, { product, variant, qty }];
+      const index = prev.findIndex((l) => sameLine(l, { productId: product.id, variantId: variant.id }));
+      const cappedQty = Math.min(qty, variant.stockRemaining ?? qty);
+      if (index === -1) return [...prev, { product, variant, qty: cappedQty }];
       const next = [...prev];
-      next[index] = { ...next[index], qty: next[index].qty + qty };
+      next[index] = {
+        ...next[index],
+        qty: Math.min(next[index].qty + qty, variant.stockRemaining ?? next[index].qty + qty),
+      };
       return next;
     });
     setOpenProduct(null);
@@ -112,7 +149,7 @@ export function TickeraStorefront({
       className="relative min-h-screen pb-40 text-white"
       style={{ background: 'radial-gradient(circle at 50% -10%, #2a0d0d 0%, #0a0505 45%, #050505 100%)' }}
     >
-      <header className="flex items-center justify-between px-5 pb-3 pt-6">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 pb-3 pt-6">
         <div className="flex min-w-0 items-center gap-2.5">
           <img
             src={shop.logoUrl || '/logo/perfil.jpg'}
@@ -120,13 +157,15 @@ export function TickeraStorefront({
             className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-white/15"
           />
           <div className="min-w-0">
-            <p className="truncate text-[14px] font-bold leading-tight text-white">{shop.name}</p>
-            <p className="text-[11px] font-medium text-white/40">
+            <p className="truncate font-bold leading-tight text-white text-base">{shop.name}</p>
+            <p className="font-medium text-white/40 text-xs">
               {events.length} evento{events.length === 1 ? '' : 's'} activo{events.length === 1 ? '' : 's'}
             </p>
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/70">🎟️ Tickera</span>
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/70">
+          <Ticket className="h-3.5 w-3.5" /> Tickera
+        </span>
       </header>
 
       {(!shop.isOpen || !shop.orderingEnabled) && (
@@ -137,9 +176,9 @@ export function TickeraStorefront({
         </div>
       )}
 
-      <main className="px-4 pt-2">
+      <main className="mx-auto max-w-6xl px-4 pt-2">
         {tab === 'eventos' && (
-          <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {events.length === 0 ? (
               <EmptyState icon={Ticket} text="Todavía no hay eventos publicados. Vuelve pronto." />
             ) : (
@@ -158,7 +197,7 @@ export function TickeraStorefront({
               categories.map((category) => (
                 <section key={category.name}>
                   <h2 className="mb-3 text-[13px] font-bold uppercase tracking-wide text-white/40">{category.name}</h2>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                     {category.products.map((product) => (
                       <TickeraProductCard key={product.id} product={product} shop={shop} onOpen={() => setOpenProduct(product)} />
                     ))}
@@ -178,12 +217,12 @@ export function TickeraStorefront({
                 className="h-24 w-24 rounded-full object-cover ring-4 ring-white/10"
               />
               <span className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-brand-500)] text-base shadow-lg">
-                🎟️
+                <Ticket className="h-4 w-4 text-[color:var(--qt-button-text,white)]" />
               </span>
             </div>
             <h2 className="mt-4 text-lg font-black text-white">{shop.name}</h2>
             {shop.description && (
-              <p className="mt-1.5 max-w-xs text-[13px] font-medium leading-relaxed text-white/50">{shop.description}</p>
+              <p className="mt-1.5 max-w-xs font-medium leading-relaxed text-white/50 text-base">{shop.description}</p>
             )}
 
             <div className="mt-5 grid w-full max-w-xs grid-cols-2 gap-2.5">
@@ -305,7 +344,7 @@ function EmptyState({ icon: Icon, text }: { icon: typeof Ticket; text: string })
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
         <Icon className="h-6 w-6 text-white/30" />
       </div>
-      <p className="max-w-[220px] text-sm font-medium text-white/40">{text}</p>
+      <p className="max-w-[220px] font-medium text-white/40 text-base">{text}</p>
     </div>
   );
 }
@@ -314,14 +353,14 @@ function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-white/5 px-3 py-3 ring-1 ring-white/5">
       <p className="text-lg font-black text-white">{value}</p>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">{label}</p>
+      <p className="font-semibold uppercase tracking-wide text-white/40 text-xs">{label}</p>
     </div>
   );
 }
 
 function Detail({ icon: Icon, text }: { icon: typeof MapPin; text: string }) {
   return (
-    <p className="flex items-center gap-2 text-[13px] font-medium text-white/70">
+    <p className="flex items-center gap-2 font-medium text-white/70 text-base">
       <Icon className="h-4 w-4 shrink-0 text-white/40" /> {text}
     </p>
   );
@@ -357,8 +396,8 @@ function EventCard({
           {product.photoUrl ? (
             <img src={product.photoUrl} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[color:var(--color-brand-500)]/25 to-black text-6xl">
-              🎟️
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[color:var(--color-brand-500)]/25 to-black">
+              <Ticket className="h-14 w-14 text-white/25" strokeWidth={1.3} />
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/5 to-black/25" />
@@ -389,7 +428,7 @@ function EventCard({
             )}
             <h3 className="text-xl font-black leading-tight text-white drop-shadow-sm">{product.name}</h3>
             {product.location && (
-              <p className="mt-1 flex items-center gap-1 text-[13px] font-medium text-white/70">
+              <p className="mt-1 flex items-center gap-1 font-medium text-white/70 text-base">
                 <MapPin className="h-3.5 w-3.5 shrink-0" /> {product.location}
               </p>
             )}
@@ -409,9 +448,9 @@ function EventCard({
 
               <div className="mt-1 flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-4 py-3">
                 <div>
-                  {original && <p className="text-xs font-medium text-white/40 line-through">{original.primary}</p>}
+                  {original && <p className="font-medium text-white/40 line-through text-xs">{original.primary}</p>}
                   <p className="text-2xl font-black text-white">{price.primary}</p>
-                  {price.secondary && <p className="text-[11px] font-medium text-white/40">{price.secondary}</p>}
+                  {price.secondary && <p className="font-medium text-white/40 text-xs">{price.secondary}</p>}
                 </div>
                 {/* Única puerta de entrada a la compra. Antes había un "Comprar" al lado que
                     metía la entrada al carrito de una: quien lo usaba se saltaba las cláusulas
@@ -451,8 +490,8 @@ function TickeraProductCard({ product, shop, onOpen }: { product: StorefrontProd
         {product.photoUrl ? (
           <img src={product.photoUrl} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[color:var(--color-brand-500)]/20 to-black text-3xl">
-            🎟️
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[color:var(--color-brand-500)]/20 to-black">
+            <Ticket className="h-9 w-9 text-white/25" strokeWidth={1.4} />
           </div>
         )}
         <span
@@ -466,15 +505,15 @@ function TickeraProductCard({ product, shop, onOpen }: { product: StorefrontProd
         )}
       </div>
       <div className="px-2.5 py-2">
-        <p className="truncate text-[13px] font-semibold text-white">{product.name}</p>
+        <p className="truncate font-semibold text-white text-base">{product.name}</p>
         {product.isEvent && product.eventDate ? (
-          <p className="mt-0.5 truncate text-[11px] font-medium text-white/40">
+          <p className="mt-0.5 truncate font-medium text-white/40 text-xs">
             {product.eventDate.split('-').reverse().join('/')}
             {product.eventTime && ` · ${product.eventTime}`}
           </p>
         ) : (
           (product.brand || product.subcategory) && (
-            <p className="mt-0.5 truncate text-[11px] font-medium text-white/40">{product.brand || product.subcategory}</p>
+            <p className="mt-0.5 truncate font-medium text-white/40 text-xs">{product.brand || product.subcategory}</p>
           )
         )}
       </div>

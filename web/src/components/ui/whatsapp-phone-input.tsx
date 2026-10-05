@@ -48,13 +48,14 @@ export function WhatsappPhoneInput({ value, onChange, placeholder = '4141234567'
     <div className="flex gap-2">
       <select
         id={id}
+        aria-label="País de WhatsApp"
         value={countryCode}
         disabled={disabled}
         onChange={(e) => {
           setCountryCode(e.target.value);
           emit(e.target.value, localPhone);
         }}
-        className="w-36 shrink-0 border border-brand-950/15 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+        className="w-36 shrink-0 border border-brand-950/15 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50 text-base"
       >
         {COUNTRY_DIAL_CODES.map((c) => (
           <option key={c.code} value={c.code}>
@@ -68,6 +69,7 @@ export function WhatsappPhoneInput({ value, onChange, placeholder = '4141234567'
         </span>
         <input
           type="tel"
+          aria-label="Número de WhatsApp"
           value={localPhone}
           disabled={disabled}
           onChange={(e) => {
@@ -75,7 +77,7 @@ export function WhatsappPhoneInput({ value, onChange, placeholder = '4141234567'
             emit(countryCode, e.target.value);
           }}
           placeholder={placeholder}
-          className="w-full border border-brand-950/15 rounded-lg py-2 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+          className="w-full border border-brand-950/15 rounded-lg py-2 pr-3 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50 text-base"
           style={{ paddingLeft: `${dialCode.length * 8 + 22}px` }}
         />
       </div>

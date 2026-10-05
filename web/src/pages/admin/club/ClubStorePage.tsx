@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScanBarcode } from 'lucide-react';
-import { ClubScanDialog } from './ClubScanDialog';
-import type { FormEvent } from 'react';
-import { AlertTriangle, Minus, Package, Plus, Search } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase, formatBs } from '@/utils/format';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
-import { clubStoreApi, isLow, stockOf, STORE_PAYMENT_METHODS, type StoreProduct } from './clubStoreApi';
+import { formatBase,formatBs } from '@/utils/format';
+import { AlertTriangle,Minus,Package,Plus,ScanBarcode,Search } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useCallback,useEffect,useMemo,useState } from 'react';
+import { ClubScanDialog } from './ClubScanDialog';
+import { clubStoreApi,isLow,stockOf,STORE_PAYMENT_METHODS,type StoreProduct } from './clubStoreApi';
 import { card } from './clubStyle';
 
 interface Props {
@@ -72,7 +71,7 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
       <div className="flex items-center gap-3">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Tienda</h1>
-          <p className="mt-0.5 text-[13px] font-light text-brand-950/50">
+          <p className="mt-0.5 font-light text-brand-950/50 text-base">
             {products?.length ?? 0} productos · {lowStock.length} por reponer
           </p>
         </div>
@@ -89,8 +88,8 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
         <div className="flex items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <div className="min-w-0">
-            <p className="text-[14px] font-bold text-amber-900">Stock bajo</p>
-            <p className="text-[13px] font-light text-amber-800">
+            <p className="font-bold text-amber-900 text-base">Stock bajo</p>
+            <p className="font-light text-amber-800 text-base">
               {lowStock.map((p) => `${p.name} (${stockOf(p)})`).join(' · ')}
             </p>
           </div>
@@ -104,7 +103,7 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar producto o código…"
-            className="w-full rounded-2xl border border-brand-950/10 bg-white py-3 pl-11 pr-4 text-[15px] text-brand-950 placeholder:text-brand-950/35 outline-none focus:border-brand-400"
+            className="w-full rounded-2xl border border-brand-950/10 bg-white py-3 pl-11 pr-4 text-brand-950 placeholder:text-brand-950/35 outline-none focus:border-brand-400 text-base"
           />
         </div>
         <button
@@ -116,14 +115,14 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
           <ScanBarcode className="h-5 w-5" />
         </button>
       </div>
-      {scanError && <p className="text-sm text-red-600">{scanError}</p>}
+      {scanError && <p className="text-red-600 text-base">{scanError}</p>}
 
-      {products === null && <p className="font-light text-brand-950/40">Cargando…</p>}
+      {products === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
       {products?.length === 0 && (
         <div className={cn(card, 'p-8 text-center')}>
           <Package className="mx-auto h-8 w-8 text-brand-950/25" />
-          <p className="mt-3 font-semibold text-brand-950">Tu tienda está vacía</p>
-          <p className="mt-1 text-[13px] font-light text-brand-950/50">
+          <p className="mt-3 font-semibold text-brand-950 text-base">Tu tienda está vacía</p>
+          <p className="mt-1 font-light text-brand-950/50 text-base">
             Agrega agua, pelotas o lo que vendas en el mostrador.
           </p>
         </div>
@@ -136,8 +135,8 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
           return (
             <div key={p.id} className={cn(card, 'flex items-center gap-3 p-3.5')}>
               <button onClick={() => addToCart(p)} className="min-w-0 flex-1 text-left">
-                <p className="truncate text-[15px] font-semibold text-brand-950">{p.name}</p>
-                <p className="text-[12px] font-light text-brand-950/45">
+                <p className="truncate font-semibold text-brand-950 text-base">{p.name}</p>
+                <p className="font-light text-brand-950/45 text-xs">
                   {canSeeMoney ? `${money(p.price)} · ` : ''}
                   <span className={stock <= p.minStock ? 'font-semibold text-amber-600' : ''}>{stock} en stock</span>
                 </p>
@@ -322,7 +321,7 @@ function CheckoutDialog({
         </div>
 
         <form onSubmit={submit} className="space-y-3">
-          <label className="flex items-center gap-2.5 rounded-xl border border-brand-950/10 p-3">
+          <label className="flex items-center gap-2.5 rounded-xl border border-brand-950/10 p-3 text-sm font-medium">
             <input type="checkbox" checked={onTab} onChange={(e) => setOnTab(e.target.checked)} />
             <span className="text-[13px] font-medium text-brand-950">
               Cargar a la cuenta del jugador
@@ -334,11 +333,11 @@ function CheckoutDialog({
 
           {!onTab && (
             <div>
-              <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Método de pago</label>
+              <label className="mb-1 block text-brand-950/60 text-sm font-medium">Método de pago</label>
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
-                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
               >
                 {STORE_PAYMENT_METHODS.map((m) => (
                   <option key={m} value={m}>
@@ -351,18 +350,18 @@ function CheckoutDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-[13px] font-medium text-brand-950/60">
+              <label className="mb-1 block text-brand-950/60 text-sm font-medium">
                 Jugador {onTab && <span className="text-rose-600">*</span>}
               </label>
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 required={onTab}
-                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[13px] font-medium text-brand-950/60">
+              <label className="mb-1 block text-brand-950/60 text-sm font-medium">
                 Teléfono {onTab && <span className="text-rose-600">*</span>}
               </label>
               <input
@@ -370,17 +369,17 @@ function CheckoutDialog({
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 required={onTab}
                 placeholder="584141234567"
-                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
               />
             </div>
           </div>
           {onTab && (
-            <p className="text-[11px] font-light text-brand-950/45">
+            <p className="font-light text-brand-950/45 text-xs">
               El teléfono es lo que ata la cuenta a su reserva: si no coincide con el de la cancha, no aparecerá ahí.
             </p>
           )}
 
-          {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
+          {error && <p className="font-medium text-rose-600 text-base">{error}</p>}
 
           <TextureButton type="submit" disabled={saving} className="w-full">
             {saving ? 'Guardando…' : onTab ? 'Cargar a la cuenta' : 'Cobrar'}
@@ -446,7 +445,7 @@ function NewProductDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
             <Field label="Stock inicial" value={stock} onChange={setStock} type="number" />
             <Field label="Avisar cuando queden" value={minStock} onChange={setMinStock} type="number" />
           </div>
-          {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
+          {error && <p className="font-medium text-rose-600 text-base">{error}</p>}
           <TextureButton type="submit" disabled={saving} className="w-full">
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
@@ -478,7 +477,7 @@ function RestockDialog({ product, onClose, onSaved }: { product: StoreProduct; o
         <DialogHeader>
           <DialogTitle>{product.name}</DialogTitle>
         </DialogHeader>
-        <p className="text-[13px] font-light text-brand-950/55">
+        <p className="font-light text-brand-950/55 text-base">
           Ahora hay {stockOf(product)}. Escribe cuánto hay de verdad.
         </p>
         <form onSubmit={submit} className="space-y-3">
@@ -505,11 +504,11 @@ function Field({
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   return (
     <div>
-      <label className="mb-1 block text-[13px] font-medium text-brand-950/60">{label}</label>
+      <label className="mb-1 block text-brand-950/60 text-sm font-medium">{label}</label>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+        className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
         {...rest}
       />
     </div>

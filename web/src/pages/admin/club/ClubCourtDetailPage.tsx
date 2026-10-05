@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock, CreditCard, SplitSquareHorizontal, Wrench } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
 import { Toast } from '@/components/ui/toast';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
-import {
-  BOOKING_STATUS_LABELS,
-  clubApi,
-  COURT_TYPE_LABELS,
-  humanDate,
-  shiftDate,
-  todayCaracas,
-  type ClubAvailability,
-  type ClubBooking,
-  type ClubCourt,
-  type ClubSlot,
-} from './clubApi';
-import { card } from './clubStyle';
+import { formatBase } from '@/utils/format';
+import { ChevronLeft,ChevronRight,Clock,CreditCard,SplitSquareHorizontal,Wrench } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import BookSlotDialog from './BookSlotDialog';
-import MaintenanceDialog from './MaintenanceDialog';
-import { ClubPaymentDialog } from './ClubPaymentDialog';
 import CancelBookingDialog from './CancelBookingDialog';
+import {
+BOOKING_STATUS_LABELS,
+clubApi,
+COURT_TYPE_LABELS,
+humanDate,
+shiftDate,
+todayCaracas,
+type ClubAvailability,
+type ClubBooking,
+type ClubCourt,
+type ClubSlot,
+} from './clubApi';
+import { ClubPaymentDialog } from './ClubPaymentDialog';
+import { card } from './clubStyle';
+import MaintenanceDialog from './MaintenanceDialog';
 
 interface Props {
   courtId: string;
@@ -93,7 +93,7 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
         <div className="min-w-0">
           <h1 className="truncate text-[20px] font-bold tracking-tight text-brand-950">{court?.name ?? 'Cancha'}</h1>
           {court && court.courtType !== 'LIBRE' && (
-            <p className="text-[12px] font-light text-brand-950/45">{COURT_TYPE_LABELS[court.courtType]}</p>
+            <p className="font-light text-brand-950/45 text-xs">{COURT_TYPE_LABELS[court.courtType]}</p>
           )}
         </div>
         {canBook && (
@@ -128,12 +128,12 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
         >
           <ChevronRight className="h-4 w-4" />
         </button>
-        <p className="ml-1 text-[14px] font-semibold capitalize text-brand-950/70">{humanDate(date)}</p>
+        <p className="ml-1 font-semibold capitalize text-brand-950/70 text-base">{humanDate(date)}</p>
       </div>
 
       <section>
         <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">Reservas de este día</h2>
-        {bookings === null && <p className="font-light text-brand-950/40">Cargando…</p>}
+        {bookings === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
         {bookings?.length === 0 && (
           <p className={cn(card, 'p-5 text-center text-[13px] font-light text-brand-950/45')}>
             Sin reservas en esta cancha.
@@ -148,8 +148,8 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
               <div key={b.id} className={cn(card, 'p-3.5')}>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-brand-950">{b.playerName}</p>
-                    <p className="text-[12px] font-light text-brand-950/45">
+                    <p className="truncate font-semibold text-brand-950 text-base">{b.playerName}</p>
+                    <p className="font-light text-brand-950/45 text-xs">
                       {b.block ? `${hhmm(b.block.startsAt)}–${hhmm(b.block.endsAt)}` : '—'} · {b.playerPhone}
                     </p>
                   </div>
@@ -162,9 +162,9 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
                     {BOOKING_STATUS_LABELS[b.status]}
                   </span>
                   <div className="shrink-0 text-right">
-                    <p className="text-[14px] font-bold text-brand-950">{money(b.dueBase)}</p>
+                    <p className="font-bold text-brand-950 text-base">{money(b.dueBase)}</p>
                     {Number(b.consumoBase) > 0 && (
-                      <p className="text-[10px] font-light text-brand-950/45">
+                      <p className="font-light text-brand-950/45 text-xs">
                         cancha {money(b.totalBase)} + consumo {money(b.consumoBase)}
                       </p>
                     )}
@@ -184,11 +184,11 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
                 {canBook && cancelable && (
                   <div className="mt-2.5 border-t border-brand-950/[0.06] pt-2.5">
                     {settled ? (
-                      <p className="text-[12px] font-semibold text-emerald-600">✓ Pagado</p>
+                      <p className="font-semibold text-emerald-600 text-xs">✓ Pagado</p>
                     ) : (
                       <>
                         {Number(b.paidBase) > 0 && (
-                          <p className="mb-1.5 text-[11px] font-light text-brand-950/40">
+                          <p className="mb-1.5 font-light text-brand-950/40 text-xs">
                             Pagado {money(b.paidBase)} de {money(b.dueBase)} · falta {money(b.balanceBase)}
                           </p>
                         )}
@@ -229,7 +229,7 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
       {canBook && (
         <section>
           <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">Horas libres</h2>
-          {avail === null && <p className="font-light text-brand-950/40">Cargando…</p>}
+          {avail === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
           {avail && free.length === 0 && (
             <p className={cn(card, 'p-5 text-center text-[13px] font-light text-brand-950/45')}>
               No quedan horas libres este día.
@@ -247,9 +247,9 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
                     : 'border-brand-950/[0.07] bg-white hover:border-brand-400',
                 )}
               >
-                <p className="text-[15px] font-bold leading-none text-brand-950">{s.startTime}</p>
-                <p className="mt-1 text-[10px] font-medium text-brand-950/40">a {s.endTime}</p>
-                <p className="mt-1.5 text-[13px] font-bold text-brand-950">{money(s.priceBase)}</p>
+                <p className="font-bold leading-none text-brand-950 text-base">{s.startTime}</p>
+                <p className="mt-1 font-medium text-brand-950/40 text-xs">a {s.endTime}</p>
+                <p className="mt-1.5 font-bold text-brand-950 text-base">{money(s.priceBase)}</p>
               </button>
             ))}
           </div>

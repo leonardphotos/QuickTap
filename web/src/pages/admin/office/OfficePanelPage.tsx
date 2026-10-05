@@ -49,7 +49,7 @@ export default function OfficePanelPage({ empresa, onIrA }: { empresa: Empresa; 
     <div className="p-5 sm:p-7">
       <div className="mb-6">
         <h1 className="text-[22px] font-semibold tracking-tight">{empresa.nombre}</h1>
-        <p className="mt-0.5 text-[13.5px] text-brand-950/50">
+        <p className="mt-0.5 text-brand-950/50 text-base">
           {empresa.rif ? `${empresa.rif} · ` : ''}Libros en {empresa.moneda}
           {reportes && Number(reportes.balanceGeneral.descuadre) !== 0 && (
             <span className="ml-2 rounded-md bg-red-50 px-2 py-0.5 text-[12px] font-medium text-red-700">
@@ -89,8 +89,8 @@ export default function OfficePanelPage({ empresa, onIrA }: { empresa: Empresa; 
         <div className="rounded-2xl border border-brand-950/[0.08] p-5 lg:col-span-2">
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <p className="text-[15px] font-semibold">Ingresos y gastos</p>
-              <p className="text-[12.5px] text-brand-950/45">Últimos 12 meses</p>
+              <p className="font-semibold text-base">Ingresos y gastos</p>
+              <p className="text-brand-950/45 text-base">Últimos 12 meses</p>
             </div>
             <div className="flex gap-3 text-[12px]">
               <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" /> Ingresos</span>
@@ -116,17 +116,17 @@ export default function OfficePanelPage({ empresa, onIrA }: { empresa: Empresa; 
               </div>
             ))}
             {(!panel || panel.serie.length === 0) && (
-              <p className="w-full self-center text-center text-sm text-brand-950/35">Sin movimientos todavía.</p>
+              <p className="w-full self-center text-center text-brand-950/35 text-base">Sin movimientos todavía.</p>
             )}
           </div>
         </div>
 
         {/* ---------- Composición del gasto ---------- */}
         <div className="rounded-2xl border border-brand-950/[0.08] p-5">
-          <p className="text-[15px] font-semibold">En qué se va el dinero</p>
-          <p className="mb-4 text-[12.5px] text-brand-950/45">Gastos acumulados por cuenta</p>
+          <p className="font-semibold text-base">En qué se va el dinero</p>
+          <p className="mb-4 text-brand-950/45 text-base">Gastos acumulados por cuenta</p>
           {totalGastos === 0 ? (
-            <p className="py-10 text-center text-sm text-brand-950/35">Sin gastos registrados.</p>
+            <p className="py-10 text-center text-brand-950/35 text-base">Sin gastos registrados.</p>
           ) : (
             <>
               <div className="mx-auto mb-4 h-36 w-36">
@@ -171,13 +171,13 @@ export default function OfficePanelPage({ empresa, onIrA }: { empresa: Empresa; 
       {/* ---------- Últimos asientos ---------- */}
       <div className="mt-4 rounded-2xl border border-brand-950/[0.08] p-5">
         <div className="mb-3 flex items-baseline justify-between gap-2">
-          <p className="text-[15px] font-semibold">Últimos asientos</p>
+          <p className="font-semibold text-base">Últimos asientos</p>
           <button type="button" onClick={() => onIrA('asientos')} className="flex items-center gap-1 text-[12.5px] text-brand-500 hover:underline">
             Ver todos <ArrowUpRight className="h-3.5 w-3.5" />
           </button>
         </div>
         {ultimos.length === 0 ? (
-          <p className="py-6 text-center text-sm text-brand-950/35">Todavía no has registrado ningún asiento.</p>
+          <p className="py-6 text-center text-brand-950/35 text-base">Todavía no has registrado ningún asiento.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13.5px]">
@@ -212,7 +212,7 @@ export default function OfficePanelPage({ empresa, onIrA }: { empresa: Empresa; 
         )}
       </div>
 
-      <p className="mt-4 flex items-center gap-1.5 text-[12px] text-brand-950/35">
+      <p className="mt-4 flex items-center gap-1.5 text-brand-950/35 text-xs">
         <Users className="h-3.5 w-3.5" /> {panel?.contactos ?? 0} clientes y proveedores registrados
       </p>
     </div>

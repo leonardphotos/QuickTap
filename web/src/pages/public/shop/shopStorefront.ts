@@ -7,11 +7,19 @@
  */
 
 export interface StorefrontVariant {
+  priceTiers?: PriceTier[];
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
   id: string;
   v1: string;
   v2: string;
   soldByWeight: boolean;
   available: boolean;
+  /** Existencia visible para impedir que el carrito supere lo realmente disponible. */
+  stockRemaining: number | null;
+  price: number;
+  originalPrice: number | null;
+  description: string | null;
 }
 
 export interface StorefrontProduct {
@@ -26,6 +34,7 @@ export interface StorefrontProduct {
   price: number;
   /** Precio tachado cuando hay precio promocional vigente. */
   originalPrice: number | null;
+  hasVariablePrice: boolean;
   isService: boolean;
   variants: StorefrontVariant[];
   available: boolean;
@@ -53,7 +62,7 @@ export interface StorefrontShop {
   exchangeRate: { rateBs: string; fetchedAt: string } | null;
   whatsappPhone: string | null;
   whatsappBotConnected: boolean;
-  theme: { text?: string; primary?: string; accent?: string; buttonText?: string; coverImageUrl?: string; bannerColor?: string; bannerStyle?: string; bioColor?: string } | null;
+  theme: { text?: string; primary?: string; accent?: string; buttonText?: string; coverImageUrl?: string; bannerColor?: string; bannerStyle?: string; bioColor?: string; backgroundColor?: string } | null;
   orderingEnabled: boolean;
   isOpen: boolean;
   closedReason: string | null;
@@ -61,6 +70,7 @@ export interface StorefrontShop {
   shopRubro: string | null;
   /** Tarifa plana de envío del local, en su moneda base. 0 = sin cargo. */
   deliveryFee: number;
+  deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'DISTANCE_TIERS' | 'ZONE';
 }
 
 export interface Storefront {
@@ -76,12 +86,16 @@ export interface CartLine {
 
 /** Una línea es la misma solo si coinciden producto Y variante: dos tallas del mismo modelo
  * son renglones distintos del carrito, no uno con cantidad 2. */
-export function sameLine(a: CartLine, b: { productId: string; v1: string; v2: string }): boolean {
-  return a.product.id === b.productId && a.variant.v1 === b.v1 && a.variant.v2 === b.v2;
+export function sameLine(a: CartLine, b: { productId: string; variantId: string }): boolean {
+  return a.product.id === b.productId && a.variant.id === b.variantId;
 }
 
 export function cartSubtotal(cart: CartLine[]): number {
-  return cart.reduce((acc, l) => acc + l.product.price * l.qty, 0);
+  return cart.reduce((acc, l) => acc + storefrontLinePrice(l) * l.qty, 0);
+}
+
+export function storefrontLinePrice(line: CartLine): number {
+  return shopTierPrice(line.variant, line.qty);
 }
 
 /** Los productos que se venden por peso admiten decimales (0,250 kg); el resto, unidades. */
@@ -92,3 +106,4 @@ export function stepFor(variant: StorefrontVariant): number {
 export function formatQty(qty: number, variant: StorefrontVariant): string {
   return variant.soldByWeight ? `${qty.toLocaleString('es-VE', { maximumFractionDigits: 3 })} kg` : String(qty);
 }
+import { shopTierPrice, type PriceTier } from '@/utils/shop-tier-price';

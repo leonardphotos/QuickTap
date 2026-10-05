@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Check, MessageCircle, Plus, Tag, Trash2 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { Check,MessageCircle,Plus,Tag,Trash2 } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import { InlinePanel } from '../InlinePanel';
 import {
-  buildPromoMessage,
-  crmApi,
-  SEGMENT_LABELS,
-  waPhoneOf,
-  type CrmSegment,
-  type CrmSummary,
-  type PromotionDetail,
-  type PromotionRow,
+buildPromoMessage,
+crmApi,
+SEGMENT_LABELS,
+waPhoneOf,
+type CrmSegment,
+type CrmSummary,
+type PromotionDetail,
+type PromotionRow,
 } from './crmApi';
 
 const card = 'rounded-2xl border border-brand-950/10 bg-white shadow-sm';
@@ -105,7 +105,7 @@ export function PromotionsSection() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] font-light text-brand-950/50">
+        <p className="font-light text-brand-950/50 text-base">
           Cada campaña genera un código: envíalo por WhatsApp a su lista y canjéalo en caja al cobrar.
         </p>
         <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => setView('new')}>
@@ -113,12 +113,12 @@ export function PromotionsSection() {
         </TextureButton>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {promotions.length === 0 ? (
         <div className={`${card} p-8 text-center`}>
-          <p className="font-semibold text-brand-950">Todavía no hay promociones</p>
-          <p className="mt-1 text-[13px] font-light text-brand-950/50">
+          <p className="font-semibold text-brand-950 text-base">Todavía no hay promociones</p>
+          <p className="mt-1 font-light text-brand-950/50 text-base">
             Crea la primera: eliges una lista de clientes, defines el descuento y el sistema arma el mensaje.
           </p>
         </div>
@@ -129,7 +129,7 @@ export function PromotionsSection() {
               <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[15px] font-bold text-brand-950">{p.name}</p>
+                    <p className="font-bold text-brand-950 text-base">{p.name}</p>
                     <span className="rounded-full bg-brand-500/10 px-2 py-0.5 font-mono text-[12px] font-bold text-brand-600">
                       {p.code}
                     </span>
@@ -145,12 +145,13 @@ export function PromotionsSection() {
                       {p.expired ? 'Vencida' : p.isActive ? 'Activa' : 'Apagada'}
                     </span>
                   </div>
-                  <p className="mt-1 text-[12px] font-light text-brand-950/50">
+                  <p className="mt-1 font-light text-brand-950/50 text-xs">
                     {discountLabel(p, symbol)} de descuento
                     {p.segment && ` · lista: ${SEGMENT_LABELS[p.segment as CrmSegment] ?? 'A mano'}`}
+                    {p.requiresCode && ' · exige código escrito'}
                     {p.endsAt && ` · hasta ${fmtDate(p.endsAt)}`}
                   </p>
-                  <p className="mt-1 text-[12px] font-medium text-brand-950/60">
+                  <p className="mt-1 font-medium text-brand-950/60 text-xs">
                     {p.sentCount} de {p.targetCount} enviados · {p.redemptionCount} canje{p.redemptionCount === 1 ? '' : 's'}
                     {Number(p.redeemedBase) > 0 && ` · ${formatBase(p.redeemedBase, symbol)} otorgados`}
                   </p>
@@ -221,6 +222,7 @@ function PromotionForm({
   const [endsAt, setEndsAt] = useState('');
   const [message, setMessage] = useState('');
   const [restrictToTargets, setRestrictToTargets] = useState(true);
+  const [requiresCode, setRequiresCode] = useState(true);
   const [maxPerCustomer, setMaxPerCustomer] = useState('1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -263,6 +265,7 @@ function PromotionForm({
         endsAt: endsAt || undefined,
         message: message.trim() || undefined,
         restrictToTargets,
+        requiresCode,
         maxPerCustomer: Number(maxPerCustomer) || 0,
       });
       onSaved(created.id);
@@ -284,7 +287,7 @@ function PromotionForm({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej. Descuento cumpleañeros agosto)" className={inputCls} />
 
           <div>
-            <p className="mb-1.5 text-[13px] font-medium text-brand-950/70">Descuento</p>
+            <p className="mb-1.5 font-medium text-brand-950/70 text-base">Descuento</p>
             <div className="flex items-center gap-2">
               <div className="flex overflow-hidden rounded-lg border border-brand-950/15">
                 {(['PERCENT', 'AMOUNT'] as const).map((t) => (
@@ -310,7 +313,7 @@ function PromotionForm({
           </div>
 
           <div>
-            <p className="mb-1.5 text-[13px] font-medium text-brand-950/70">Lista de clientes</p>
+            <p className="mb-1.5 font-medium text-brand-950/70 text-base">Lista de clientes</p>
             <div className="flex flex-wrap gap-1.5">
               {(Object.keys(SEGMENT_LABELS) as CrmSegment[]).map((s) => (
                 <button
@@ -326,39 +329,48 @@ function PromotionForm({
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] font-light text-brand-950/40">{SEGMENT_HELP[segment]}</p>
+            <p className="mt-1 font-light text-brand-950/40 text-xs">{SEGMENT_HELP[segment]}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Empieza (opcional)</span>
               <input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className={inputCls} />
             </label>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Vence (opcional)</span>
               <input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className={inputCls} />
             </label>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Código (vacío = automático)</span>
               <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Ej. CUMPLE10" className={`${inputCls} font-mono`} />
             </label>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Canjes por cliente (0 = sin límite)</span>
               <input value={maxPerCustomer} onChange={(e) => setMaxPerCustomer(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} />
             </label>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-brand-950/70">
+          <label className="flex cursor-pointer items-center gap-2 text-brand-950/70 text-sm font-medium">
             <input type="checkbox" checked={restrictToTargets} onChange={(e) => setRestrictToTargets(e.target.checked)} className="h-4 w-4 accent-brand-500" />
             El código solo vale para los clientes de la lista
           </label>
+          <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-brand-950/70 text-sm font-medium">
+              <input type="checkbox" checked={requiresCode} onChange={(e) => setRequiresCode(e.target.checked)} className="h-4 w-4 accent-brand-500" />
+              Exigir que el cliente escriba el cupón
+            </label>
+            <p className="ml-6 mt-1 font-light text-brand-950/45 text-xs">
+              Activado: el descuento se valida al ingresar el código. Desactivado: se mostrará como beneficio seleccionable a los clientes de la lista.
+            </p>
+          </div>
         </div>
 
         <div>
-          <p className="mb-1.5 text-[13px] font-medium text-brand-950/70">Mensaje de WhatsApp (opcional)</p>
+          <p className="mb-1.5 font-medium text-brand-950/70 text-base">Mensaje de WhatsApp (opcional)</p>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -366,13 +378,13 @@ function PromotionForm({
             placeholder={`¡Hola {{nombre}}! 🎉 Tenemos una promoción para ti: {{descuento}} de descuento con el código {{codigo}}. {{vigencia}}`}
             className={inputCls}
           />
-          <p className="mt-1 text-[11px] font-light text-brand-950/40">
+          <p className="mt-1 font-light text-brand-950/40 text-xs">
             Se personaliza solo con {'{{nombre}}'}, {'{{codigo}}'}, {'{{descuento}}'} y {'{{vigencia}}'}. Vacío = plantilla de arriba.
           </p>
         </div>
       </div>
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-red-600 text-base">{error}</p>}
       <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="mt-3 !w-auto disabled:opacity-50">
         <Tag className="mr-1 h-4 w-4" /> {saving ? 'Creando…' : 'Crear promoción'}
       </TextureButton>
@@ -409,7 +421,7 @@ function PromotionDetailPanel({ id, symbol, onClose }: { id: string; symbol: str
   if (!detail) {
     return (
       <InlinePanel title="Promoción" onClose={onClose} closeLabel="← Volver">
-        <p className="text-sm font-light text-brand-950/40">{error ?? 'Cargando…'}</p>
+        <p className="font-light text-brand-950/40 text-base">{error ?? 'Cargando…'}</p>
       </InlinePanel>
     );
   }
@@ -419,7 +431,7 @@ function PromotionDetailPanel({ id, symbol, onClose }: { id: string; symbol: str
   return (
     <InlinePanel
       title={detail.name}
-      description={`Código ${detail.code} · ${discountLabel(detail, symbol)} de descuento${detail.endsAt ? ` · vence ${fmtDate(detail.endsAt)}` : ''}`}
+      description={`Código ${detail.code} · ${discountLabel(detail, symbol)} de descuento${detail.requiresCode ? ' · debe escribirse para aplicarlo' : ' · disponible para su lista'}${detail.endsAt ? ` · vence ${fmtDate(detail.endsAt)}` : ''}`}
       onClose={onClose}
       closeLabel="← Volver"
       size="wide"
@@ -427,10 +439,10 @@ function PromotionDetailPanel({ id, symbol, onClose }: { id: string; symbol: str
       <div className="grid gap-5 lg:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40">
+            <p className="font-bold uppercase tracking-wide text-brand-950/40 text-xs">
               Lista ({detail.targets.length})
             </p>
-            <p className="text-[12px] font-light text-brand-950/45">
+            <p className="font-light text-brand-950/45 text-xs">
               {pending === 0 ? 'Todos recibieron su mensaje' : `${pending} por enviar`}
             </p>
           </div>
@@ -461,19 +473,19 @@ function PromotionDetailPanel({ id, symbol, onClose }: { id: string; symbol: str
 
         <div className="flex flex-col gap-4">
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">Mensaje que se envía</p>
+            <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">Mensaje que se envía</p>
             <div className={`${card} p-4 text-sm font-light text-brand-950/70`}>
               {buildPromoMessage(detail, 'María', symbol)}
-              <p className="mt-2 text-[11px] text-brand-950/40">(ejemplo con una clienta llamada María)</p>
+              <p className="mt-2 text-brand-950/40 text-xs">(ejemplo con una clienta llamada María)</p>
             </div>
           </div>
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-950/40">
+            <p className="mb-2 font-bold uppercase tracking-wide text-brand-950/40 text-xs">
               Canjes ({detail.redemptions.length})
             </p>
             <div className={`${card} divide-y divide-brand-950/[0.06] overflow-hidden`}>
               {detail.redemptions.length === 0 && (
-                <p className="p-4 text-sm font-light text-brand-950/40">
+                <p className="p-4 font-light text-brand-950/40 text-base">
                   Nadie ha canjeado todavía. El cajero escribe el código {detail.code} al cobrar y el canje aparece acá.
                 </p>
               )}

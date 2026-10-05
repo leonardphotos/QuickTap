@@ -344,7 +344,7 @@ export default function MasterCatalogAiPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Carga de catálogo con IA</h1>
-        <p className="mt-1 text-sm font-light text-brand-950/50">
+        <p className="mt-1 font-light text-brand-950/50 text-base">
           Sube las fotos de los platos de un cliente nuevo. La IA propone el nombre, la descripción y los ingredientes
           con cantidades aproximadas; tú revisas y cargas. El cliente solo tendrá que ajustar los pesos exactos.
         </p>
@@ -354,7 +354,7 @@ export default function MasterCatalogAiPage() {
           <select
             value={restaurantId}
             onChange={(e) => setRestaurantId(e.target.value)}
-            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
           >
             <option value="">Elige un cliente…</option>
             {restaurantes.map((r) => (
@@ -379,7 +379,7 @@ export default function MasterCatalogAiPage() {
                   : 'Este cliente todavía no tiene categorías: la que escribas se creará.'}
               </span>
             </div>
-            <label className="flex items-start gap-2 self-start pt-5 text-sm">
+            <label className="flex items-start gap-2 self-start pt-5 text-sm font-medium">
               <input
                 type="checkbox"
                 checked={mejorarFoto}
@@ -409,7 +409,7 @@ export default function MasterCatalogAiPage() {
       <CargaPorPartes restaurantId={restaurantId} titulo="3. Cliente ya montado: cargarle solo lo que le falta" />
 
       <Section title="4. Cliente nuevo: carga la carta completa (foto del menú o Excel)">
-          <p className="text-sm font-light text-brand-950/50">
+          <p className="font-light text-brand-950/50 text-base">
             Sube una <span className="font-medium">foto del menú impreso</span> o el{' '}
             <span className="font-medium">Excel del cliente tal como lo mandó</span> — no hace falta
             plantilla. La IA saca los platos con su precio y categoría, y después arma la ficha
@@ -491,16 +491,16 @@ export default function MasterCatalogAiPage() {
               </span>
             )}
           </div>
-          {!restaurantId && <p className="text-xs text-brand-950/40">Elige un cliente para habilitar la subida.</p>}
+          {!restaurantId && <p className="text-brand-950/40 text-xs">Elige un cliente para habilitar la subida.</p>}
         </Section>
 
-      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      {resultado && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">✅ {resultado}</p>}
+      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-red-700 text-base">{error}</p>}
+      {resultado && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-800 text-base">✅ {resultado}</p>}
 
       {platos.length > 0 && (
         <>
           <Section title="4. Revisa lo que propuso la IA">
-              <p className="text-sm font-light text-brand-950/50">
+              <p className="font-light text-brand-950/50 text-base">
                 Las cantidades son estimaciones a ojo, para que el cliente no arranque de cero. Corrige lo que esté mal
                 y quita lo que sobre — nada se guarda hasta que le des a cargar.
               </p>
@@ -511,12 +511,12 @@ export default function MasterCatalogAiPage() {
                 <div className="flex gap-4">
                   <img src={p.photoUrl} alt="" className="h-28 w-28 shrink-0 rounded-xl object-cover" />
                   <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Nombre</span>
                       <input
                         value={p.nombre}
                         onChange={(e) => editarPlato(p.key, { nombre: e.target.value })}
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                       />
                     </label>
                     <div className="text-sm">
@@ -527,23 +527,23 @@ export default function MasterCatalogAiPage() {
                         onChange={(v) => editarPlato(p.key, { categoria: v })}
                       />
                     </div>
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Precio de venta</span>
                       <input
                         value={p.precio}
                         onChange={(e) => editarPlato(p.key, { precio: e.target.value.replace(/[^0-9.]/g, '') })}
                         placeholder="0.00"
                         inputMode="decimal"
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                       />
                     </label>
-                    <label className="block text-sm sm:col-span-2">
+                    <label className="block sm:col-span-2 text-sm font-medium">
                       <span className="text-xs text-brand-950/60">Descripción</span>
                       <textarea
                         value={p.descripcion}
                         onChange={(e) => editarPlato(p.key, { descripcion: e.target.value })}
                         rows={2}
-                        className="mt-1 w-full resize-y rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                        className="mt-1 w-full resize-y rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                       />
                     </label>
                   </div>
@@ -558,7 +558,7 @@ export default function MasterCatalogAiPage() {
                 </div>
 
                 <div className="rounded-xl border border-brand-950/10 p-3">
-                  <p className="mb-2 text-sm font-medium text-brand-950/70">
+                  <p className="mb-2 font-medium text-brand-950/70 text-base">
                     Receta propuesta ({p.ingredientes.length} ingrediente{p.ingredientes.length === 1 ? '' : 's'})
                   </p>
                   <ul className="space-y-1.5">
@@ -567,18 +567,18 @@ export default function MasterCatalogAiPage() {
                         <input
                           value={g.nombre}
                           onChange={(e) => editarIngrediente(p.key, i, { nombre: e.target.value })}
-                          className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                          className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                         />
                         <input
                           value={g.cantidad}
                           onChange={(e) => editarIngrediente(p.key, i, { cantidad: Number(e.target.value) || 0 })}
                           inputMode="decimal"
-                          className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                          className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                         />
                         <select
                           value={g.unidad}
                           onChange={(e) => editarIngrediente(p.key, i, { unidad: e.target.value })}
-                          className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                          className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                         >
                           {UNIDADES.map((u) => (
                             <option key={u.value} value={u.value}>
@@ -665,7 +665,7 @@ export default function MasterCatalogAiPage() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="space-y-4 rounded-2xl border border-brand-950/10 bg-white p-6 shadow-sm">
-      <p className="font-semibold text-brand-950">{title}</p>
+      <p className="font-semibold text-brand-950 text-base">{title}</p>
       {children}
     </div>
   );
@@ -704,7 +704,7 @@ function CategoriaPicker({
           onChange={(e) => onChange(e.target.value)}
           placeholder="Ej: Hamburguesas"
           disabled={disabled}
-          className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-3 py-2 text-sm disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-3 py-2 disabled:opacity-50 text-base"
         />
         {categorias.length > 0 && (
           <button
@@ -734,7 +734,7 @@ function CategoriaPicker({
         }
         onChange(e.target.value);
       }}
-      className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm disabled:opacity-50"
+      className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 disabled:opacity-50 text-base"
     >
       {categorias.map((c) => (
         <option key={c.id} value={c.name}>
@@ -789,7 +789,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
   return (
     <div className="space-y-3 rounded-xl border border-brand-950/10 p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-brand-950/70">Tamaños y modificadores</p>
+        <p className="font-medium text-brand-950/70 text-base">Tamaños y modificadores</p>
         <button type="button" onClick={() => setAbierto(false)} className="text-xs text-brand-950/40 hover:text-brand-950">
           Ocultar
         </button>
@@ -797,7 +797,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
 
       {/* --- Tamaños --- */}
       <div>
-        <p className="text-xs text-brand-950/60">
+        <p className="text-brand-950/60 text-xs">
           Tamaños {plato.tamanos.length > 0 && <span className="text-brand-950/40">— el precio de arriba deja de usarse</span>}
         </p>
         <ul className="mt-1 space-y-1.5">
@@ -809,7 +809,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
                   onChange({ tamanos: plato.tamanos.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) })
                 }
                 placeholder="Ej: Grande"
-                className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
               />
               <input
                 value={t.precio}
@@ -822,7 +822,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
                 }
                 placeholder="Precio"
                 inputMode="decimal"
-                className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
               />
               <button
                 type="button"
@@ -845,7 +845,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
 
       {/* --- Grupos de modificadores --- */}
       <div className="border-t border-brand-950/10 pt-3">
-        <p className="text-xs text-brand-950/60">Grupos de modificadores</p>
+        <p className="text-brand-950/60 text-xs">Grupos de modificadores</p>
         <div className="mt-1 space-y-3">
           {plato.modificadores.map((g, i) => (
             <div key={i} className="space-y-2 rounded-lg bg-brand-950/[0.03] p-2.5">
@@ -854,7 +854,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
                   value={g.nombre}
                   onChange={(e) => editarGrupo(i, { nombre: e.target.value })}
                   placeholder="Ej: Término de la carne"
-                  className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                  className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                 />
                 <button
                   type="button"
@@ -866,7 +866,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
               </div>
 
               <div className="flex flex-wrap gap-4 text-xs">
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={g.obligatorio}
@@ -874,7 +874,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
                   />
                   Obligatorio
                 </label>
-                <label className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={g.permiteVarias}
@@ -934,7 +934,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
                         })
                       }
                       placeholder="Ej: Término medio"
-                      className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                      className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                     />
                     <input
                       value={o.precio}
@@ -947,7 +947,7 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
                       }
                       placeholder="+ precio"
                       inputMode="decimal"
-                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                     />
                     <button
                       type="button"
@@ -1012,10 +1012,10 @@ function PreparacionesDelPlato({ plato, onChange }: { plato: Plato; onChange: (p
 
   return (
     <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3">
-      <p className="text-sm font-medium text-violet-900">
+      <p className="font-medium text-violet-900 text-base">
         Preparaciones ({plato.preparaciones.length})
       </p>
-      <p className="mb-2 text-[11px] font-light text-violet-900/60">
+      <p className="mb-2 font-light text-violet-900/60 text-xs">
         Bases que se preparan aparte y se reutilizan. El rendimiento y sus ingredientes son de una
         tanda completa; abajo se indica cuánto usa este plato.
       </p>
@@ -1027,7 +1027,7 @@ function PreparacionesDelPlato({ plato, onChange }: { plato: Plato; onChange: (p
               <input
                 value={pr.nombre}
                 onChange={(e) => editar(i, { nombre: e.target.value })}
-                className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm font-medium"
+                className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 font-medium text-base"
               />
               <span
                 className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
@@ -1046,21 +1046,21 @@ function PreparacionesDelPlato({ plato, onChange }: { plato: Plato; onChange: (p
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <label className="text-[11px] text-brand-950/50">
+              <label className="text-brand-950/50 text-sm font-medium">
                 Rinde (una tanda)
                 <input
                   value={pr.rendimiento}
                   onChange={(e) => editar(i, { rendimiento: Number(e.target.value) || 0 })}
                   inputMode="decimal"
-                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                 />
               </label>
-              <label className="text-[11px] text-brand-950/50">
+              <label className="text-brand-950/50 text-sm font-medium">
                 Unidad
                 <select
                   value={pr.unidad}
                   onChange={(e) => editar(i, { unidad: e.target.value })}
-                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                 >
                   {UNIDADES.map((u) => (
                     <option key={u.value} value={u.value}>
@@ -1069,36 +1069,36 @@ function PreparacionesDelPlato({ plato, onChange }: { plato: Plato; onChange: (p
                   ))}
                 </select>
               </label>
-              <label className="text-[11px] text-brand-950/50">
+              <label className="text-brand-950/50 text-sm font-medium">
                 Usa este plato
                 <input
                   value={pr.cantidad}
                   onChange={(e) => editar(i, { cantidad: Number(e.target.value) || 0 })}
                   inputMode="decimal"
-                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                 />
               </label>
             </div>
 
-            <p className="mt-2 text-[11px] font-medium text-brand-950/50">Lleva (para la tanda):</p>
+            <p className="mt-2 font-medium text-brand-950/50 text-xs">Lleva (para la tanda):</p>
             <ul className="mt-1 space-y-1.5">
               {pr.insumos.map((g, j) => (
                 <li key={j} className="grid grid-cols-[1fr_5rem_5.5rem_auto] items-center gap-2">
                   <input
                     value={g.nombre}
                     onChange={(e) => editarInsumo(i, j, { nombre: e.target.value })}
-                    className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                    className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                   />
                   <input
                     value={g.cantidad}
                     onChange={(e) => editarInsumo(i, j, { cantidad: Number(e.target.value) || 0 })}
                     inputMode="decimal"
-                    className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   />
                   <select
                     value={g.unidad}
                     onChange={(e) => editarInsumo(i, j, { unidad: e.target.value })}
-                    className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-base"
                   >
                     {UNIDADES.map((u) => (
                       <option key={u.value} value={u.value}>

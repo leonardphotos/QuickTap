@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
+import { AiReportsButton } from '@/components/admin/AiReportsButton';
+import { useAuth } from '@/context/AuthContext.shared';
 import {
-  BookOpen, Building2, ChevronDown, CreditCard, FileBarChart, FileSpreadsheet, LayoutDashboard, ListTree, LogOut, Plus, Users,
+BookOpen,Building2,ChevronDown,CreditCard,FileBarChart,FileSpreadsheet,LayoutDashboard,ListTree,LogOut,Plus,Users,
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { officeApi, type Empresa } from './officeApi';
-import OfficeBillingPage from './OfficeBillingPage';
-import OfficePanelPage from './OfficePanelPage';
+import { useEffect,useState } from 'react';
+import { officeApi,type Empresa } from './officeApi';
 import OfficeAsientosPage from './OfficeAsientosPage';
-import OfficeCuentasPage from './OfficeCuentasPage';
+import OfficeBillingPage from './OfficeBillingPage';
 import OfficeContactosPage from './OfficeContactosPage';
-import OfficeReportesPage from './OfficeReportesPage';
+import OfficeCuentasPage from './OfficeCuentasPage';
 import OfficeEmpresasPage from './OfficeEmpresasPage';
 import OfficeImportarPage from './OfficeImportarPage';
-import { AiReportsButton } from '@/components/admin/AiReportsButton';
+import OfficePanelPage from './OfficePanelPage';
+import OfficeReportesPage from './OfficeReportesPage';
 
 export type OfficeScreen = 'panel' | 'asientos' | 'cuentas' | 'contactos' | 'reportes' | 'importar' | 'empresas' | 'facturacion';
 
@@ -171,7 +171,7 @@ export default function OfficeLayout() {
           </div>
 
           {empresas === null ? (
-            <p className="p-8 text-sm text-brand-950/40">Cargando…</p>
+            <p className="p-8 text-brand-950/40 text-base">Cargando…</p>
           ) : screen === 'facturacion' ? (
             // Va antes que el resto: se paga la CUENTA, no una empresa, así que debe poder
             // abrirse aunque todavía no haya ninguna creada.
@@ -184,7 +184,7 @@ export default function OfficeLayout() {
               onCreada={(id) => { cargarEmpresas(); setEmpresaId(id); setScreen('panel'); }}
             />
           ) : !empresa ? (
-            <p className="p-8 text-sm text-brand-950/40">Elige una empresa en la barra lateral.</p>
+            <p className="p-8 text-brand-950/40 text-base">Elige una empresa en la barra lateral.</p>
           ) : (
             <>
               {screen === 'panel' && <OfficePanelPage empresa={empresa} onIrA={setScreen} />}

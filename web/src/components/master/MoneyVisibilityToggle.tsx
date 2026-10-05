@@ -1,5 +1,5 @@
-import { Eye, EyeOff } from 'lucide-react';
-import { useMoneyVisibility } from '@/context/MoneyVisibilityContext';
+import { useMoneyVisibility } from '@/context/MoneyVisibilityContext.shared';
+import { Eye,EyeOff } from 'lucide-react';
 
 /** Ícono de ojo para mostrar/ocultar los montos de dinero de todo el Dashboard maestro. */
 export function MoneyVisibilityToggle({ className }: { className?: string }) {

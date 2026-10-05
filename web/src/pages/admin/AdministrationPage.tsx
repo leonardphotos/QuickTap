@@ -1,39 +1,36 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, DollarSign, Plus, Receipt, Trash2, TrendingUp, Wallet } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { useAuth } from '@/context/AuthContext';
-import { hasFeature, type FeatureFlag } from '@/utils/subscription';
-import { TextureButton } from '@/components/ui/texture-button';
-import { InlinePanel } from '@/components/admin/InlinePanel';
-import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
-import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
-import { MetricCard } from '@/components/admin/MetricCard';
-import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
-import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
-import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { AccountingHub } from '@/components/admin/AccountingHub';
-import { CrmHub } from '@/components/admin/crm/CrmHub';
-import { PeriodPicker, periodLabel, periodParams, periodoDeHoy, type Period } from '@/components/admin/PeriodPicker';
-import { DishTimesSection } from '@/components/admin/DishTimesSection';
-import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
-import { CostStructureHub } from '@/components/admin/cost-structure/CostStructureHub';
-import {
-  OrderHistorySection,
-  OrderDetailRow,
-  CHANNEL_ROW_LABELS,
-  RANGE_LABELS,
-  type Range,
-  type Channel,
-  type HistoryResult,
-} from '@/components/admin/OrderHistorySection';
-import ExpensesPage from '@/pages/admin/ExpensesPage';
+import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
+import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
+import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
 import { CashSessionPanel } from '@/components/admin/CashSessionControl';
-import { ReportPickerForm, ReportResult } from '@/components/admin/ReportDialog';
-import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
-import { IncomeForm, INCOME_CATEGORY_LABELS, type IncomeCategory } from '@/components/admin/IncomeFormDialog';
+import { CostStructureHub } from '@/components/admin/cost-structure/CostStructureHub';
+import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { DishTimesSection } from '@/components/admin/DishTimesSection';
+import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
+import { IncomeForm } from '@/components/admin/IncomeFormDialog';
+import { INCOME_CATEGORY_LABELS,type IncomeCategory } from '@/components/admin/IncomeFormDialog.shared';
+import { InlinePanel } from '@/components/admin/InlinePanel';
+import { MetricCard } from '@/components/admin/MetricCard';
+import { OrderDetailRow,OrderHistorySection,type HistoryResult } from '@/components/admin/OrderHistorySection';
+import { CHANNEL_ROW_LABELS,RANGE_LABELS,type Channel,type Range } from '@/components/admin/OrderHistorySection.shared';
+import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog.shared';
+import { PeriodPicker } from '@/components/admin/PeriodPicker';
+import { periodLabel,periodParams,periodoDeHoy,type Period } from '@/components/admin/PeriodPicker.shared';
+import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
+import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
+import { ReportPickerForm,ReportResult } from '@/components/admin/ReportDialog';
 import type { ReportData } from '@/components/admin/ReportReceipt';
+import { TextureButton } from '@/components/ui/texture-button';
+import { WeeklyReports } from '@/components/admin/WeeklyReports';
+import { useAuth } from '@/context/AuthContext.shared';
+import ExpensesPage from '@/pages/admin/ExpensesPage';
 import type { PaymentMethod as AnyPaymentMethod } from '@/types';
+import { CURRENCY_SYMBOLS,formatBase,formatBsAbsolute } from '@/utils/format';
+import { hasFeature,type FeatureFlag } from '@/utils/subscription';
+import { ChevronDown,DollarSign,Plus,Receipt,Trash2,TrendingUp,Wallet } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 /**
  * Pestañas de Administración y el flag de plan que las habilita. `null` = va en Administración
@@ -47,7 +44,7 @@ const ALL_TABS = [
   // Cuánto tarda cada plato, cocina y sala por separado.
   { id: 'dishTimes', label: 'Tiempos por plato', feature: null },
   { id: 'history', label: 'Historial de pedidos', feature: 'accounting' },
-  { id: 'products', label: 'Productos', feature: null },
+  { id: 'products', label: 'Rendimiento de productos', feature: null },
   { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
   // Calculadora de estructura de costo por producto (material + % fijos y variables) y sus estadísticas.
   { id: 'costStructure', label: 'Estructura de costo', feature: 'accounting' },
@@ -56,7 +53,7 @@ const ALL_TABS = [
   { id: 'purchases', label: 'Compras', feature: null },
   // Clientes con segmentos + promociones personalizadas con código canjeable.
   { id: 'crm', label: 'CRM', feature: 'crm' },
-  { id: 'payments', label: 'Métodos de pago', feature: null },
+  { id: 'payments', label: 'Cobros por método', feature: null },
   { id: 'ledger', label: 'Contabilidad', feature: 'accounting' },
   // Proveedores ya no vive acá: es una pestaña de Compras (evita el duplicado).
   { id: 'books', label: 'Libros fiscales', feature: 'accounting' },
@@ -69,15 +66,19 @@ type TabId = (typeof ALL_TABS)[number]['id'];
  * flotantes (`InlinePanel` en vez de `Dialog` para abrir/cerrar caja, reportes, ingresos y detalle). */
 export default function AdministrationPage() {
   const { restaurant } = useAuth();
+  const lockedTab = (t: (typeof ALL_TABS)[number]) =>
+    restaurant?.subscriptionPlan === 'OPERATIONS' && t.id === 'purchases' ? true :
+    restaurant?.subscriptionPlan === 'OPERATIONS' && t.id === 'history' ? false :
+    t.feature != null && !hasFeature(restaurant, t.feature);
   const TABS = ALL_TABS.map((t) => ({
     id: t.id,
     label: t.label,
-    locked: t.feature != null && !hasFeature(restaurant, t.feature),
+    locked: lockedTab(t),
   }));
   const [tab, setTab] = useState<TabId>('summary');
   const [showReport, setShowReport] = useState(false);
   const activeTab = ALL_TABS.find((t) => t.id === tab)!;
-  const tabLocked = activeTab.feature != null && !hasFeature(restaurant, activeTab.feature);
+  const tabLocked = lockedTab(activeTab);
 
 
   return (
@@ -85,7 +86,7 @@ export default function AdministrationPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
-          <p className="text-sm text-brand-950/60 font-light mt-1">Ventas, pedidos, propinas y productos de tu restaurante.</p>
+          <p className="text-brand-950/60 font-light mt-1 text-base">Ventas, pedidos, propinas y productos de tu restaurante.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <CashSessionPanel />
@@ -98,8 +99,11 @@ export default function AdministrationPage() {
       {showReport && <ReportPanel onClose={() => setShowReport(false)} />}
 
       <div className="lg:flex lg:flex-row lg:gap-6">
-        <AdminSectionNav items={TABS} activeId={tab} onChange={(id) => setTab(id as TabId)} />
+        <AdminSectionNav items={TABS.filter((item) => item.id !== 'costStructure').map((item) => item.id === 'margin' ? { ...item, label: 'Costos y rentabilidad' } : item)} activeId={tab === 'costStructure' ? 'margin' : tab} onChange={(id) => setTab(id as TabId)} />
         <div className="mt-5 lg:mt-0 min-w-0 flex-1">
+          {(tab === 'margin' || tab === 'costStructure') && <AnimatedTabs tone="brand" className="mb-5 flex flex-nowrap gap-2" role="group" aria-label="Costos y rentabilidad">
+            {TABS.filter((item) => item.id === 'margin' || item.id === 'costStructure').map((item) => <AnimatedTab active={tab === item.id} key={item.id} type="button" onClick={() => setTab(item.id)} aria-pressed={tab === item.id} className={`rounded-full px-4 py-2 text-sm ${tab === item.id ? 'bg-brand-500 text-white' : 'bg-brand-950/5 text-brand-950'}`}>{item.label}</AnimatedTab>)}
+          </AnimatedTabs>}
           {tabLocked && <PlanUpgradeNotice feature={activeTab.label} />}
           {!tabLocked && tab === 'summary' && <SummaryTab />}
           {!tabLocked && tab === 'stats' && <StatsTab />}
@@ -206,12 +210,12 @@ function SummaryTab() {
     ? movements?.movements
     : movements?.movements.filter((m) => m.description.toLowerCase().includes(searchLower));
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   return (
     <div className="space-y-5">
       {/* Punto de equilibrio: vive dentro de Resumen, no como pestaña aparte. */}
-      <BreakEvenCard fetchUrl="/products/breakeven" />
+      {restaurant?.subscriptionPlan !== 'OPERATIONS' && <BreakEvenCard fetchUrl="/products/breakeven" />}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -271,13 +275,13 @@ function SummaryTab() {
 
       <div>
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <p className="text-sm font-medium text-brand-950/70">Detalle de ventas · {periodLabel}</p>
+          <p className="font-medium text-brand-950/70 text-base">Detalle de ventas · {periodLabel}</p>
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por número de referencia…"
-            className="text-sm border border-brand-950/15 rounded-full px-3.5 py-1.5 w-full sm:w-64"
+            className="border border-brand-950/15 rounded-full px-3.5 py-1.5 w-full sm:w-64 text-base"
           />
         </div>
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
@@ -289,7 +293,7 @@ function SummaryTab() {
           </div>
           <div className="divide-y divide-brand-950/[0.06] max-h-[36rem] overflow-y-auto">
             {filteredOrders?.length === 0 && (
-              <p className="p-5 text-sm text-brand-950/40 font-light">
+              <p className="p-5 text-brand-950/40 font-light text-base">
                 {searchLower ? 'Ninguna venta coincide con esa referencia.' : 'Sin ventas en este período.'}
               </p>
             )}
@@ -299,7 +303,7 @@ function SummaryTab() {
           </div>
         </div>
         {result && !searchLower && result.total > result.pageSize && (
-          <p className="text-xs text-brand-950/40 mt-2 text-center">
+          <p className="text-brand-950/40 mt-2 text-center text-xs">
             Mostrando los {result.pageSize} pedidos más recientes de {result.total}.
           </p>
         )}
@@ -308,8 +312,8 @@ function SummaryTab() {
       {movements && movements.movements.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-            <p className="text-sm font-medium text-brand-950/70">Movimientos · {periodLabel}</p>
-            <p className="text-xs text-brand-950/50 text-right">
+            <p className="font-medium text-brand-950/70 text-base">Movimientos · {periodLabel}</p>
+            <p className="text-brand-950/50 text-right text-xs">
               +{formatBase(movements.totalIncome, symbol)} · −{formatBase(movements.totalExpense, symbol)}
               <br />
               Egresos: {formatBsAbsolute(movements.totalExpenseBs)} · {formatBase(movements.totalExpense, symbol)}
@@ -324,17 +328,17 @@ function SummaryTab() {
           </div>
           <div className="divide-y divide-brand-950/[0.06]">
             {filteredMovements?.length === 0 && (
-              <p className="p-5 text-sm text-brand-950/40 font-light">Ningún movimiento coincide con esa búsqueda.</p>
+              <p className="p-5 text-brand-950/40 font-light text-base">Ningún movimiento coincide con esa búsqueda.</p>
             )}
             {filteredMovements?.map((m) => (
               <div key={m.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-brand-950 truncate">
+                  <p className="font-medium text-brand-950 truncate text-base">
                     {m.description}
                     {m.incomeCategory && <span className="text-brand-950/40"> · {INCOME_CATEGORY_LABELS[m.incomeCategory]}</span>}
                     {m.paymentMethod && <span className="text-brand-950/40"> · {ALL_PAYMENT_LABELS[m.paymentMethod]}</span>}
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {new Date(m.createdAt).toLocaleString('es-VE')}
                     {m.createdByName && ` · ${m.createdByName}`}
                   </p>
@@ -563,7 +567,7 @@ function StatsTab() {
     setView('saleDetail');
   }
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   if (view === 'saleDetail' && selectedSale) {
     return (
@@ -595,6 +599,7 @@ function StatsTab() {
 
   return (
     <div className="space-y-5">
+      <WeeklyReports range={range} from={from} to={to} symbol={symbol} />
       <div className="flex flex-wrap items-center gap-2">
         {(['week', 'month'] as const).map((r) => (
           <button
@@ -611,7 +616,7 @@ function StatsTab() {
             {STATS_RANGE_LABELS[r]}
           </button>
         ))}
-        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+        <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
           Desde
           <input
             type="date"
@@ -622,7 +627,7 @@ function StatsTab() {
             }`}
           />
         </label>
-        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+        <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
           Hasta
           <input
             type="date"
@@ -689,9 +694,9 @@ function StatsTab() {
 
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Ventas por usuario · {stats ? STATS_RANGE_LABELS[stats.range] : ''}</p>
+        <p className="font-medium text-brand-950/70 mb-3 text-base">Ventas por usuario · {stats ? STATS_RANGE_LABELS[stats.range] : ''}</p>
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-          {stats?.byUser.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
+          {stats?.byUser.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin ventas en este período.</p>}
           {stats?.byUser.map((u) => {
             const expanded = expandedUserId === u.userId;
             return (
@@ -702,18 +707,18 @@ function StatsTab() {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <ChevronDown className={`h-4 w-4 text-brand-950/30 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                    <p className="text-sm font-medium text-brand-950 truncate">{u.name}</p>
+                    <p className="font-medium text-brand-950 truncate text-base">{u.name}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-brand-950">{formatBase(u.totalBase, symbol)}</p>
-                    <p className="text-xs text-brand-950/50 font-light">{u.count} pedido{u.count === 1 ? '' : 's'}</p>
+                    <p className="font-semibold text-brand-950 text-base">{formatBase(u.totalBase, symbol)}</p>
+                    <p className="text-brand-950/50 font-light text-xs">{u.count} pedido{u.count === 1 ? '' : 's'}</p>
                   </div>
                 </button>
                 {expanded && (
                   <div className="px-5 pb-3 pl-11 space-y-1">
-                    {loadingSales && <p className="text-xs text-brand-950/40 font-light py-2">Cargando ventas…</p>}
+                    {loadingSales && <p className="text-brand-950/40 font-light py-2 text-xs">Cargando ventas…</p>}
                     {!loadingSales && userSales?.length === 0 && (
-                      <p className="text-xs text-brand-950/40 font-light py-2">Sin ventas registradas.</p>
+                      <p className="text-brand-950/40 font-light py-2 text-xs">Sin ventas registradas.</p>
                     )}
                     {!loadingSales &&
                       userSales?.map((sale) => (
@@ -723,14 +728,14 @@ function StatsTab() {
                           className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs hover:bg-brand-950/[0.04]"
                         >
                           <div className="min-w-0">
-                            <p className="font-medium text-brand-950">
+                            <p className="font-medium text-brand-950 text-base">
                               #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
                             </p>
-                            <p className="text-brand-950/40">
+                            <p className="text-brand-950/40 text-base">
                               {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
                             </p>
                           </div>
-                          <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+                          <p className="font-semibold text-brand-950 shrink-0 text-base">{formatBase(sale.totalBase, symbol)}</p>
                         </button>
                       ))}
                   </div>
@@ -788,21 +793,21 @@ function MarginSummaryCard({
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-medium text-brand-950/70">Margen de utilidad · {periodLabel}</p>
-        <p className="text-xs font-light text-brand-950/45">Ingreso − costo de lo vendido</p>
+        <p className="font-medium text-brand-950/70 text-base">Margen de utilidad · {periodLabel}</p>
+        <p className="font-light text-brand-950/45 text-xs">Ingreso − costo de lo vendido</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <p className="text-xs font-light text-brand-950/45">Ingresos</p>
+          <p className="font-light text-brand-950/45 text-xs">Ingresos</p>
           <p className="text-lg font-semibold text-brand-950">{formatBase(summary.revenueBase, symbol)}</p>
         </div>
         <div>
-          <p className="text-xs font-light text-brand-950/45">Costo de lo vendido</p>
+          <p className="font-light text-brand-950/45 text-xs">Costo de lo vendido</p>
           <p className="text-lg font-semibold text-brand-950">{formatBase(summary.costBase, symbol)}</p>
         </div>
         <div>
-          <p className="text-xs font-light text-brand-950/45">Utilidad</p>
+          <p className="font-light text-brand-950/45 text-xs">Utilidad</p>
           <p className={`text-lg font-semibold ${negative ? 'text-red-600' : 'text-emerald-600'}`}>
             {formatBase(summary.marginBase, symbol)}{' '}
             <span className="text-xs font-normal text-brand-950/45">{summary.marginPercent}%</span>
@@ -815,8 +820,8 @@ function MarginSummaryCard({
           {visible.map((r) => (
             <div key={`${r.id ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 py-2.5">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-brand-950">{r.name}</p>
-                <p className="text-xs text-brand-950/40">
+                <p className="truncate font-medium text-brand-950 text-base">{r.name}</p>
+                <p className="text-brand-950/40 text-xs">
                   {r.quantity} vendidos · Ingreso {formatBase(r.revenueBase, symbol)}
                 </p>
               </div>
@@ -824,7 +829,7 @@ function MarginSummaryCard({
                 <p className={`text-sm font-semibold ${Number(r.marginBase) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                   {formatBase(r.marginBase, symbol)}
                 </p>
-                <p className="text-xs font-light text-brand-950/50">{r.marginPercent}% margen</p>
+                <p className="font-light text-brand-950/50 text-xs">{r.marginPercent}% margen</p>
               </div>
             </div>
           ))}
@@ -839,7 +844,7 @@ function MarginSummaryCard({
           {expanded ? 'Ver menos' : `Ver más (${(rows?.length ?? 0) - 5} productos)`}
         </button>
       )}
-      {rows?.length === 0 && <p className="mt-3 text-sm font-light text-brand-950/40">Sin ventas en este período.</p>}
+      {rows?.length === 0 && <p className="mt-3 font-light text-brand-950/40 text-base">Sin ventas en este período.</p>}
     </div>
   );
 }
@@ -879,11 +884,11 @@ function PaymentMethodsSummaryCard({
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-medium text-brand-950/70">Métodos de pago · {periodLabel}</p>
-        <p className="text-xs font-light text-brand-950/45">Con qué te pagaron</p>
+        <p className="font-medium text-brand-950/70 text-base">Métodos de pago · {periodLabel}</p>
+        <p className="font-light text-brand-950/45 text-xs">Con qué te pagaron</p>
       </div>
 
-      {rows.length === 0 && <p className="text-sm font-light text-brand-950/40">Sin cobros en este período.</p>}
+      {rows.length === 0 && <p className="font-light text-brand-950/40 text-base">Sin cobros en este período.</p>}
 
       <div className="space-y-3">
         {rows.map((r) => {
@@ -891,13 +896,13 @@ function PaymentMethodsSummaryCard({
           return (
             <div key={r.method}>
               <div className="mb-1 flex items-baseline justify-between gap-2">
-                <p className="text-sm font-medium text-brand-950">
+                <p className="font-medium text-brand-950 text-base">
                   {PAYMENT_METHOD_LABELS[r.method] ?? r.method}
                   <span className="ml-1.5 text-xs font-normal text-brand-950/40">
                     {r.count} pedido{r.count === 1 ? '' : 's'}
                   </span>
                 </p>
-                <p className="text-sm font-semibold text-brand-950">
+                <p className="font-semibold text-brand-950 text-base">
                   {formatBase(r.totalBase, symbol)} <span className="text-xs font-normal text-brand-950/40">{share.toFixed(1)}%</span>
                 </p>
               </div>
@@ -931,8 +936,8 @@ function SalesListPanel({
   return (
     <InlinePanel title={title} onClose={onClose} closeLabel="← Volver">
       <div className="max-h-[60vh] overflow-y-auto space-y-1">
-        {loading && <p className="text-sm text-brand-950/40 font-light py-2">Cargando ventas…</p>}
-        {!loading && sales?.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin ventas en este período.</p>}
+        {loading && <p className="text-brand-950/40 font-light py-2 text-base">Cargando ventas…</p>}
+        {!loading && sales?.length === 0 && <p className="text-brand-950/40 font-light py-2 text-base">Sin ventas en este período.</p>}
         {!loading &&
           sales?.map((sale) => (
             <button
@@ -941,14 +946,14 @@ function SalesListPanel({
               className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-950/[0.04]"
             >
               <div className="min-w-0">
-                <p className="font-medium text-brand-950">
+                <p className="font-medium text-brand-950 text-base">
                   #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
                 </p>
-                <p className="text-xs text-brand-950/40">
+                <p className="text-brand-950/40 text-xs">
                   {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
               </div>
-              <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+              <p className="font-semibold text-brand-950 shrink-0 text-base">{formatBase(sale.totalBase, symbol)}</p>
             </button>
           ))}
       </div>
@@ -965,20 +970,20 @@ function SaleDetailPanel({ sale, symbol, onClose }: { sale: UserSale; symbol: st
       closeLabel="← Volver"
     >
       <div className="space-y-4">
-        <p className="text-xs text-brand-950/50 font-light">
+        <p className="text-brand-950/50 font-light text-xs">
           {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' })}
           {sale.customerName && ` · ${sale.customerName}`}
         </p>
 
         <div>
-          <p className="text-xs font-medium text-brand-950/60 mb-1.5">Comanda</p>
+          <p className="font-medium text-brand-950/60 mb-1.5 text-xs">Comanda</p>
           <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
             {sale.items.map((item, i) => (
               <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                <p className="text-brand-950/80">
+                <p className="text-brand-950/80 text-base">
                   {item.quantity}× {item.productName}
                 </p>
-                <p className="font-medium text-brand-950 shrink-0">{formatBase(item.lineTotal, symbol)}</p>
+                <p className="font-medium text-brand-950 shrink-0 text-base">{formatBase(item.lineTotal, symbol)}</p>
               </div>
             ))}
           </div>
@@ -991,9 +996,9 @@ function SaleDetailPanel({ sale, symbol, onClose }: { sale: UserSale; symbol: st
         </div>
 
         <div>
-          <p className="text-xs font-medium text-brand-950/60 mb-1.5">Pago{sale.payments.length === 1 ? '' : 's'}</p>
+          <p className="font-medium text-brand-950/60 mb-1.5 text-xs">Pago{sale.payments.length === 1 ? '' : 's'}</p>
           {sale.payments.length === 0 ? (
-            <p className="text-xs text-brand-950/40 font-light">
+            <p className="text-brand-950/40 font-light text-xs">
               Sin pago registrado{sale.paymentMethod ? ` (método: ${ALL_PAYMENT_LABELS[sale.paymentMethod as AnyPaymentMethod] ?? sale.paymentMethod})` : ''}.
             </p>
           ) : (
@@ -1001,13 +1006,13 @@ function SaleDetailPanel({ sale, symbol, onClose }: { sale: UserSale; symbol: st
               {sale.payments.map((p, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                   <div className="min-w-0">
-                    <p className="font-medium text-brand-950">{ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}</p>
-                    {p.referenceNumber && <p className="text-xs text-brand-950/40 truncate">Ref: {p.referenceNumber}</p>}
+                    <p className="font-medium text-brand-950 text-base">{ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}</p>
+                    {p.referenceNumber && <p className="text-brand-950/40 truncate text-xs">Ref: {p.referenceNumber}</p>}
                     {Number(p.discountBase ?? 0) > 0 && (
-                      <p className="text-xs text-brand-950/40">Descuento: {formatBase(p.discountBase!, symbol)}</p>
+                      <p className="text-brand-950/40 text-xs">Descuento: {formatBase(p.discountBase!, symbol)}</p>
                     )}
                   </div>
-                  <p className="font-semibold text-brand-950 shrink-0">{formatBase(p.amountBase, symbol)}</p>
+                  <p className="font-semibold text-brand-950 shrink-0 text-base">{formatBase(p.amountBase, symbol)}</p>
                 </div>
               ))}
             </div>
@@ -1050,23 +1055,23 @@ function OrdersListPanel({
   return (
     <InlinePanel title={title} onClose={onClose}>
       <div className="space-y-3">
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         {result && (
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-brand-950/10 p-3">
               <p className="text-lg font-semibold text-brand-950">{formatBase(result.totalBase, symbol)}</p>
-              <p className="text-xs text-brand-950/50 font-light">
+              <p className="text-brand-950/50 font-light text-xs">
                 {result.total} pedido{result.total === 1 ? '' : 's'}
               </p>
             </div>
             <div className="rounded-xl border border-brand-950/10 p-3">
               <p className="text-lg font-semibold text-brand-950">{formatBsAbsolute(result.totalBs)}</p>
-              <p className="text-xs text-brand-950/50 font-light">En bolívares</p>
+              <p className="text-brand-950/50 font-light text-xs">En bolívares</p>
             </div>
           </div>
         )}
         <div className="rounded-2xl border border-brand-950/10 divide-y divide-brand-950/[0.06] max-h-96 overflow-y-auto">
-          {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin movimientos.</p>}
+          {result?.orders.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin movimientos.</p>}
           {result?.orders.map((o) => (
             <OrderDetailRow key={o.id} order={o} symbol={symbol} highlightProductId={highlightProductId} />
           ))}
@@ -1115,7 +1120,7 @@ function ProductsTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramsKey]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   const sorted = rows ? [...rows].sort((a, b) => (order === 'desc' ? b.quantity - a.quantity : a.quantity - b.quantity)) : null;
 
@@ -1146,12 +1151,12 @@ function ProductsTab() {
           <span className="w-20 text-right">Ingresos</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-        {sorted?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este rango.</p>}
+        {sorted?.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin ventas en este rango.</p>}
         {sorted?.map((r, i) => (
           <div key={`${r.productId ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 px-5 py-3">
             <div className="flex items-center gap-3 min-w-0">
               <span className="text-xs text-brand-950/30 font-medium w-5 shrink-0">{i + 1}</span>
-              <p className="text-sm font-medium text-brand-950 truncate">{r.name}</p>
+              <p className="font-medium text-brand-950 truncate text-base">{r.name}</p>
             </div>
             <div className="flex items-center gap-4 shrink-0 text-right">
               {r.productId ? (
@@ -1228,7 +1233,7 @@ function MarginTab() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el margen de utilidad.'));
   }, [range, date]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   return (
     <div className="space-y-5">
@@ -1271,7 +1276,7 @@ function MarginTab() {
         </div>
       )}
 
-      <p className="text-sm text-brand-950/60 font-light">
+      <p className="text-brand-950/60 font-light text-base">
         Margen = ingreso − costo de lo vendido en el período. El costo viene del campo "Costo" del producto, o de su
         receta armada en Inventario → Recetas si eligió "Desde receta".
       </p>
@@ -1281,12 +1286,12 @@ function MarginTab() {
           <span className="w-52 text-right">Margen</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-        {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
+        {rows?.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin ventas en este período.</p>}
         {rows?.map((r) => (
           <div key={`${r.id ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 px-5 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-brand-950 truncate">{r.name}</p>
-              <p className="text-xs text-brand-950/40">
+              <p className="font-medium text-brand-950 truncate text-base">{r.name}</p>
+              <p className="text-brand-950/40 text-xs">
                 {r.categoryName} · {r.quantity} vendidos · Ingreso {formatBase(r.revenueBase, symbol)}
               </p>
             </div>
@@ -1356,7 +1361,7 @@ function PaymentsTab() {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el movimiento por método de pago.'));
   }, [range]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
 
   return (
     <div className="space-y-5">
@@ -1380,14 +1385,14 @@ function PaymentsTab() {
           <span className="w-32 text-right">Pedidos / Total</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-        {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin pedidos en este rango.</p>}
+        {rows?.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin pedidos en este rango.</p>}
         {rows?.map((r) =>
           r.method === 'SIN_METODO' ? (
             <div key={r.method} className="flex items-center justify-between gap-3 px-5 py-4">
-              <p className="font-medium text-brand-950">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
+              <p className="font-medium text-brand-950 text-base">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
               <div className="text-right shrink-0">
-                <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
-                <p className="text-xs text-brand-950/50 font-light">{r.count} pedidos</p>
+                <p className="font-semibold text-brand-950 text-base">{formatBase(r.totalBase, symbol)}</p>
+                <p className="text-brand-950/50 font-light text-xs">{r.count} pedidos</p>
               </div>
             </div>
           ) : (
@@ -1396,10 +1401,10 @@ function PaymentsTab() {
               onClick={() => setDetailMethod(r.method)}
               className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-brand-950/[0.02] transition-colors"
             >
-              <p className="font-medium text-brand-950">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
+              <p className="font-medium text-brand-950 text-base">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
               <div className="text-right shrink-0">
-                <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
-                <p className="text-xs text-brand-950/50 font-light">{r.count} pedidos</p>
+                <p className="font-semibold text-brand-950 text-base">{formatBase(r.totalBase, symbol)}</p>
+                <p className="text-brand-950/50 font-light text-xs">{r.count} pedidos</p>
               </div>
             </button>
           ),
@@ -1417,4 +1422,3 @@ function PaymentsTab() {
     </div>
   );
 }
-

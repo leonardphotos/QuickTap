@@ -6,7 +6,11 @@ export interface MasterNavLink {
   icon: typeof Store;
   /** Texto corto para el tile de "Accesos rápidos" del Resumen (la barra usa `label`). */
   hint: string;
+  roles: MasterRole[];
 }
+
+export type MasterRole = 'ADMIN' | 'MANAGER' | 'SUPPORT' | 'FINANCE' | 'AUDITOR';
+const ALL_ROLES: MasterRole[] = ['ADMIN', 'MANAGER', 'SUPPORT', 'FINANCE', 'AUDITOR'];
 
 /**
  * Destinos del Dashboard maestro, separados en dos grupos por frecuencia de uso — no por tema.
@@ -20,24 +24,40 @@ export interface MasterNavLink {
  * Fuente única: la barra (MasterLayout) y los accesos rápidos (MasterSummaryPage) leen de acá.
  */
 export const MASTER_OPERATION_LINKS: MasterNavLink[] = [
-  { to: '/master/summary', label: 'Resumen', icon: BarChart3, hint: 'Ingresos y pendientes' },
-  { to: '/master/live', label: 'En vivo', icon: Activity, hint: 'Lo que se genera ahora mismo' },
-  { to: '/master/restaurants', label: 'Locales', icon: Store, hint: 'Restaurantes y tiendas' },
-  { to: '/master/proofs', label: 'Comprobantes', icon: Receipt, hint: 'Pagos por aprobar' },
-  { to: '/master/qrnfc-requests', label: 'Solicitud QRNFC', icon: Nfc, hint: 'Pedidos de QR y NFC' },
-  { to: '/master/quotes', label: 'Cotizaciones', icon: FileText, hint: 'Presupuestos a futuros clientes' },
-  { to: '/master/advisor-leads', label: 'Asesorías', icon: Star, hint: 'Prospectos del Plan Elite por llamar' },
-  { to: '/master/funnel', label: 'Abandonos', icon: TrendingDown, hint: 'Quién no terminó de registrarse' },
-  { to: '/master/catalog-ai', label: 'Cargar catálogo', icon: Sparkles, hint: 'Montar la carta de un cliente con IA' },
+  { to: '/master/summary', label: 'Resumen', icon: BarChart3, hint: 'Ingresos y pendientes', roles: ALL_ROLES },
+  { to: '/master/administration', label: 'Administración', icon: Wallet, hint: 'Ingresos, gastos y nómina', roles: ['ADMIN', 'MANAGER', 'FINANCE', 'AUDITOR'] },
+  { to: '/master/printing', label: 'Impresiones', icon: Receipt, hint: 'Comandas por impresora', roles: ALL_ROLES },
+  { to: '/master/live', label: 'En vivo', icon: Activity, hint: 'Lo que se genera ahora mismo', roles: ALL_ROLES },
+  { to: '/master/restaurants', label: 'Locales', icon: Store, hint: 'Restaurantes y tiendas', roles: ALL_ROLES },
+  { to: '/master/proofs', label: 'Pagos por verificar', icon: Receipt, hint: 'Pagos por aprobar', roles: ['ADMIN', 'MANAGER', 'FINANCE'] },
+  { to: '/master/qrnfc-requests', label: 'Solicitud QRNFC', icon: Nfc, hint: 'Pedidos de QR y NFC', roles: ['ADMIN', 'MANAGER', 'SUPPORT'] },
+  { to: '/master/quotes', label: 'Cotizaciones', icon: FileText, hint: 'Presupuestos a futuros clientes', roles: ['ADMIN', 'MANAGER'] },
+  { to: '/master/advisor-leads', label: 'Asesorías', icon: Star, hint: 'Prospectos del Plan Elite por llamar', roles: ['ADMIN', 'MANAGER', 'SUPPORT'] },
+  { to: '/master/funnel', label: 'Abandonos', icon: TrendingDown, hint: 'Quién no terminó de registrarse', roles: ['ADMIN', 'MANAGER', 'SUPPORT'] },
+  { to: '/master/catalog-ai', label: 'Cargar catálogo', icon: Sparkles, hint: 'Montar la carta de un cliente con IA', roles: ['ADMIN', 'MANAGER', 'SUPPORT'] },
 ];
 
 export const MASTER_CONFIG_LINKS: MasterNavLink[] = [
-  { to: '/master/whatsapp', label: 'WhatsApp', icon: MessageCircle, hint: 'Vincular y mensajes del chatbot' },
-  { to: '/master/plans', label: 'Planes', icon: DollarSign, hint: 'Precios y contenido' },
-  { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag, hint: 'Descuentos vigentes' },
-  { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet, hint: 'Pago Móvil de QuickTap' },
-  { to: '/master/ai-usage', label: 'Consumo de IA', icon: Cpu, hint: 'Cuánto gasta QuickTap en Gemini' },
-  { to: '/master/admins', label: 'Usuarios', icon: Users, hint: 'Equipo QuickTap' },
+  { to: '/master/billing-notices', label: 'Avisos de cobro', icon: MessageCircle, hint: 'Recordatorios por SMS', roles: ['ADMIN', 'MANAGER', 'FINANCE'] },
+  { to: '/master/whatsapp', label: 'WhatsApp', icon: MessageCircle, hint: 'Vincular y mensajes del chatbot', roles: ['ADMIN'] },
+  { to: '/master/plans', label: 'Planes', icon: DollarSign, hint: 'Precios y contenido', roles: ['ADMIN'] },
+  { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag, hint: 'Descuentos vigentes', roles: ['ADMIN'] },
+  { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet, hint: 'Pago Móvil de QuickTap', roles: ['ADMIN'] },
+  { to: '/master/ai-usage', label: 'Uso y costos de IA', icon: Cpu, hint: 'Cuánto gasta QuickTap en Gemini', roles: ['ADMIN', 'AUDITOR'] },
+  { to: '/master/assistant', label: 'Control del Asistente', icon: Cpu, hint: 'Créditos, recargas y presupuesto Gemini', roles: ['ADMIN', 'MANAGER', 'FINANCE'] },
+  { to: '/master/admins', label: 'Usuarios', icon: Users, hint: 'Equipo QuickTap', roles: ['ADMIN'] },
 ];
 
 export const MASTER_NAV_LINKS: MasterNavLink[] = [...MASTER_OPERATION_LINKS, ...MASTER_CONFIG_LINKS];
+
+export function canAccessMasterLink(role: MasterRole, link: MasterNavLink) {
+  return link.roles.includes(role);
+}
+
+export function canAccessMasterPath(role: MasterRole, pathname: string) {
+  if (pathname.endsWith('/olaclick-import')) return ['ADMIN', 'MANAGER', 'SUPPORT'].includes(role);
+  const link = MASTER_NAV_LINKS.find(
+    (item) => pathname === item.to || (item.to === '/master/restaurants' && pathname.startsWith('/master/restaurants/')),
+  );
+  return !link || canAccessMasterLink(role, link);
+}

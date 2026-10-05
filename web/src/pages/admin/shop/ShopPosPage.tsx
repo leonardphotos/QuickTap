@@ -1,42 +1,46 @@
-import { waPhone } from '@/utils/waPhone';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Download, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
+import { parseCustomService } from './customService';
+import { ShopSalePrintActions } from './ShopSalePrintActions';
+import { ShopCustomerSearch } from './ShopCustomerSearch';
+import { receiptNumber } from './receiptNumber';
 import { api } from '@/api/client';
-import { shopApi, type CuentaWallet, type RawConsumptionPlan, type RawShopTicket } from './shopApi';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { useAuth } from '@/context/AuthContext';
-import { ShopWalletEnrollDialog } from './ShopWalletEnrollDialog';
-import type { PaymentMethodKey, PaymentMethodsConfig } from '@/types';
-import {
-  METHODS_ALLOWING_PROOF,
-  METHODS_REQUIRING_PROOF_OR_REFERENCE,
-  METHODS_WITH_QR,
-  USD_FIRST_METHODS,
-  paymentDocumentError,
-  referenceLabel,
-} from '@/utils/payments';
-import { useToast } from '@/hooks/useToast';
-import { methodAccountsOf } from '@/utils/payment-accounts';
-import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
-import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
-import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
-import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
+import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
+import { PromoCodeField } from '@/components/admin/crm/PromoCodeField';
+import { promoDiscountAmount,type AppliedPromo } from '@/components/admin/crm/PromoCodeField.shared';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
-import type { ShopRubro, ShopVariant } from '@/data/shopRubros';
-import { formatStock, shopMoneyFormatters } from './shopFormat';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { ShopRubro,ShopVariant } from '@/data/shopRubros';
+import { useToast } from '@/hooks/useToast';
+import type { PaymentMethodKey,PaymentMethodsConfig } from '@/types';
 import { formatBs } from '@/utils/format';
-import { tienePreciosDistintos } from './shopFormat';
-import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import {
+METHODS_ALLOWING_PROOF,
+METHODS_REQUIRING_PROOF_OR_REFERENCE,
+METHODS_WITH_QR,
+paymentDocumentError,
+referenceLabel,
+USD_FIRST_METHODS,
+} from '@/utils/payments';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
+import { waPhone } from '@/utils/waPhone';
+import { Camera,CheckCircle2,ClipboardList,Download,FileText,Loader2,MessageCircle,Minus,Plus,Printer,QrCode,ScanLine,Search,ShoppingCart,Wallet,Wrench,X } from 'lucide-react';
+import type { ChangeEvent,KeyboardEvent } from 'react';
+import { lazy,Suspense,useEffect,useRef,useState } from 'react';
+import { ShopWalletEnrollDialog } from './ShopWalletEnrollDialog';
+import { useTicketDownload } from './TicketDownloadRig';
+import { describePrint,formatRollWidths,quotePrint,rollWidthLabel } from './printPricing';
+import { shopApi,type CuentaWallet,type RawConsumptionPlan,type RawShopTicket } from './shopApi';
+import { formatStock,shopMoneyFormatters,tienePreciosDistintos } from './shopFormat';
+import { effectivePrice,lineTotal,productStatus,productStock,type PaymentMeta,type Sale,type ShopProduct,type ShopSession } from './shopSession';
+import { playCashSound } from './shopSounds';
 // Carga diferida: el lector arrastra @zxing (~250 KB minificado) y escanear es esporádico —
 // importarlo fijo lo metía en el trozo de esta pantalla, que se abre siempre.
 const ShopBarcodeScanDialog = lazy(() => import('./ShopBarcodeScanDialog'));
-import { playCashSound } from './shopSounds';
-import { useTicketDownload } from './TicketDownloadRig';
-import { describePrint, formatRollWidths, quotePrint, rollWidthLabel } from './printPricing';
 
 interface Props {
   session: ShopSession;
@@ -92,7 +96,7 @@ function buildReceiptMessage(sale: Sale, restaurantName: string, money: (n: numb
   });
   return [
     `🧾 *${restaurantName}*`,
-    `Ticket #${sale.id.slice(-6)}${sale.paymentMethod ? ` · ${sale.paymentMethod}` : ''}`,
+    `Recibo #${receiptNumber(sale)}${sale.paymentMethod ? ` · ${sale.paymentMethod}` : ''}`,
     '',
     ...lines,
     '',
@@ -155,7 +159,7 @@ const PAYMENT_METHOD_META: { key: PaymentMethodKey; label: string }[] = [
   { key: 'CARD', label: 'Punto de Venta' },
 ];
 
-export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto, onPedidoAbiertoChange }: Props) {
+export default function ShopPosPage({ session, restaurant, pedidoAbierto, onPedidoAbiertoChange }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
 
   /**
@@ -314,18 +318,22 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   // siquiera en la respuesta de red. Ver shop.service.ts#listServiceProviders.
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
 
+  const providerUserId = user?.id;
   useEffect(() => {
+    let cancelled = false;
     api
       .get('/shop/service-providers')
       .then((res) => {
+        if (cancelled) return;
         const list = res.data.data as ServiceProvider[];
         setProviders(list);
         // Si quien está cobrando es él mismo un barbero, se preselecciona: en la práctica cada
         // uno carga sus propios cortes desde su sesión.
-        if (user && list.some((u) => u.id === user.id)) setActiveStaffUserId(user.id);
+        if (providerUserId && list.some((u) => u.id === providerUserId)) setActiveStaffUserId(providerUserId);
       })
-      .catch(() => setProviders([]));
-  }, [user?.id]);
+      .catch(() => { if (!cancelled) setProviders([]); });
+    return () => { cancelled = true; };
+  }, [providerUserId, setActiveStaffUserId]);
 
   const activeProvider = providers.find((p) => p.id === activeStaffUserId) ?? null;
   // El backend ya resolvió que quien pide la lista es él mismo un barbero (le mandó solo su
@@ -345,6 +353,14 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   const [fiadoAbono, setFiadoAbono] = useState('');
 
   const [ticketSale, setTicketSale] = useState<Sale | null>(null);
+  useEffect(() => {
+    if (!ticketSale?.serverReceipt || ticketSale.receiptNumber) return;
+    let active = true;
+    ticketSale.serverReceipt.then(saved => {
+      if (active) setTicketSale(previous => previous ? { ...previous, ...saved } : null);
+    }).catch(() => { if (active) show('No se pudo guardar la venta. Revisa el historial antes de repetir el cobro.'); });
+    return () => { active = false; };
+  }, [ticketSale, show]);
   // Qué se imprime cuando se toca "Imprimir" en el ticket: el ticket normal (formato térmico) o
   // la nota de entrega (documento más amplio, sin validez fiscal — ver más abajo). Los dos
   // bloques imprimibles conviven en el DOM; esto solo decide cuál queda visible al imprimir.
@@ -355,6 +371,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printTick]);
   function imprimir(modo: 'ticket' | 'nota') {
+    if (!ticketSale?.receiptNumber) return;
     setPrintMode(modo);
     setPrintTick((t) => t + 1);
   }
@@ -529,9 +546,10 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     addToCart(product, variant);
   }
 
+  const weightUnitPrice = weightVariant?.price ?? weightProduct?.price ?? 0;
   function confirmWeight() {
-    const kg = Number(weightInput);
-    if (!weightProduct || !weightVariant || !(kg > 0)) return;
+    const kg = Number(weightInput.replace(',', '.'));
+    if (!weightProduct || !weightVariant || !Number.isFinite(kg) || !(kg > 0)) return;
     addToCart(weightProduct, weightVariant, kg);
     setWeightOpen(false);
   }
@@ -556,20 +574,51 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     setTillDialogOpen(true);
   }
 
-  function confirmOpenTill() {
-    openTill(Number(openingInput) || 0);
-    setTillDialogOpen(false);
+  async function confirmOpenTill() {
+    try {
+      await openTill(Number(openingInput) || 0);
+      setTillDialogOpen(false);
+    } catch (err) {
+      show(err instanceof Error ? err.message : 'No se pudo abrir la caja.');
+    }
   }
 
-  const salesSinceOpen = till ? session.sales.filter((s) => !s.returned && s.time >= till.openedAt) : [];
-  const totalVentas = salesSinceOpen.reduce((a, s) => a + s.total, 0);
+  const isCash = (method: string | null) => method === 'Efectivo Bs' || method === 'Efectivo $';
+  const salesSinceOpen = till ? session.sales.filter((s) => s.time >= till.openedAt) : [];
+  const affectedSales = till
+    ? session.sales.filter(
+        (s) => s.time >= till.openedAt || (s.returnedAt != null && s.returnedAt >= till.openedAt) || s.payments.some((p) => p.createdAt >= till.openedAt),
+      )
+    : [];
+  const totalVentas = till
+    ? affectedSales.reduce((total, sale) => {
+        let cash = total;
+        if (sale.time >= till.openedAt && isCash(sale.paymentMethod)) {
+          cash += sale.creditTerms ? (sale.amountPaidNow ?? 0) : sale.total;
+        }
+        cash += sale.payments
+          .filter((payment) => payment.createdAt >= till.openedAt && isCash(payment.method))
+          .reduce((sum, payment) => sum + payment.amount, 0);
+        if (sale.returnedAt && sale.returnedAt >= till.openedAt) {
+          const refundedCash =
+            (isCash(sale.paymentMethod) ? (sale.creditTerms ? (sale.amountPaidNow ?? 0) : sale.total) : 0) +
+            sale.payments.filter((payment) => isCash(payment.method)).reduce((sum, payment) => sum + payment.amount, 0);
+          cash -= Math.min(sale.total, refundedCash);
+        }
+        return cash;
+      }, 0)
+    : 0;
   const expected = (till?.opening ?? 0) + totalVentas;
   const counted = Number(countedInput) || 0;
   const diff = counted - expected;
 
-  function confirmCloseTill() {
-    closeTill(counted);
-    setTillDialogOpen(false);
+  async function confirmCloseTill() {
+    try {
+      await closeTill(counted);
+      setTillDialogOpen(false);
+    } catch (err) {
+      show(err instanceof Error ? err.message : 'No se pudo cerrar la caja.');
+    }
   }
 
   function openQuickSaleDialog() {
@@ -661,16 +710,15 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     setAdhocOpen(true);
   }
 
+  const customService = parseCustomService(adhocName, adhocPrice, adhocCost);
   function confirmAdhoc() {
-    const name = adhocName.trim();
-    const price = Number(adhocPrice);
-    const cost = Number(adhocCost) || 0;
-    if (!name || !(price > 0)) return;
-    addAdhocLine(name, price, cost);
+    if (!customService) return;
+    addAdhocLine(customService.name, customService.price, customService.cost);
     setAdhocOpen(false);
   }
 
   async function sendReceiptWhatsapp(sale: Sale) {
+    if (!sale.receiptNumber) return;
     if (!sale.customerPhone) return;
     const message = buildReceiptMessage(sale, restaurant.name, money, moneyBsDeVenta(sale));
     const phone = waPhone(sale.customerPhone);
@@ -929,7 +977,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Buscar producto, o escanea/tipea el SKU y Enter…"
-                className="w-full border border-brand-950/15 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="w-full border border-brand-950/15 rounded-xl pl-9 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </div>
             <TextureButton
@@ -941,7 +989,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             >
               <ScanLine className="h-4 w-4" /> Escanear
             </TextureButton>
-            {rubro.id === 'agencia_publicidad' && (
+            {/* Servicios con precio acordado disponibles en todos los locales. */}
               <TextureButton
                 variant="minimal"
                 size="default"
@@ -949,9 +997,9 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 title="Cobrar un servicio que no está en el catálogo"
                 onClick={openAdhocDialog}
               >
-                <Wrench className="h-4 w-4" /> Servicio no registrado
+                <Wrench className="h-4 w-4" /> Agregar servicio
               </TextureButton>
-            )}
+            {till && <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openQuickSaleDialog} title="Vender algo que no está en el inventario">Venta sin inventario</TextureButton>}
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -979,7 +1027,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           </div>
 
           {filtered.length === 0 ? (
-            <p className="text-sm text-brand-950/40 text-center py-10">Sin resultados para esta búsqueda.</p>
+            <p className="text-brand-950/40 text-center py-10 text-base">Sin resultados para esta búsqueda.</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {filtered.map((p) => {
@@ -1029,25 +1077,26 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                         {initials(p.name)}
                       </div>
                     )}
-                    <p className="text-[13px] font-semibold text-brand-950 leading-tight line-clamp-2">{p.name}</p>
+                    <p className="font-semibold text-brand-950 leading-tight line-clamp-2 text-base">{p.name}</p>
                     {p.promoPrice != null ? (
-                      <p className="text-sm font-bold text-red-600 mt-1">
+                      <p className="font-bold text-red-600 mt-1 text-base">
                         {money(p.promoPrice)}{unitSuffix}{' '}
                         <span className="text-[11px] font-medium text-brand-950/35 line-through">{money(p.price)}</span>
                       </p>
                     ) : (
-                      <p className="text-sm font-bold text-brand-500 mt-1">{rangoPrecio(p)}{unitSuffix}</p>
+                      <p className="font-bold text-brand-500 mt-1 text-base">{rangoPrecio(p)}{unitSuffix}</p>
                     )}
                     {moneyBs(p.price) && !tienePreciosDistintos(p) && (
-                      <p className="text-[11px] text-brand-950/40">{moneyBs(p.promoPrice ?? p.price)}{unitSuffix}</p>
+                      <p className="text-brand-950/40 text-xs">{moneyBs(p.promoPrice ?? p.price)}{unitSuffix}</p>
                     )}
+                    {!!p.priceTiers?.length && <p className="text-brand-500 mt-1 text-base">{[...p.priceTiers].sort((a,b) => a.minQty-b.minQty).map(t => `Desde ${t.minQty}${unitSuffix}: ${money(t.price)}`).join(' · ')}</p>}
                     {p.wholesalePrice != null && p.wholesaleMinQty != null && (
-                      <p className="text-[10.5px] font-medium text-emerald-600 mt-0.5">Mayorista {money(p.wholesalePrice)} desde {p.wholesaleMinQty} uds.</p>
+                      <p className="font-medium text-emerald-600 mt-0.5 text-base">Mayorista {money(p.wholesalePrice)} desde {p.wholesaleMinQty} uds.</p>
                     )}
                     {isArea ? (
                       <span
                         className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${
-                          stock > 0 ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'
+                          stock > 0 ? 'bg-sky-100 text-brand-500' : 'bg-red-100 text-red-700'
                         }`}
                       >
                         Por medida · {stock > 0 ? `${stock.toFixed(1)} m² de material` : 'sin material'}
@@ -1065,13 +1114,13 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           )}
         </div>
 
-        <div ref={cartPanelRef} className="w-full lg:w-[360px] shrink-0 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5 flex flex-col gap-4">
+        <div ref={cartPanelRef} className="w-full lg:w-[360px] shrink-0 self-start rounded-2xl border border-brand-950/10 bg-white shadow-[0_8px_30px_-16px_rgba(5,30,65,0.18)] p-4 flex flex-col gap-3">
           {lockedToSelfProvider ? (
             // Quien cobra es él mismo un barbero: fijo en su propio nombre, sin dropdown — no
             // debe poder ver ni elegir a ningún compañero (y el backend nunca le mandó sus datos).
             <div className="block text-sm">
               <span className="text-brand-950/70">Atendido por</span>
-              <p className="mt-1 w-full rounded-lg border border-brand-950/15 bg-brand-950/[0.03] px-3 py-2 text-sm font-medium text-brand-950">
+              <p className="mt-1 w-full rounded-lg border border-brand-950/15 bg-brand-950/[0.03] px-3 py-2 font-medium text-brand-950 text-base">
                 {providers[0].name}
                 {providers[0].commissionPercent ? ` · ${providers[0].commissionPercent}%` : ''}
               </p>
@@ -1081,12 +1130,12 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             </div>
           ) : (
             providers.length > 0 && (
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Atendido por</span>
                 <select
                   value={activeStaffUserId}
                   onChange={(e) => setActiveStaffUserId(e.target.value)}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 >
                   <option value="">— Sin asignar —</option>
                   {providers.map((p) => (
@@ -1111,39 +1160,28 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           </div>
 
           {cart.length === 0 ? (
-            <div className="py-6 text-center">
-              <p className="text-sm text-brand-950/40">Agrega productos para empezar la venta.</p>
-              {/* Cobro rápido de algo que no está en el catálogo. Vive acá, discreto, en vez de
-                  como botón verde en la barra: ahí competía con "Crear pedido" del menú lateral. */}
-              {till && (
-                <button
-                  type="button"
-                  onClick={openQuickSaleDialog}
-                  className="mt-2 text-[12px] font-medium text-brand-500 hover:text-brand-600"
-                >
-                  ¿Vendes algo que no está en tu inventario?
-                </button>
-              )}
+            <div className="rounded-xl bg-brand-950/[0.025] px-3 py-4 text-center">
+              <p className="text-brand-950/40 text-base">Agrega productos para empezar la venta.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 max-h-[340px] overflow-y-auto">
+            <div className="flex flex-col divide-y divide-brand-950/10 max-h-[340px] overflow-y-auto">
               {cart.map((c) => {
                 const planActivo = c.productId ? plansByProduct[c.productId] : null;
                 const puedeUsarPlan = !!planActivo && !c.consumePlanId && c.qty <= planActivo.remainingUnits;
                 return (
-                <div key={c.key} className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-brand-950 truncate">{c.name}</p>
-                    <p className="text-[11.5px] text-brand-950/40">
+                <div key={c.key} className="space-y-1 py-2 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 basis-full">
+                    <p className="font-semibold leading-snug text-brand-950 break-words text-base">{c.name}</p>
+                    <p className="text-brand-950/40 text-base">
                       {c.detail ?? `${c.v1}${c.v2 ? ` · ${c.v2}` : ''}`}
                       {c.staffUserId && providers.find((p) => p.id === c.staffUserId) && (
                         <span className="text-brand-500"> · {providers.find((p) => p.id === c.staffUserId)!.name}</span>
                       )}
                     </p>
                     {effectivePrice(c) !== c.price && (
-                      <p className="text-[10.5px] font-semibold text-emerald-600">
-                        {c.promoPrice != null ? 'Promo' : 'Mayorista'} {money(effectivePrice(c))}/u
+                      <p className="font-semibold text-emerald-600 text-base">
+                        {c.promoPrice != null ? 'Promo' : 'Precio por cantidad'} {money(effectivePrice(c))}/{c.unitLabel || 'u'}
                       </p>
                     )}
                   </div>
@@ -1155,39 +1193,41 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                         min="0"
                         value={c.qty}
                         onChange={(e) => setCartQty(c.key, Number(e.target.value) || 0)}
-                        className="w-16 border border-brand-950/15 rounded-md text-center text-xs py-1"
+                        aria-label={`Cantidad de ${c.name}`}
+                        className="h-9 w-20 border border-brand-950/15 rounded-lg text-center text-base"
                       />
                       <span className="text-[10px] font-medium text-brand-950/40">{c.unitLabel ?? 'Kg'}</span>
                     </div>
                   ) : (
                     <div className="flex items-center border border-brand-950/15 rounded-lg overflow-hidden shrink-0">
-                      <button type="button" onClick={() => updateCartQty(c.key, -1)} className="h-6 w-6 flex items-center justify-center hover:bg-brand-950/5">
+                      <button type="button" aria-label={`Restar uno a ${c.name}`} onClick={() => updateCartQty(c.key, -1)} className="h-9 w-9 flex items-center justify-center hover:bg-brand-950/5 active:bg-brand-950/10">
                         <Minus className="h-3 w-3" />
                       </button>
                       <span className="w-6 text-center text-xs font-semibold">{c.qty}</span>
-                      <button type="button" onClick={() => updateCartQty(c.key, 1)} className="h-6 w-6 flex items-center justify-center hover:bg-brand-950/5">
+                      <button type="button" aria-label={`Sumar uno a ${c.name}`} onClick={() => updateCartQty(c.key, 1)} className="h-9 w-9 flex items-center justify-center hover:bg-brand-950/5 active:bg-brand-950/10">
                         <Plus className="h-3 w-3" />
                       </button>
                     </div>
                   )}
-                  <input
+                  <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium"><input
                     type="number"
                     min={0}
                     max={100}
                     value={c.disc || 0}
                     onChange={(e) => setCartLineDiscount(c.key, Number(e.target.value) || 0)}
                     title="Descuento % de este producto"
-                    className="w-11 shrink-0 border border-brand-950/15 rounded-md text-center text-[11px] py-1"
-                  />
-                  <span className="w-14 shrink-0 text-right text-[13px] font-bold text-brand-950">{money(lineTotal(c))}</span>
-                  <button type="button" onClick={() => removeFromCart(c.key)} className="shrink-0 text-brand-950/30 hover:text-red-500">
+                    aria-label={`Descuento porcentual de ${c.name}`}
+                    className="h-9 w-12 shrink-0 border border-brand-950/15 rounded-lg text-center text-base"
+                  />%</label>
+                  <span className="ml-auto text-right text-[13px] font-semibold tabular-nums text-brand-950">{money(lineTotal(c))}</span>
+                  <button type="button" aria-label={`Quitar ${c.name}`} onClick={() => removeFromCart(c.key)} className="h-9 w-7 flex items-center justify-center shrink-0 text-brand-950/40 hover:text-red-500">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 {/* Con cargo al plan: ya se cobró al activarlo, así que esta línea sale en $0 —
                     pero sigue siendo el producto real, o sea que el stock se descuenta igual. */}
                 {c.consumePlanId && (
-                  <p className="flex items-center gap-1 pl-0.5 text-[11px] font-medium text-brand-500">
+                  <p className="flex items-center gap-1 pl-0.5 font-medium text-brand-500 text-xs">
                     <Wallet className="h-3 w-3" /> Con cargo al plan de consumo
                     <button type="button" onClick={() => toggleConsumePlan(c.key, null)} className="ml-1 text-brand-950/40 underline">
                       quitar
@@ -1215,22 +1255,23 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             </div>
           )}
 
+          <ShopCustomerSearch onSelect={customer => { setCustName(customer.name); setCustPhone(customer.phone); }} />
           <div className="flex gap-2">
             <input
               value={custName}
               onChange={(e) => setCustName(e.target.value)}
               placeholder={restaurant.requireCustomerData ? 'Cliente *' : 'Cliente (opcional)'}
-              className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-2 text-[13px]"
+              className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-2 text-base"
             />
             <input
               value={custPhone}
               onChange={(e) => setCustPhone(e.target.value)}
               placeholder={restaurant.requireCustomerData ? 'Teléfono *' : 'Teléfono (opcional)'}
-              className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-2 text-[13px]"
+              className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-2 text-base"
             />
           </div>
           {restaurant.requireCustomerData && (
-            <p className="text-[11px] font-light text-brand-950/40">
+            <p className="font-light text-brand-950/40 text-xs">
               Este negocio exige nombre y teléfono del cliente en cada venta (CRM).
             </p>
           )}
@@ -1238,7 +1279,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           {/* Código de promoción del CRM: valida contra la lista del cliente del ticket. */}
           <PromoCodeField phone={custPhone} applied={posPromo} onApplied={setPosPromo} symbol={restaurant.currencySymbol} />
 
-          <div className="border-t border-brand-950/[0.06] pt-3.5 flex flex-col gap-2">
+          <div className="border-t border-brand-950/10 pt-3 flex flex-col gap-2">
             <div className="flex items-center justify-between text-[13px] text-brand-950/50">
               <span>Subtotal</span>
               <span className="text-right text-brand-950">
@@ -1255,7 +1296,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                   max={100}
                   value={discount}
                   onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-                  className="w-14 border border-brand-950/15 rounded-md text-center text-[12.5px] py-1"
+                  className="w-14 border border-brand-950/15 rounded-md text-center py-1 text-base"
                 />
                 %
               </span>
@@ -1347,7 +1388,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             ) : cuentaWallet ? (
               // Debe, pero su cuenta tiene plan de cuotas: no se le puede sumar sin romper el
               // calendario ya pactado. Se avisa y no se ofrece el atajo.
-              <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2 text-[11.5px] font-medium leading-snug text-amber-700">
+              <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2 font-medium leading-snug text-amber-700 text-base">
                 {cuentaWallet.nombre} debe {money(cuentaWallet.saldo)} en un plan de cuotas. Esta compra
                 va aparte: no se le puede sumar sin alterar sus cuotas.
               </p>
@@ -1396,11 +1437,11 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           <DialogHeader>
             <DialogTitle>{pedidoAbiertoId ? 'Guardar pedido abierto' : 'Dejar pedido abierto'}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm font-light text-brand-950/60">
+          <p className="font-light text-brand-950/60 text-base">
             El pedido queda en <span className="font-semibold text-brand-950">Pedidos → Pedidos abiertos</span> para
             seguir cargándole productos. No se cobra ni descuenta inventario hasta que lo cobres.
           </p>
-          <label className="mt-3 block text-sm">
+          <label className="mt-3 block text-sm font-medium">
             <span className="text-brand-950/70">¿Con qué nombre lo reconoces?</span>
             <input
               autoFocus
@@ -1408,7 +1449,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               onChange={(e) => setNombreAbierto(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && guardarPedidoAbierto()}
               placeholder="Juan, Mesa 3, el de la camioneta…"
-              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
             />
           </label>
           <TextureButton
@@ -1431,14 +1472,14 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               <DialogHeader>
                 <DialogTitle>Abrir caja</DialogTitle>
               </DialogHeader>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Monto inicial en efectivo</span>
                 <input
                   type="number"
                   value={openingInput}
                   onChange={(e) => setOpeningInput(e.target.value)}
                   placeholder="50.00"
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </label>
               <DialogFooter>
@@ -1458,17 +1499,17 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               <div className="flex flex-col gap-1.5 text-sm">
                 <div className="flex justify-between py-1.5 border-b border-brand-950/[0.06]"><span className="text-brand-950/60">Monto inicial</span><span className="font-medium">{money(till.opening)}</span></div>
                 <div className="flex justify-between py-1.5 border-b border-brand-950/[0.06]"><span className="text-brand-950/60">Ventas registradas</span><span className="font-medium">{salesSinceOpen.length}</span></div>
-                <div className="flex justify-between py-1.5 border-b border-brand-950/[0.06]"><span className="text-brand-950/60">Total vendido</span><span className="font-medium">{money(totalVentas)}</span></div>
+                <div className="flex justify-between py-1.5 border-b border-brand-950/[0.06]"><span className="text-brand-950/60">Efectivo neto del turno</span><span className="font-medium">{money(totalVentas)}</span></div>
                 <div className="flex justify-between py-1.5"><span className="font-bold text-brand-950">Efectivo esperado</span><span className="font-bold text-brand-950">{money(expected)}</span></div>
               </div>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Efectivo contado en caja</span>
                 <input
                   type="number"
                   value={countedInput}
                   onChange={(e) => setCountedInput(e.target.value)}
                   placeholder={expected.toFixed(2)}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </label>
               {countedInput !== '' && (
@@ -1496,7 +1537,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             <DialogTitle>Informes de caja</DialogTitle>
           </DialogHeader>
           {closedTills.length === 0 ? (
-            <p className="text-sm text-brand-950/40 text-center py-6">Todavía no cerraste ninguna caja.</p>
+            <p className="text-brand-950/40 text-center py-6 text-base">Todavía no cerraste ninguna caja.</p>
           ) : (
             <div className="flex flex-col gap-2.5 max-h-[420px] overflow-y-auto">
               {closedTills.map((ct) => (
@@ -1533,7 +1574,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               <DialogHeader>
                 <DialogTitle>Plan de consumo — {planDialogProduct.name}</DialogTitle>
               </DialogHeader>
-              <p className="text-sm font-light text-brand-950/60">
+              <p className="font-light text-brand-950/60 text-base">
                 El cliente paga el paquete completo ahora y lo retira con el tiempo. Tarifa del plan:{' '}
                 <span className="font-semibold text-brand-950">{money(planDialogProduct.consumptionPlanRate ?? 0)}</span> por{' '}
                 {planDialogProduct.saleUnit === 'MT' ? 'metro' : planDialogProduct.saleUnit === 'KG' ? 'kilo' : 'unidad'}
@@ -1557,7 +1598,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 </div>
               )}
 
-              <label className="mt-3 block text-sm">
+              <label className="mt-3 block text-sm font-medium">
                 <span className="text-brand-950/70">O escribe otra cantidad</span>
                 <input
                   type="number"
@@ -1565,7 +1606,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                   step="0.01"
                   value={planUnits}
                   onChange={(e) => setPlanUnits(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                 />
               </label>
 
@@ -1618,7 +1659,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             ))}
           </div>
           {enabledPaymentMethods.length === 0 && (
-            <p className="text-xs text-brand-950/40 text-center">
+            <p className="text-brand-950/40 text-center text-xs">
               Aún no activaste métodos de pago en Ajustes — por ahora solo puedes cobrar en Efectivo Bs.
             </p>
           )}
@@ -1647,17 +1688,17 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               if (!pm?.telefono && !pm?.cedula && !pm?.correo && !pm?.id && !pm?.cuenta) return null;
               return (
                 <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
+                  <p className="font-bold uppercase tracking-wide text-brand-950/45 text-xs">
                     {payToIsStaff ? `Pagar a ${payToName}` : 'Pagar a'}
                   </p>
                   <div className="mt-1.5 space-y-0.5 text-sm text-brand-950">
-                    {pm.titular && <p className="font-semibold">{pm.titular}</p>}
+                    {pm.titular && <p className="font-semibold text-base">{pm.titular}</p>}
                     {pm.correo && <p>{pm.correo}</p>}
                     {pm.id && <p>{pm.id}</p>}
                     {pm.telefono && <p>{pm.telefono}</p>}
                     {pm.cuenta && <p>{pm.cuenta}</p>}
-                    {pm.banco && <p className="text-brand-950/60">{pm.banco}</p>}
-                    {pm.cedula && <p className="text-brand-950/60">{pm.cedula}</p>}
+                    {pm.banco && <p className="text-brand-950/60 text-base">{pm.banco}</p>}
+                    {pm.cedula && <p className="text-brand-950/60 text-base">{pm.cedula}</p>}
                   </div>
                 </div>
               );
@@ -1687,14 +1728,14 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             <div className="min-w-0 flex-1 space-y-4">
               {/* Zelle y Binance mueven dólares: manda el monto en $ y el Bs queda de referencia. */}
               <div>
-                <p className="text-sm font-semibold text-brand-950/50">Monto a cancelar</p>
+                <p className="font-semibold text-brand-950/50 text-base">Monto a cancelar</p>
                 <div className="text-[40px] sm:text-[48px] font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
                   {USD_FIRST_METHODS.includes(pmMethodKey)
                     ? money(pmTargetAmount)
                     : moneyBsPago(pmTargetAmount) ?? money(pmTargetAmount)}
                 </div>
                 {pmRateBs && (
-                  <p className="text-[13.5px] font-semibold text-brand-950/50 mt-2">
+                  <p className="font-semibold text-brand-950/50 mt-2 text-base">
                     {USD_FIRST_METHODS.includes(pmMethodKey) ? (
                       <>
                         {moneyBs(pmTargetAmount)} &nbsp;(tasa del día)
@@ -1718,7 +1759,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 />
               </div>
 
-              <label className="block text-sm text-left">
+              <label className="block text-left text-sm font-medium">
                 <span className="text-brand-950/70">
                   {referenceLabel(pmMethodKey)}
                   {pmAllowsProof && <span className="text-brand-950/45"> — o adjunta el comprobante</span>}
@@ -1727,7 +1768,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                   value={pmReference}
                   onChange={(e) => setPmReference(e.target.value)}
                   placeholder="Ej: 001234"
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </label>
 
@@ -1743,21 +1784,21 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     {pmUploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                     {pmUploadingProof ? 'Subiendo…' : pmProofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
                   </TextureButton>
+                  <p className="text-center text-brand-950/50 text-xs">Puedes elegir una foto o captura de tu galería.</p>
                   <input
                     ref={pmFileInputRef}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="hidden"
                     onChange={handleProofFileChange}
                   />
                   {pmProofUrl && (
                     <div className="flex items-center gap-2.5 justify-center sm:justify-start">
                       <img src={pmProofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg object-cover border border-brand-950/10" />
-                      <p className="text-[12px] font-semibold text-emerald-600">✓ Comprobante adjunto</p>
+                      <p className="font-semibold text-emerald-600 text-xs">✓ Comprobante adjunto</p>
                     </div>
                   )}
-                  {pmProofError && <p className="text-[12px] font-semibold text-red-600">{pmProofError}</p>}
+                  {pmProofError && <p className="font-semibold text-red-600 text-xs">{pmProofError}</p>}
                 </>
               )}
             </div>
@@ -1812,14 +1853,14 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             </div>
           ) : (
             <>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Monto a abonar ahora (de {money(total)})</span>
                 <input
                   type="number"
                   value={fiadoAbono}
                   onChange={(e) => setFiadoAbono(e.target.value)}
                   placeholder="0.00"
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </label>
               <DialogFooter>
@@ -1889,40 +1930,39 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           </DialogHeader>
           {weightProduct && (
             <>
-              <p className="text-sm text-brand-950/50">
-                {money(weightProduct.price)} / {unidadDe(weightProduct)}
-                {moneyBs(weightProduct.price) && ` · ${moneyBs(weightProduct.price)} / ${unidadDe(weightProduct)}`}
+              <p className="text-brand-950/50 text-base">
+                {money(weightUnitPrice)} / {unidadDe(weightProduct)}
+                {moneyBs(weightUnitPrice) && ` · ${moneyBs(weightUnitPrice)} / ${unidadDe(weightProduct)}`}
                 {weightVariant?.v1 && weightVariant.v1 !== 'Kg' ? ` · ${weightVariant.v1}` : ''}
               </p>
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">
-                  {weightProduct.saleUnit === 'MT' ? 'Metros' : 'Peso (Kg)'}
+                  {weightProduct.saleUnit === 'MT' ? '¿Cuántos metros vas a vender?' : 'Peso (Kg)'}
                 </span>
                 <input
-                  type="number"
-                  step="0.001"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={weightInput}
                   onChange={(e) => setWeightInput(e.target.value)}
-                  placeholder="0.500"
+                  placeholder={weightProduct.saleUnit === 'MT' ? 'Ej. 1,5' : 'Ej. 0,5'}
                   autoFocus
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </label>
               {/* El monto exacto en las dos monedas: es lo que el cliente pregunta apenas se pesa
                   o se mide, y tenerlo acá evita calcularlo aparte. */}
-              {Number(weightInput) > 0 && (
+              {Number(weightInput.replace(',', '.')) > 0 && (
                 <div className="rounded-xl bg-brand-950/[0.04] px-3 py-2">
-                  <p className="text-[11px] font-light text-brand-950/50">
-                    {Number(weightInput)} {unidadDe(weightProduct)} × {money(weightProduct.price)}
+                  <p className="font-light text-brand-950/50 text-xs">
+                    {Number(weightInput.replace(',', '.'))} {unidadDe(weightProduct)} × {money(weightUnitPrice)}
                   </p>
                   <p className="text-lg font-bold tabular-nums text-brand-950">
-                    {moneyBs(weightProduct.price * Number(weightInput)) ??
-                      money(weightProduct.price * Number(weightInput))}
+                    {moneyBs(weightUnitPrice * Number(weightInput.replace(',', '.'))) ??
+                      money(weightUnitPrice * Number(weightInput.replace(',', '.')))}
                   </p>
-                  {moneyBs(weightProduct.price * Number(weightInput)) && (
-                    <p className="text-sm font-medium tabular-nums text-brand-950/60">
-                      {money(weightProduct.price * Number(weightInput))}
+                  {moneyBs(weightUnitPrice * Number(weightInput.replace(',', '.'))) && (
+                    <p className="font-medium tabular-nums text-brand-950/60 text-base">
+                      {money(weightUnitPrice * Number(weightInput.replace(',', '.')))}
                     </p>
                   )}
                 </div>
@@ -1931,7 +1971,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setWeightOpen(false)}>
                   Cancelar
                 </TextureButton>
-                <TextureButton variant="brand" size="default" className="!w-auto" disabled={!(Number(weightInput) > 0)} onClick={confirmWeight}>
+                <TextureButton variant="brand" size="default" className="!w-auto" disabled={!Number.isFinite(Number(weightInput.replace(',', '.'))) || !(Number(weightInput.replace(',', '.')) > 0)} onClick={confirmWeight}>
                   Agregar al carrito
                 </TextureButton>
               </DialogFooter>
@@ -1948,11 +1988,11 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           </DialogHeader>
           {printProduct && (
             <>
-              <p className="text-sm text-brand-950/50">
+              <p className="text-brand-950/50 text-base">
                 {money(printProduct.price)} / m² · anchos de rollo {formatRollWidths(printProduct.rollWidths ?? [])} m
               </p>
               <div className="flex gap-3">
-                <label className="block text-sm flex-1">
+                <label className="block flex-1 text-sm font-medium">
                   <span className="text-brand-950/70">Ancho (m)</span>
                   <input
                     type="text"
@@ -1961,10 +2001,10 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     onChange={(e) => setPrintWidth(e.target.value)}
                     placeholder="1,20"
                     autoFocus
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                 </label>
-                <label className="block text-sm flex-1">
+                <label className="block flex-1 text-sm font-medium">
                   <span className="text-brand-950/70">Alto (m)</span>
                   <input
                     type="text"
@@ -1972,7 +2012,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     value={printHeight}
                     onChange={(e) => setPrintHeight(e.target.value)}
                     placeholder="0,80"
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                 </label>
               </div>
@@ -2015,7 +2055,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     </div>
                   )}
                   {printQuote.rotated && (
-                    <p className="text-xs text-brand-950/50">
+                    <p className="text-brand-950/50 text-xs">
                       Se imprime rotada: así entra en un rollo más angosto y sale más barato.
                     </p>
                   )}
@@ -2023,7 +2063,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     const roll = printProduct.variants.find((v) => v.v1 === rollWidthLabel(printQuote.rollWidth));
                     if (!roll || roll.stock >= printQuote.billedM2) return null;
                     return (
-                      <p className="text-xs text-red-700 bg-red-50 rounded-lg px-2 py-1.5">
+                      <p className="text-red-700 bg-red-50 rounded-lg px-2 py-1.5 text-xs">
                         No alcanza el material: quedan {roll.stock.toFixed(2).replace('.', ',')} m² del rollo de{' '}
                         {rollWidthLabel(printQuote.rollWidth)} y esta pieza necesita{' '}
                         {printQuote.billedM2.toFixed(2).replace('.', ',')} m². Puedes venderla igual, pero registra la compra del rollo.
@@ -2031,7 +2071,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     );
                   })()}
                   {printQuote.needsPaneling && (
-                    <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
+                    <p className="text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5 text-xs">
                       Más ancha que el rollo más grande — va por paneles con empalme. Revisa el precio antes de cobrar.
                     </p>
                   )}
@@ -2059,7 +2099,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
         <DialogContent hideClose className="text-center py-9">
           <CheckCircle2 className="h-16 w-16 text-emerald-500 mx-auto animate-scale-in" />
-          <p className="mt-4 text-[17px] font-bold text-brand-950">Pago Registrado</p>
+          <p className="mt-4 font-bold text-brand-950 text-base">Pago Registrado</p>
         </DialogContent>
       </Dialog>
 
@@ -2087,7 +2127,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 {entradasEmitidas.length === 1 ? '' : 's'}
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm font-light text-brand-950/60">
+            <p className="font-light text-brand-950/60 text-base">
               Cada entrada tiene su propio código. Mándasela al comprador o muéstrasela para que
               la guarde en su teléfono.
             </p>
@@ -2188,7 +2228,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           <DialogHeader>
             <DialogTitle>Crear venta</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-brand-950/50 -mt-1">
+          <p className="text-brand-950/50 -mt-1 text-xs">
             Para cobrar algo que todavía no está en tu inventario. Al terminar te preguntamos si quieres
             agregarlo al catálogo para la próxima vez.
           </p>
@@ -2203,22 +2243,22 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               aiEnabled
             />
             <div>
-              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Nombre</label>
+              <label className="text-brand-950/60 mb-1 block text-sm font-medium">Nombre</label>
               <input
                 value={qsName}
                 onChange={(e) => setQsName(e.target.value)}
                 placeholder="Ej: Corte de cabello"
-                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Categoría</label>
+              <label className="text-brand-950/60 mb-1 block text-sm font-medium">Categoría</label>
               <input
                 value={qsCategory}
                 onChange={(e) => setQsCategory(e.target.value)}
                 placeholder="Ej: Servicios"
                 list="quick-sale-categories"
-                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
               <datalist id="quick-sale-categories">
                 {categories.map((c) => (
@@ -2228,7 +2268,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Costo</label>
+                <label className="text-brand-950/60 mb-1 block text-sm font-medium">Costo</label>
                 <input
                   type="number"
                   min="0"
@@ -2236,11 +2276,11 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                   value={qsCost}
                   onChange={(e) => setQsCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Precio de venta</label>
+                <label className="text-brand-950/60 mb-1 block text-sm font-medium">Precio de venta</label>
                 <input
                   type="number"
                   min="0"
@@ -2248,12 +2288,12 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                   value={qsPrice}
                   onChange={(e) => setQsPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Método de pago</label>
+              <label className="text-brand-950/60 mb-1 block text-sm font-medium">Método de pago</label>
               <div className="flex flex-wrap gap-2">
                 {paymentMethodOptions.map((m) => (
                   <button
@@ -2295,11 +2335,11 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           <DialogHeader>
             <DialogTitle>Venta registrada</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-brand-950/70">
+          <p className="text-brand-950/70 text-base">
             ¿Quieres agregar <strong>"{addToInventoryPrompt?.name}"</strong> a tu inventario? Así la próxima vez lo
             eliges directo de la lista, sin volver a escribirlo.
           </p>
-          <p className="text-xs text-brand-950/45">
+          <p className="text-brand-950/45 text-xs">
             {addToInventoryPrompt?.photoUrl
               ? 'Queda con la foto, el nombre, la categoría, el costo y el precio que acabas de cargar, y sin stock — solo entra a poner la cantidad disponible desde Inventario cuando puedas.'
               : 'Queda con el nombre, la categoría, el costo y el precio que acabas de cargar, y sin stock — solo entra a completar la foto y la cantidad disponible desde Inventario cuando puedas.'}
@@ -2321,46 +2361,49 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
         </DialogContent>
       </Dialog>
 
-      {/* ---------- Servicio no registrado (exclusivo Agencia de Publicidad) ---------- */}
+      {/* ---------- Servicio con precio personalizado para esta venta ---------- */}
       <Dialog open={adhocOpen} onOpenChange={setAdhocOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Servicio no registrado</DialogTitle>
+            <DialogTitle>Agregar servicio</DialogTitle>
           </DialogHeader>
+          <p className="leading-relaxed text-brand-950/60 text-base">Indica el servicio y el precio acordado con el cliente. Solo se añadirá a esta venta: no modifica el catálogo ni descuenta inventario.</p>
           <div className="flex flex-col gap-3">
             <div>
-              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Nombre del servicio</label>
+              <label htmlFor="custom-service-name" className="text-brand-950/60 mb-1 block text-sm font-medium">Nombre del servicio</label>
               <input
                 autoFocus
+                id="custom-service-name"
+                maxLength={120}
                 value={adhocName}
                 onChange={(e) => setAdhocName(e.target.value)}
-                placeholder="Ej: Diseño de flyer para evento"
-                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                placeholder="Ej. Instalación, reparación o diseño personalizado"
+                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Costo</label>
+                <label htmlFor="custom-service-cost" className="text-brand-950/60 mb-1 block text-sm font-medium">Costo interno (opcional)</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  id="custom-service-cost"
+                  type="text"
+                  inputMode="decimal"
                   value={adhocCost}
                   onChange={(e) => setAdhocCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Precio de venta</label>
+                <label htmlFor="custom-service-price" className="text-brand-950/60 mb-1 block text-sm font-medium">Precio a cobrar ({restaurant.currencySymbol})</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  id="custom-service-price"
+                  type="text"
+                  inputMode="decimal"
                   value={adhocPrice}
                   onChange={(e) => setAdhocPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </div>
             </div>
@@ -2373,7 +2416,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               variant="brand"
               size="default"
               className="!w-auto"
-              disabled={!adhocName.trim() || !(Number(adhocPrice) > 0)}
+              disabled={!customService}
               onClick={confirmAdhoc}
             >
               Añadir al carrito
@@ -2400,15 +2443,15 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               `}</style>
               <div data-print-doc id={printMode === 'ticket' ? 'shop-print-active' : undefined}>
               <div className="text-center mb-3.5 pb-3.5 border-b border-dashed border-brand-950/15">
-                <p className="font-bold text-brand-950">{restaurant.name}</p>
-                <p className="text-xs text-brand-950/40 mt-0.5">
-                  Ticket #{ticketSale.id.slice(-6)}{ticketSale.paymentMethod ? ` · ${ticketSale.paymentMethod}` : ''}
+                <p className="font-bold text-brand-950 text-base">{restaurant.name}</p>
+                <p className="text-brand-950/40 mt-0.5 text-xs">
+                  Recibo #{receiptNumber(ticketSale)}{ticketSale.paymentMethod ? ` · ${ticketSale.paymentMethod}` : ''}
                 </p>
-                <p className="text-xs text-brand-950/40">
+                <p className="text-brand-950/40 text-xs">
                   {ticketSale.time.toLocaleDateString('es-VE')} {ticketSale.time.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
                 </p>
                 {(ticketSale.customerName || ticketSale.customerPhone) && (
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     Cliente: {[ticketSale.customerName, ticketSale.customerPhone].filter(Boolean).join(' · ')}
                   </p>
                 )}
@@ -2445,10 +2488,10 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 <div className="mb-4 flex items-start justify-between border-b border-brand-950/15 pb-3">
                   <div>
                     <p className="text-lg font-bold text-brand-950">{restaurant.name}</p>
-                    <p className="text-xs text-brand-950/50">Nota de entrega</p>
+                    <p className="text-brand-950/50 text-xs">Nota de entrega</p>
                   </div>
                   <div className="text-right text-xs text-brand-950/50">
-                    <p>Ref. #{ticketSale.id.slice(-6)}</p>
+                    <p>Recibo #{receiptNumber(ticketSale)}</p>
                     <p>{ticketSale.time.toLocaleDateString('es-VE')} {ticketSale.time.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</p>
                   </div>
                 </div>
@@ -2477,28 +2520,29 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                   </tbody>
                 </table>
                 <div className="mt-2 flex justify-end">
-                  <p className="text-base font-bold text-brand-950">Total: {money(ticketSale.total)}</p>
+                  <p className="font-bold text-brand-950 text-base">Total: {money(ticketSale.total)}</p>
                 </div>
                 <div className="mt-10 flex items-end justify-between text-xs text-brand-950/60">
                   <div className="w-56 border-t border-brand-950/30 pt-1">Recibí conforme (firma)</div>
                   <div className="w-40 border-t border-brand-950/30 pt-1">C.I. / RIF</div>
                 </div>
-                <p className="mt-6 text-center text-[10px] text-brand-950/35">
+                <p className="mt-6 text-center text-brand-950/35 text-xs">
                   Documento interno de entrega — sin validez como factura fiscal.
                 </p>
               </div>
 
+              {ticketSale.receiptNumber && <ShopSalePrintActions key={ticketSale.id} saleId={ticketSale.id} customerName={ticketSale.customerName} />}
               <DialogFooter>
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setTicketSale(null)}>
                   Cerrar
                 </TextureButton>
-                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => imprimir('ticket')}>
+                <TextureButton variant="minimal" size="default" className="!w-auto" disabled={!ticketSale.receiptNumber} onClick={() => imprimir('ticket')}>
                   <Printer className="h-4 w-4" /> Imprimir ticket
                 </TextureButton>
-                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => imprimir('nota')}>
+                <TextureButton variant="minimal" size="default" className="!w-auto" disabled={!ticketSale.receiptNumber} onClick={() => imprimir('nota')}>
                   <FileText className="h-4 w-4" /> Nota de entrega
                 </TextureButton>
-                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => sendReceiptWhatsapp(ticketSale)}>
+                <TextureButton variant="minimal" size="default" className="!w-auto" disabled={!ticketSale.receiptNumber} onClick={() => sendReceiptWhatsapp(ticketSale)}>
                   <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
                 </TextureButton>
                 <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setTicketSale(null)}>

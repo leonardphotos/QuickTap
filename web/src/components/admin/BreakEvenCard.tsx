@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '@/api/client';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
+import { ChevronDown,ChevronUp } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 interface BreakEvenResult {
   salesBase: string;
@@ -78,7 +78,7 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el punto de equilibrio.'));
   }, [fetchUrl]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
   if (!data) return <div className={`${card} h-40 animate-pulse`} />;
 
   const { breakEven: be, fixedCosts } = data;
@@ -111,9 +111,9 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-[17px] font-bold text-brand-950">Punto de equilibrio de {monthName}</h2>
-            <p className="mt-1 max-w-2xl text-[13px] font-light leading-snug text-brand-950/60">{headline}</p>
+            <p className="mt-1 max-w-2xl font-light leading-snug text-brand-950/60 text-base">{headline}</p>
           </div>
-          <p className="text-[12px] font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Día {be.daysElapsed} de {be.daysInPeriod}
           </p>
         </div>
@@ -186,7 +186,7 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
       {data.dailySales && data.dailySales.length > 0 && (
         <div className={`${card} p-5 sm:p-6`}>
           <h3 className="text-[16px] font-bold text-brand-950">Ventas acumuladas contra el equilibrio</h3>
-          <p className="mt-0.5 text-[13px] font-light text-brand-950/55">
+          <p className="mt-0.5 font-light text-brand-950/55 text-base">
             Cada día suma a la línea. Donde cruza la línea horizontal, el mes empieza a dejar utilidad.
           </p>
           <CumulativeChart
@@ -211,7 +211,7 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
         {showDetail && (
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
             <div className={`${card} space-y-2 p-4`}>
-              <p className="text-xs font-medium uppercase tracking-wide text-brand-950/40">Cómo se calcula</p>
+              <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">Cómo se calcula</p>
               <CascadeRow label="Ventas del período" value={formatBase(be.salesBase, symbol)} />
               <CascadeRow label="− Costo variable de lo vendido" value={formatBase(be.cvBase, symbol)} />
               <CascadeRow
@@ -235,7 +235,7 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
             </div>
             {fixedCosts.byCategory.length > 0 ? (
               <div className={`${card} space-y-2 p-4`}>
-                <p className="text-xs font-medium uppercase tracking-wide text-brand-950/40">Costos fijos por categoría</p>
+                <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">Costos fijos por categoría</p>
                 {fixedCosts.byCategory.map((c) => (
                   <div key={c.category} className="flex items-center justify-between text-sm">
                     <span className="font-light text-brand-950/70">{EXPENSE_CATEGORY_LABELS[c.category] ?? c.category}</span>
@@ -244,7 +244,7 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
+              <p className="rounded-xl bg-amber-50 px-4 py-3 font-medium text-amber-700 text-xs">
                 No tienes gastos marcados como recurrentes — marca tus gastos fijos (alquiler, nómina, servicios) como
                 recurrentes en Gastos para que este cálculo sea preciso.
               </p>
@@ -271,7 +271,7 @@ function Metric({
 }) {
   return (
     <div className="border-b border-r border-brand-950/[0.06] p-4 last:border-r-0 lg:border-b-0 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(3n)]:border-r-0 lg:[&:nth-child(3n)]:border-r lg:[&:nth-child(5n)]:border-r-0">
-      <p className="text-[12px] font-medium text-brand-950/50">{label}</p>
+      <p className="font-medium text-brand-950/50 text-xs">{label}</p>
       <p
         className={`mt-1.5 text-[22px] font-semibold leading-none tracking-tight ${
           tone === 'danger' ? 'text-red-600' : tone === 'success' ? 'text-emerald-600' : highlighted ? 'text-brand-500' : 'text-brand-950'
@@ -279,7 +279,7 @@ function Metric({
       >
         {value}
       </p>
-      <p className="mt-1.5 text-[11px] font-light text-brand-950/45">{caption}</p>
+      <p className="mt-1.5 font-light text-brand-950/45 text-xs">{caption}</p>
     </div>
   );
 }

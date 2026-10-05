@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Check, Copy, ExternalLink } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardContent, TextureCardHeader, TextureCardTitle } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Check,Copy,ExternalLink } from 'lucide-react';
+import { useState } from 'react';
 import type { ShopSession } from './shopSession';
 
 /**
@@ -63,22 +63,27 @@ export function ShopStorefrontSection({ session }: { session: ShopSession }) {
     if (ids.length === 0) return;
     setBulkBusy(true);
     setMessage(null);
-    session.setProductsPublished(ids, isPublished);
-    setMessage(isPublished ? 'Todos los productos quedaron publicados.' : 'Se quitaron todos de la tienda.');
-    setBulkBusy(false);
+    try {
+      await session.setProductsPublished(ids, isPublished);
+      setMessage(isPublished ? 'Todos los productos quedaron publicados.' : 'Se quitaron todos de la tienda.');
+    } catch {
+      setMessage('No se pudo actualizar la tienda. Intenta nuevamente.');
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   return (
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Tienda virtual</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Tu catálogo en internet. Comparte el enlace y los pedidos te llegan a la pantalla Pedidos.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-5">
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-1.5">Enlace de tu tienda</p>
+          <p className="font-medium text-brand-950/70 mb-1.5 text-base">Enlace de tu tienda</p>
           <div className="flex flex-wrap items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-lg bg-brand-950/[0.04] px-3 py-2 text-xs text-brand-950">
               {url}
@@ -102,7 +107,7 @@ export function ShopStorefrontSection({ session }: { session: ShopSession }) {
           </div>
         </div>
 
-        <label className="flex items-start gap-3">
+        <label className="flex items-start gap-3 text-sm font-medium">
           <input
             type="checkbox"
             checked={ordering}
@@ -118,9 +123,9 @@ export function ShopStorefrontSection({ session }: { session: ShopSession }) {
         </label>
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-1.5">Costo de envío ({restaurant.currencySymbol ?? '$'})</p>
-          <p className="mb-2 text-xs font-light text-brand-950/40">
-            Tarifa única para los pedidos con delivery. Déjalo en 0 si no cobras envío.
+          <p className="font-medium text-brand-950/70 mb-1.5 text-base">Costo de envío ({restaurant.currencySymbol ?? '$'})</p>
+          <p className="mb-2 font-light text-brand-950/40 text-xs">
+            Tarifa de respaldo. Si configuras cálculo por distancia o zonas, ese cálculo tendrá prioridad.
           </p>
           <input
             type="number"
@@ -129,7 +134,7 @@ export function ShopStorefrontSection({ session }: { session: ShopSession }) {
             value={fee}
             onChange={(e) => setFee(e.target.value)}
             placeholder="0.00"
-            className="w-40 rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="w-40 rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
           />
         </div>
 
@@ -138,10 +143,10 @@ export function ShopStorefrontSection({ session }: { session: ShopSession }) {
         </TextureButton>
 
         <div className="border-t border-brand-950/[0.06] pt-4">
-          <p className="text-sm font-medium text-brand-950/70">
+          <p className="font-medium text-brand-950/70 text-base">
             Productos en la vitrina: {published.length} de {products.length}
           </p>
-          <p className="mt-1 text-xs font-light text-brand-950/40">
+          <p className="mt-1 font-light text-brand-950/40 text-xs">
             Enciende cada producto desde Inventario. Ojo con publicar todo de un saque: si tu
             inventario tiene insumos que usas por dentro (cera, material, envases), también
             quedarían a la vista con su precio.
@@ -168,7 +173,7 @@ export function ShopStorefrontSection({ session }: { session: ShopSession }) {
           </div>
         </div>
 
-        {message && <p className="text-sm text-brand-950/70">{message}</p>}
+        {message && <p className="text-brand-950/70 text-base">{message}</p>}
       </TextureCardContent>
     </TextureCard>
   );

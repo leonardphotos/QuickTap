@@ -1,27 +1,39 @@
-import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
-import {
-  ChevronRight,
-  ChevronDown,
-  ArrowLeft,
-  ArrowUp,
-  ArrowDown,
-  Copy,
-  Eye,
-  EyeOff,
-  GripVertical,
-  MoreVertical,
-  Plus,
-  Search,
-  Trash2,
-} from 'lucide-react';
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { formatBaseQuantity, subUnitsFor, UNIT_LABELS } from '@/utils/inventoryUnits';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import {
+DropdownMenu,
+DropdownMenuCheckboxItem,
+DropdownMenuContent,
+DropdownMenuItem,
+DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { OutlinedField,outlinedFieldInputClass } from '@/components/ui/outlined-field';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { Modifier,ModifierCategory } from '@/types';
+import { CURRENCY_SYMBOLS } from '@/utils/format';
+import { UNIT_LABELS,formatBaseQuantity,subUnitsFor } from '@/utils/inventoryUnits';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { DndContext,PointerSensor,closestCenter,useSensor,useSensors } from '@dnd-kit/core';
+import { SortableContext,arrayMove,useSortable,verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+ArrowDown,
+ArrowLeft,
+ArrowUp,
+ChevronDown,
+ChevronRight,
+Copy,
+Eye,
+EyeOff,
+GripVertical,
+MoreVertical,
+Plus,
+Search,
+Trash2,
+} from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { useEffect,useState } from 'react';
 
 /**
  * Mensaje legible de un error de API. Antes casi ninguna mutación de este diálogo lo usaba: el
@@ -64,18 +76,6 @@ function decodeLinkValue(value: string): { inventoryItemId: string | null; prepa
   if (value.startsWith('prep:')) return { inventoryItemId: null, preparationId: value.slice(5) };
   return { inventoryItemId: null, preparationId: null };
 }
-import { CURRENCY_SYMBOLS } from '@/utils/format';
-import type { ModifierCategory, Modifier } from '@/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TextureButton } from '@/components/ui/texture-button';
-import { OutlinedField, outlinedFieldInputClass } from '@/components/ui/outlined-field';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuCheckboxItem,
-} from '@/components/ui/dropdown-menu';
 
 interface Props {
   open: boolean;
@@ -167,7 +167,7 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
             </DialogHeader>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-sm font-medium text-brand-950/70">
+                <p className="font-medium text-brand-950/70 text-base">
                   Categorías de modificadores {categories && <span className="text-brand-950/40">({categories.length})</span>}
                 </p>
                 <TextureButton
@@ -189,13 +189,13 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                       onChange={(e) => setNewName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && createCategory()}
                       placeholder="Ej: ¿Cómo la prefieres?"
-                      className="flex-1 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      className="flex-1 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                     />
                     <TextureButton variant="brand" size="sm" className="!w-auto" onClick={createCategory}>
                       Crear
                     </TextureButton>
                   </div>
-                  {createError && <p className="text-xs text-red-600">{createError}</p>}
+                  {createError && <p className="text-red-600 text-xs">{createError}</p>}
                 </div>
               )}
 
@@ -205,15 +205,15 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar categoría…"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+                  className="w-full border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5 text-base"
                 />
               </div>
 
-              {duplicateError && <p className="text-xs text-red-600">{duplicateError}</p>}
+              {duplicateError && <p className="text-red-600 text-xs">{duplicateError}</p>}
 
               <div className="rounded-2xl border border-brand-950/10 divide-y divide-brand-950/10 max-h-96 overflow-y-auto">
                 {filtered.length === 0 && (
-                  <p className="p-5 text-center text-sm text-brand-950/40 font-light">Sin categorías todavía.</p>
+                  <p className="p-5 text-center text-brand-950/40 font-light text-base">Sin categorías todavía.</p>
                 )}
                 {filtered.map((c) => (
                   <div key={c.id} className="flex items-center gap-1 pr-2 hover:bg-brand-950/[0.02] transition-colors">
@@ -222,8 +222,8 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                       className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3 text-left"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-brand-950 truncate">{c.name}</p>
-                        <p className="text-xs text-brand-950/40">
+                        <p className="font-medium text-brand-950 truncate text-base">{c.name}</p>
+                        <p className="text-brand-950/40 text-xs">
                           {c.modifiers.length} modificador{c.modifiers.length === 1 ? '' : 'es'}
                           {c.isRequired ? ' · Obligatorio' : ' · Opcional'}
                           {c.productCount != null && ` · ${c.productCount} producto${c.productCount === 1 ? '' : 's'}`}
@@ -579,9 +579,9 @@ function CategoryEditor({
       </DialogHeader>
 
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pt-2">
-        {duplicateError && <p className="text-xs text-red-600">{duplicateError}</p>}
+        {duplicateError && <p className="text-red-600 text-xs">{duplicateError}</p>}
         {actionError && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{actionError}</p>
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-red-600 text-xs">{actionError}</p>
         )}
         <OutlinedField label="Categoría" hint={`${name.length}/150`}>
           <input
@@ -593,7 +593,7 @@ function CategoryEditor({
           />
         </OutlinedField>
 
-        <p className="text-sm font-semibold text-brand-950">Editar categoría de modificadores</p>
+        <p className="font-semibold text-brand-950 text-base">Editar categoría de modificadores</p>
 
         <DropdownMenu onOpenChange={(o) => o && loadProductLinkData()}>
           <DropdownMenuTrigger asChild>
@@ -607,9 +607,9 @@ function CategoryEditor({
           </DropdownMenuTrigger>
           <DropdownMenuContent className="max-h-72 overflow-y-auto">
             {allProducts === null ? (
-              <p className="px-3 py-2 text-sm text-brand-950/40">Cargando…</p>
+              <p className="px-3 py-2 text-brand-950/40 text-base">Cargando…</p>
             ) : allProducts.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-brand-950/40">No hay productos todavía.</p>
+              <p className="px-3 py-2 text-brand-950/40 text-base">No hay productos todavía.</p>
             ) : (
               allProducts.map((p) => (
                 <DropdownMenuCheckboxItem
@@ -626,25 +626,25 @@ function CategoryEditor({
         </DropdownMenu>
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-1.5">Seleccionar la condición</p>
+          <p className="font-medium text-brand-950/70 mb-1.5 text-base">Seleccionar la condición</p>
           <div className="flex items-center gap-4 text-sm">
-            <label className="flex items-center gap-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-medium">
               <input type="radio" checked={category.isRequired} onChange={() => setRequired(true)} /> Obligatorio
             </label>
-            <label className="flex items-center gap-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-medium">
               <input type="radio" checked={!category.isRequired} onChange={() => setRequired(false)} /> Opcional
             </label>
           </div>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-brand-950/70 mb-1.5">En esta categoría se puede seleccionar</p>
+          <p className="font-medium text-brand-950/70 mb-1.5 text-base">En esta categoría se puede seleccionar</p>
           <div className="flex items-center gap-4 text-sm">
-            <label className="flex items-center gap-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-medium">
               <input type="radio" checked={!category.allowMultiple} onChange={() => setAllowMultiple(false)} /> Sólo un
               modificador
             </label>
-            <label className="flex items-center gap-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-medium">
               <input type="radio" checked={category.allowMultiple} onChange={() => setAllowMultiple(true)} /> Varios
             </label>
           </div>
@@ -676,7 +676,7 @@ function CategoryEditor({
                 </OutlinedField>
               )}
             </div>
-            <label className="flex items-center gap-1.5 text-sm text-brand-950/70">
+            <label className="flex items-center gap-1.5 text-brand-950/70 text-sm font-medium">
               <input type="checkbox" checked={unlimitedMax} onChange={(e) => toggleUnlimitedMax(e.target.checked)} />
               Ilimitado (sin tope de selecciones)
             </label>
@@ -685,7 +685,7 @@ function CategoryEditor({
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-brand-950/70">
+            <p className="font-medium text-brand-950/70 text-base">
               Agregar los modificadores de esta categoría <span className="text-brand-950/40">({category.modifiers.length})</span>
             </p>
           </div>
@@ -749,7 +749,7 @@ function CategoryEditor({
                 </TextureButton>
               </div>
             ) : toppings.length === 0 && toppingPreparations.length === 0 ? (
-              <p className="text-xs text-brand-950/40 font-light">
+              <p className="text-brand-950/40 font-light text-xs">
                 Todavía no tienes toppings cargados. Agrégalos en Inventario → Toppings.
               </p>
             ) : (
@@ -860,11 +860,17 @@ function ModifierRow({
 
   // --- Precio propio por variante (ej. "Extra queso" cuesta distinto en Pizza Grande vs.
   // Pequeña) — solo tiene sentido si la categoría está asociada a algún producto "por variantes".
-  const [showVariantPrices, setShowVariantPrices] = useState((modifier.variantPrices?.length ?? 0) > 0);
+  const hasExplicitVariantPrices = (modifier.variantPrices ?? []).some(
+    (vp) => vp.inventoryQuantity == null || Number(vp.priceBase) !== Number(modifier.priceBase),
+  );
+  const [showVariantPrices, setShowVariantPrices] = useState(hasExplicitVariantPrices);
   const [variantPriceInputs, setVariantPriceInputs] = useState<Record<string, string>>({});
   // Consumo del insumo por variante (los gramos cambian con el tamaño). Se muestra en la
   // misma sub-unidad elegida para el consumo general, y se guarda convertido a unidad base.
   const [variantQtyInputs, setVariantQtyInputs] = useState<Record<string, string>>({});
+  const [useVariantInventory, setUseVariantInventory] = useState(
+    modifier.inventoryByVariant ?? (modifier.variantPrices ?? []).some((vp) => vp.inventoryQuantity != null),
+  );
 
   // --- Vínculo con inventario: insumo O preparación, nunca ambos. El selector combina las
   // dos listas con un value compuesto ("item:<id>" / "prep:<id>") — ver linkValueOf/decodeLinkValue. ---
@@ -901,7 +907,14 @@ function ModifierRow({
       setSubUnit(options[0]?.value ?? '');
       setInsumoQty(base > 0 ? String(Number(base.toFixed(3))) : '');
     }
-    setShowVariantPrices((modifier.variantPrices?.length ?? 0) > 0);
+    setShowVariantPrices(
+      (modifier.variantPrices ?? []).some(
+        (vp) => vp.inventoryQuantity == null || Number(vp.priceBase) !== Number(modifier.priceBase),
+      ),
+    );
+    setUseVariantInventory(
+      modifier.inventoryByVariant ?? (modifier.variantPrices ?? []).some((vp) => vp.inventoryQuantity != null),
+    );
     const priceInputs: Record<string, string> = {};
     for (const vp of modifier.variantPrices ?? []) priceInputs[vp.variantId] = vp.priceBase;
     setVariantPriceInputs(priceInputs);
@@ -915,6 +928,12 @@ function ModifierRow({
       const baseQ = Number(vp.inventoryQuantity);
       qtyInputs[vp.variantId] =
         chica && baseQ < 1 ? String(Number((baseQ / chica.toBase).toFixed(2))) : String(Number(baseQ.toFixed(3)));
+    }
+    if ((modifier.inventoryByVariant || Object.keys(qtyInputs).length > 0) && chica) {
+      const hasSmallVariantQuantity = (modifier.variantPrices ?? []).some(
+        (vp) => vp.inventoryQuantity != null && Number(vp.inventoryQuantity) > 0 && Number(vp.inventoryQuantity) < 1,
+      );
+      if (hasSmallVariantQuantity) setSubUnit(chica.value);
     }
     setVariantQtyInputs(qtyInputs);
   }, [modifier]);
@@ -937,8 +956,8 @@ function ModifierRow({
     }
   }
 
-  /** Consumo por variante: vacío = borra el override (vuelve a los gramos generales). Se
-   * convierte a unidad base con el factor de la sub-unidad activa, igual que el general. */
+  /** Consumo por variante: vacío borra únicamente el consumo de esa variante. Se convierte
+   * a unidad base con el factor de la sub-unidad activa, igual que el consumo general. */
   async function saveVariantQty(variantId: string, raw: string) {
     const trimmed = raw.trim();
     const factor = insumoSubUnits.find((u) => u.value === subUnit)?.toBase ?? 1;
@@ -958,7 +977,68 @@ function ModifierRow({
     const factor = insumoSubUnits.find((u) => u.value === subUnit)?.toBase ?? 1;
     const baseQuantity = Number(insumoQty) * factor;
     if ((!insumoId && !preparationId) || !(baseQuantity > 0)) return;
-    await save({ inventoryItemId: insumoId, preparationId, inventoryQuantity: baseQuantity });
+    await save({ inventoryItemId: insumoId, preparationId, inventoryQuantity: baseQuantity, inventoryByVariant: false });
+  }
+
+  async function setInventoryMode(byVariant: boolean) {
+    setUseVariantInventory(byVariant);
+    // Al volver a consumo general primero se muestra su casilla; el modo se persiste junto
+    // con la cantidad al pulsar "Guardar vínculo", para no dejar un vínculo general en cero.
+    if (!byVariant || (!insumoId && !preparationId)) return;
+    await save({
+      inventoryItemId: insumoId,
+      preparationId,
+      inventoryQuantity: null,
+      inventoryByVariant: true,
+    });
+  }
+
+  function changeSubUnit(nextUnit: string) {
+    const previousFactor = insumoSubUnits.find((unit) => unit.value === subUnit)?.toBase ?? 1;
+    const nextFactor = insumoSubUnits.find((unit) => unit.value === nextUnit)?.toBase ?? 1;
+    const convert = (raw: string) => {
+      if (!raw.trim()) return raw;
+      return String(Number(((Number(raw) * previousFactor) / nextFactor).toFixed(4)));
+    };
+    setInsumoQty((current) => convert(current));
+    setVariantQtyInputs((current) =>
+      Object.fromEntries(Object.entries(current).map(([variantId, quantity]) => [variantId, convert(quantity)])),
+    );
+    setSubUnit(nextUnit);
+  }
+
+  async function changeInventoryLink(next: string) {
+    setLinkValue(next);
+    const nextLink = decodeLinkValue(next);
+    const unit = nextLink.inventoryItemId
+      ? insumos.find((item) => item.id === nextLink.inventoryItemId)?.unit
+      : preparations.find((preparation) => preparation.id === nextLink.preparationId)?.unit;
+    setSubUnit(subUnitsFor(unit)[0]?.value ?? '');
+
+    if (!useVariantInventory || next === linkValueOf(modifier.inventoryItemId, modifier.preparationId)) return;
+
+    // Las cantidades pertenecían al insumo anterior. Se limpian sin tocar los precios por
+    // variante, evitando que 30 gr terminen interpretados como 30 unidades del nuevo vínculo.
+    const variantIds = [...new Set(variantProducts.flatMap((product) => product.variants.map((variant) => variant.id)))];
+    try {
+      setModError(null);
+      await Promise.all(
+        variantIds.map((variantId) =>
+          api.put(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`, {
+            inventoryQuantity: null,
+          }),
+        ),
+      );
+      await api.patch(`/modifier-categories/modifiers/${modifier.id}`, {
+        ...nextLink,
+        inventoryQuantity: null,
+        inventoryByVariant: true,
+      });
+      setVariantQtyInputs({});
+      onChanged();
+    } catch (err) {
+      setModError(apiErrorMessage(err));
+    }
   }
 
   async function clearInsumo() {
@@ -966,7 +1046,7 @@ function ModifierRow({
     setLinkValue('');
     setInsumoQty('');
     if (modifier.inventoryItemId || modifier.preparationId) {
-      await save({ inventoryItemId: null, preparationId: null, inventoryQuantity: null });
+      await save({ inventoryItemId: null, preparationId: null, inventoryQuantity: null, inventoryByVariant: false });
     }
   }
 
@@ -1027,7 +1107,7 @@ function ModifierRow({
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-xl border border-brand-950/10 p-2.5 space-y-2">
-      {modError && <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">{modError}</p>}
+      {modError && <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-red-600 text-xs">{modError}</p>}
       <div className="flex items-start gap-1.5">
         <div className="flex flex-col gap-0.5 pt-1.5 shrink-0">
           {dragHandleProps && (
@@ -1147,13 +1227,13 @@ function ModifierRow({
           aparece si esta categoría está asociada a algún producto que cobra "por variantes". */}
       {variantProducts.length > 0 && showVariantPrices && (
         <div className="pl-[26px] pt-1 space-y-2">
-          <p className="text-xs font-medium text-brand-950/60">
+          <p className="font-medium text-brand-950/60 text-xs">
             Precio por variante <span className="text-brand-950/35 font-normal">(vacío = usa {symbol}{price || '0'} de arriba)</span>
           </p>
           {variantProducts.map((product) => (
             <div key={product.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
               {variantProducts.length > 1 && (
-                <p className="text-xs font-medium text-brand-950/50 truncate">{product.name}</p>
+                <p className="font-medium text-brand-950/50 truncate text-xs">{product.name}</p>
               )}
               <div className="grid grid-cols-2 gap-1.5">
                 {product.variants.map((v) => (
@@ -1169,19 +1249,6 @@ function ModifierRow({
                         className={outlinedFieldInputClass}
                       />
                     </OutlinedField>
-                    {(insumoId || preparationId) && (
-                      <OutlinedField label={`Consumo (${insumoSubUnits.find((u) => u.value === subUnit)?.label ?? subUnit})`}>
-                        <input
-                          value={variantQtyInputs[v.id] ?? ''}
-                          onChange={(e) =>
-                            setVariantQtyInputs((prev) => ({ ...prev, [v.id]: e.target.value.replace(/[^0-9.]/g, '') }))
-                          }
-                          onBlur={(e) => saveVariantQty(v.id, e.target.value)}
-                          placeholder="general"
-                          className={outlinedFieldInputClass}
-                        />
-                      </OutlinedField>
-                    )}
                   </div>
                 ))}
               </div>
@@ -1235,7 +1302,7 @@ function ModifierRow({
           ) : (
             <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-2.5 space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-brand-950/70">¿Este modificador sale del inventario?</p>
+                <p className="font-medium text-brand-950/70 text-xs">¿Este modificador sale del inventario?</p>
                 <button
                   type="button"
                   onClick={clearInsumo}
@@ -1245,7 +1312,7 @@ function ModifierRow({
                 </button>
               </div>
               {insumos.length === 0 && preparations.length === 0 ? (
-                <p className="text-xs text-brand-950/40 font-light">
+                <p className="text-brand-950/40 font-light text-xs">
                   Todavía no tienes insumos ni preparaciones cargados. Agrégalos en Inventario.
                 </p>
               ) : (
@@ -1253,17 +1320,7 @@ function ModifierRow({
                   <OutlinedField label="Insumo o preparación">
                     <select
                       value={linkValue}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setLinkValue(next);
-                        // Al cambiar de insumo/preparación, la sub-unidad por defecto es la
-                        // suya (kg -> Kg, lt -> Lt, unidad -> Unidad).
-                        const { inventoryItemId: nextItemId, preparationId: nextPrepId } = decodeLinkValue(next);
-                        const unit = nextItemId
-                          ? insumos.find((i) => i.id === nextItemId)?.unit
-                          : preparations.find((p) => p.id === nextPrepId)?.unit;
-                        setSubUnit(subUnitsFor(unit)[0]?.value ?? '');
-                      }}
+                      onChange={(e) => void changeInventoryLink(e.target.value)}
                       className={outlinedFieldInputClass}
                     >
                       <option value="">Elegir insumo o preparación…</option>
@@ -1287,38 +1344,111 @@ function ModifierRow({
                       )}
                     </select>
                   </OutlinedField>
-                  <div className="flex gap-1.5">
-                    <OutlinedField label="Cuánto usa" className="flex-1">
-                      <input
-                        value={insumoQty}
-                        onChange={(e) => setInsumoQty(e.target.value.replace(/[^0-9.]/g, ''))}
-                        placeholder="30"
-                        className={outlinedFieldInputClass}
-                      />
-                    </OutlinedField>
-                    <OutlinedField label="Unidad" className="w-28 shrink-0">
-                      <select value={subUnit} onChange={(e) => setSubUnit(e.target.value)} className={outlinedFieldInputClass}>
-                        {insumoSubUnits.map((u) => (
-                          <option key={u.value} value={u.value}>
-                            {u.label}
-                          </option>
-                        ))}
-                      </select>
-                    </OutlinedField>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={saveInsumoLink}
-                    disabled={!linkValue || !insumoQty}
-                    className="w-full rounded-lg bg-brand-500 text-white text-xs font-semibold py-2 disabled:opacity-40"
-                  >
-                    Guardar vínculo
-                  </button>
+                  {variantProducts.length > 0 && (insumoId || preparationId) && (
+                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-brand-950/[0.05] p-1">
+                      <button
+                        type="button"
+                        onClick={() => void setInventoryMode(false)}
+                        className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                          !useVariantInventory ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50'
+                        }`}
+                      >
+                        Consumo general
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void setInventoryMode(true)}
+                        className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                          useVariantInventory ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50'
+                        }`}
+                      >
+                        Por tamaño
+                      </button>
+                    </div>
+                  )}
+
+                  {!useVariantInventory || variantProducts.length === 0 ? (
+                    <>
+                      <div className="flex gap-1.5">
+                        <OutlinedField label="Cuánto usa" className="flex-1">
+                          <input
+                            value={insumoQty}
+                            onChange={(e) => setInsumoQty(e.target.value.replace(/[^0-9.]/g, ''))}
+                            placeholder="30"
+                            className={outlinedFieldInputClass}
+                          />
+                        </OutlinedField>
+                        <OutlinedField label="Unidad" className="w-28 shrink-0">
+                          <select value={subUnit} onChange={(e) => changeSubUnit(e.target.value)} className={outlinedFieldInputClass}>
+                            {insumoSubUnits.map((u) => (
+                              <option key={u.value} value={u.value}>
+                                {u.label}
+                              </option>
+                            ))}
+                          </select>
+                        </OutlinedField>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={saveInsumoLink}
+                        disabled={!linkValue || !insumoQty}
+                        className="w-full rounded-lg bg-brand-500 text-white text-xs font-semibold py-2 disabled:opacity-40"
+                      >
+                        Guardar vínculo
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-end gap-1.5">
+                        <p className="flex-1 text-brand-950/45 text-xs">
+                          Indica cuánto consume este modificador en cada tamaño.
+                        </p>
+                        <OutlinedField label="Unidad" className="w-28 shrink-0">
+                          <select value={subUnit} onChange={(e) => changeSubUnit(e.target.value)} className={outlinedFieldInputClass}>
+                            {insumoSubUnits.map((u) => (
+                              <option key={u.value} value={u.value}>
+                                {u.label}
+                              </option>
+                            ))}
+                          </select>
+                        </OutlinedField>
+                      </div>
+                      {variantProducts.map((product) => (
+                        <div key={product.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
+                          {variantProducts.length > 1 && (
+                            <p className="font-medium text-brand-950/50 truncate text-xs">{product.name}</p>
+                          )}
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {product.variants.map((variant) => (
+                              <OutlinedField key={variant.id} label={variant.name}>
+                                <input
+                                  value={variantQtyInputs[variant.id] ?? ''}
+                                  onChange={(e) =>
+                                    setVariantQtyInputs((previous) => ({
+                                      ...previous,
+                                      [variant.id]: e.target.value.replace(/[^0-9.]/g, ''),
+                                    }))
+                                  }
+                                  onBlur={(e) => saveVariantQty(variant.id, e.target.value)}
+                                  placeholder="0"
+                                  inputMode="decimal"
+                                  className={outlinedFieldInputClass}
+                                />
+                              </OutlinedField>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {(modifier.inventoryItemName || modifier.preparationName) && (
-                    <p className="text-xs text-emerald-600">
-                      Descontando{' '}
-                      {formatBaseQuantity(Number(modifier.inventoryQuantity ?? 0), modifier.inventoryItemUnit ?? modifier.preparationUnit)}{' '}
-                      de {modifier.inventoryItemName ?? modifier.preparationName} por cada unidad vendida.
+                    <p className="text-emerald-600 text-xs">
+                      {useVariantInventory
+                        ? `Descontando ${modifier.inventoryItemName ?? modifier.preparationName} según el tamaño vendido.`
+                        : `Descontando ${formatBaseQuantity(
+                            Number(modifier.inventoryQuantity ?? 0),
+                            modifier.inventoryItemUnit ?? modifier.preparationUnit,
+                          )} de ${modifier.inventoryItemName ?? modifier.preparationName} por cada unidad vendida.`}
                     </p>
                   )}
                 </>

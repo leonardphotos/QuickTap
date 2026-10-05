@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { QRCodeCanvas } from 'qrcode.react';
+import { useRef,useState } from 'react';
 import type { RawShopTicket } from './shopApi';
+import { DownloadDato } from './TicketDownloadRig.shared';
 
 /**
  * Genera la imagen descargable de una entrada de evento, para mandarla desde el panel una vez
@@ -123,7 +124,7 @@ export function useTicketDownload(negocio: { name: string; logoUrl?: string | nu
             Entrada
           </p>
           <p className="mt-1 text-[19px] font-bold leading-tight">{preparando.eventName}</p>
-          <p className="mt-0.5 text-[13px] font-light" style={{ color: '#d6e9ff' }}>
+          <p className="mt-0.5 font-light text-base" style={{ color: '#d6e9ff' }}>
             {negocio.name}
           </p>
         </div>
@@ -140,7 +141,7 @@ export function useTicketDownload(negocio: { name: string; logoUrl?: string | nu
           <div style={{ border: '1px solid #e4e4e7' }} className="rounded-3xl bg-white p-4">
             <div ref={qrBoxRef} style={{ width: 168, height: 168 }} />
           </div>
-          <p style={{ color: '#71717a' }} className="mt-3 text-center text-[12px]">
+          <p style={{ color: '#71717a' }} className="mt-3 text-center text-xs">
             Muestra este código en la entrada. Sirve una sola vez.
           </p>
         </div>
@@ -149,15 +150,4 @@ export function useTicketDownload(negocio: { name: string; logoUrl?: string | nu
   ) : null;
 
   return { rig, descargar, descargando };
-}
-
-function DownloadDato({ etiqueta, valor, capitalize }: { etiqueta: string; valor: string; capitalize?: boolean }) {
-  return (
-    <div>
-      <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#a1a1aa' }}>
-        {etiqueta}
-      </p>
-      <p className={`mt-0.5 text-[13.5px] font-semibold leading-snug ${capitalize ? 'capitalize' : ''}`}>{valor}</p>
-    </div>
-  );
 }

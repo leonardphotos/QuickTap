@@ -50,7 +50,7 @@ export default function OfficeEmpresasPage({
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Empresas</h1>
-          <p className="mt-0.5 text-[13.5px] text-brand-950/50">
+          <p className="mt-0.5 text-brand-950/50 text-base">
             Cada empresa lleva sus propios libros. Puedes administrar todas las que necesites desde esta misma cuenta.
           </p>
         </div>
@@ -63,8 +63,8 @@ export default function OfficeEmpresasPage({
 
       {abierto && (
         <div className="mb-6 rounded-2xl border border-brand-950/[0.08] bg-[#FAFAF9] p-5">
-          <p className="mb-1 text-[15px] font-semibold">Nueva empresa</p>
-          <p className="mb-4 text-[13px] text-brand-950/50">
+          <p className="mb-1 font-semibold text-base">Nueva empresa</p>
+          <p className="mb-4 text-brand-950/50 text-base">
             Se crea con un plan de cuentas básico —caja, bancos, clientes, proveedores, ventas, gastos— para que puedas
             registrar el mismo día. Después le agregas las cuentas que necesites.
           </p>
@@ -82,23 +82,23 @@ export default function OfficeEmpresasPage({
                   value={form[c.k]}
                   onChange={(e) => setForm({ ...form, [c.k]: e.target.value })}
                   placeholder={c.ph}
-                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/30"
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/30 text-base"
                 />
               </label>
             ))}
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/65">Moneda de los libros</span>
               <select
                 value={form.currency}
                 onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
               >
                 <option value="USD">Dólares (USD)</option>
                 <option value="EUR">Euros (EUR)</option>
               </select>
             </label>
           </div>
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-red-600 text-base">{error}</p>}
           <div className="mt-4 flex gap-2">
             <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-40" disabled={guardando || !form.name.trim()} onClick={crear}>
               {guardando ? 'Creando…' : 'Crear empresa'}

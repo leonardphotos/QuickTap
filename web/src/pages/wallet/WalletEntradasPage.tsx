@@ -55,8 +55,8 @@ export default function WalletEntradasPage() {
       .catch(() => setError('No pudimos cargar tus entradas.'));
   }, []);
 
-  if (error) return <p className="px-5 py-10 text-center text-sm font-light text-white/50">{error}</p>;
-  if (!entradas) return <p className="px-5 py-10 text-center text-sm font-light text-white/40">Cargando…</p>;
+  if (error) return <p className="px-5 py-10 text-center font-light text-white/50 text-base">{error}</p>;
+  if (!entradas) return <p className="px-5 py-10 text-center font-light text-white/40 text-base">Cargando…</p>;
 
   const proximas = entradas.filter((e) => !e.pasado);
   const pasadas = entradas.filter((e) => e.pasado);
@@ -67,8 +67,8 @@ export default function WalletEntradasPage() {
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.06]">
           <Ticket className="h-6 w-6 text-white/35" />
         </span>
-        <p className="mt-4 text-[15px] font-semibold text-white">Todavía no tienes entradas</p>
-        <p className="mt-1 max-w-[17rem] text-[12.5px] font-light leading-relaxed text-white/40">
+        <p className="mt-4 font-semibold text-white text-base">Todavía no tienes entradas</p>
+        <p className="mt-1 max-w-[17rem] font-light leading-relaxed text-white/40 text-base">
           Cuando compres la entrada de un evento y el local confirme tu pago, aparece acá con su
           código para entrar.
         </p>
@@ -78,7 +78,7 @@ export default function WalletEntradasPage() {
 
   return (
     <div className="px-5 pb-8">
-      <p className="pb-3 pt-1 text-[11px] font-medium uppercase tracking-wider text-white/35">
+      <p className="pb-3 pt-1 font-medium uppercase tracking-wider text-white/35 text-xs">
         {proximas.length > 0 ? 'Próximos eventos' : 'Tus entradas'}
       </p>
       <div className="space-y-4">
@@ -95,7 +95,7 @@ export default function WalletEntradasPage() {
 
       {pasadas.length > 0 && (
         <>
-          <p className="pb-3 pt-7 text-[11px] font-medium uppercase tracking-wider text-white/35">Ya pasaron</p>
+          <p className="pb-3 pt-7 font-medium uppercase tracking-wider text-white/35 text-xs">Ya pasaron</p>
           <div className="space-y-4 opacity-50">
             {pasadas.map((e, i) => (
               <TarjetaEntrada
@@ -175,7 +175,7 @@ function TarjetaEntrada({
           )}
 
           <div className="absolute inset-x-0 bottom-0 p-5">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-white/60">{entrada.negocio}</p>
+            <p className="font-medium uppercase tracking-wider text-white/60 text-xs">{entrada.negocio}</p>
             <h2 className="mt-1 text-[26px] font-bold leading-tight text-white">{entrada.evento}</h2>
             <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-light text-white/70">
               <span className="flex items-center gap-1 capitalize">
@@ -190,7 +190,7 @@ function TarjetaEntrada({
                 <MapPin className="h-3.5 w-3.5" /> Puesto {entrada.puesto}
               </span>
             </div>
-            <p className="mt-3 text-[11px] font-light text-white/40">Toca para ver tu código</p>
+            <p className="mt-3 font-light text-white/40 text-xs">Toca para ver tu código</p>
           </div>
         </div>
 
@@ -199,9 +199,9 @@ function TarjetaEntrada({
           {entrada.usada ? (
             <>
               <CheckCircle2 className="h-14 w-14 text-emerald-400" />
-              <p className="mt-3 text-[15px] font-bold text-emerald-300">Esta entrada ya se usó</p>
+              <p className="mt-3 font-bold text-emerald-300 text-base">Esta entrada ya se usó</p>
               {entrada.usadaEl && (
-                <p className="mt-1 text-[11px] font-light text-white/40">
+                <p className="mt-1 font-light text-white/40 text-xs">
                   Ingresó el {new Date(entrada.usadaEl).toLocaleString('es-VE')}
                 </p>
               )}
@@ -212,7 +212,7 @@ function TarjetaEntrada({
               <div className="rounded-2xl bg-white p-3">
                 <QRCodeSVG value={entrada.accessToken} size={158} />
               </div>
-              <p className="mt-3 text-center text-[11px] font-light text-white/40">
+              <p className="mt-3 text-center font-light text-white/40 text-xs">
                 Muestra este código en la entrada. Sirve una sola vez.
               </p>
             </>
@@ -286,7 +286,7 @@ function QrEnProgreso({ pct, falta }: { pct: number; falta: number }) {
             style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #009aff 0%, #4db5ff 100%)' }}
           />
         </div>
-        <p className="mt-2 text-center text-[11px] font-light leading-snug text-white/40">
+        <p className="mt-2 text-center font-light leading-snug text-white/40 text-xs">
           Tu código se completa a medida que pagas tus cuotas. Al llegar al 100% queda listo
           para entrar.
         </p>

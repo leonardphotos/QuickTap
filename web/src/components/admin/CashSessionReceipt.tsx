@@ -1,21 +1,10 @@
-import { forwardRef, type CSSProperties } from 'react';
-import { CURRENCY_SYMBOLS, formatBase, formatBs } from '@/utils/format';
+import type { Currency,PaymentMethod,UserRole } from '@/types';
+import { CURRENCY_SYMBOLS,formatBase,formatBs } from '@/utils/format';
 import { ROLE_LABELS } from '@/utils/roles';
-import { INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
-import { PAYMENT_LABELS } from './PaymentDialog';
-import type { Currency, PaymentMethod, UserRole } from '@/types';
-
-export const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  MOBILE_PAYMENT: 'Pago Móvil',
-  ZELLE: 'Zelle',
-  CASH: 'Efectivo Bs',
-  // Faltaba: el cierre mostraba "CASH_USD" crudo, y es un método que se usa a diario.
-  CASH_USD: 'Efectivo $',
-  CARD: 'Punto de Venta',
-  BINANCE: 'Binance',
-  PAYPAL: 'PayPal',
-  TRANSFER: 'Transferencia',
-};
+import { forwardRef,type CSSProperties } from 'react';
+import { PAYMENT_METHOD_LABELS } from './CashSessionReceipt.shared';
+import { INCOME_CATEGORY_LABELS,type IncomeCategory } from './IncomeFormDialog.shared';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
 
 export interface CashSessionSummary {
   paymentsByMethod: Record<string, { amountBase: string; count: number }>;
@@ -36,6 +25,12 @@ export interface CashSessionSummary {
     totalDifference: string;
   } | null;
   totalPayments: string;
+  refundsByMethod?: Record<string, string>;
+  totalRefunds?: string;
+  refunds?: {
+    id: string; orderNumber: number; amountBase: string; method: string;
+    reason: string; createdByName: string; createdAt: string;
+  }[];
   movements: {
     totalIncome: string;
     totalExpense: string;
@@ -211,6 +206,24 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
                       <span>-{formatBase(v, symbol)}</span>
                     </div>
                   ))}
+              </div>
+            </>
+          )}
+
+          {summary.refunds && summary.refunds.length > 0 && (
+            <>
+              <p style={sectionLabel}>Devoluciones realizadas</p>
+              <div style={list}>
+                {summary.refunds.map((refund) => (
+                  <div key={refund.id} style={listRow}>
+                    <span>Pedido #{refund.orderNumber} · {PAYMENT_METHOD_LABELS[refund.method] ?? refund.method} · {refund.createdByName}</span>
+                    <span style={{ color: RED_700 }}>−{formatBase(refund.amountBase, symbol)}</span>
+                  </div>
+                ))}
+                <div style={subtotalRow}>
+                  <span>Total devoluciones</span>
+                  <span>−{formatBase(summary.totalRefunds ?? '0', symbol)}</span>
+                </div>
               </div>
             </>
           )}

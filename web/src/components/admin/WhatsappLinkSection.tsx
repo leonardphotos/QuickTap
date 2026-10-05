@@ -31,11 +31,13 @@ export function WhatsappLinkSection({
   // El panel de locales no navega por rutas: su facturación es una pantalla interna, así que
   // el botón del candado recibe el salto en vez de asumir /admin/billing.
   onMejorarPlan,
+  mostrarNoDisponible = false,
 }: {
   base?: string;
   titulo?: string;
   cliente?: typeof apiTenant;
   onMejorarPlan?: () => void;
+  mostrarNoDisponible?: boolean;
 }) {
   const api = cliente ?? apiTenant;
   const [estado, setEstado] = useState<Estado | null>(null);
@@ -44,8 +46,7 @@ export function WhatsappLinkSection({
   const [error, setError] = useState<string | null>(null);
   const vinculando = useRef(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const cargar = useCallback(() => api.get(`${base}/status`).then((r) => setEstado(r.data.data)).catch(() => undefined), [base]);
+  const cargar = useCallback(() => api.get(`${base}/status`).then((r) => setEstado(r.data.data)).catch(() => undefined), [base, api]);
   useEffect(() => {
     cargar();
   }, [cargar]);
@@ -71,7 +72,7 @@ export function WhatsappLinkSection({
       clearInterval(poll);
       clearInterval(renew);
     };
-  }, [qr, base]);
+  }, [qr, base, api]);
 
   async function vincular() {
     if (vinculando.current) return;
@@ -105,7 +106,7 @@ export function WhatsappLinkSection({
   }
 
   // Sin estado aún (cargando) o sin Evolution configurada en el servidor, la tarjeta no existe.
-  if (!estado || !estado.disponible) return null;
+  if (!estado || !estado.disponible) return mostrarNoDisponible ? <section className="apt-card"><h2>{titulo}</h2><p>{!estado ? 'No se pudo consultar la conexión todavía.' : 'La conexión de WhatsApp no está disponible. Contacta con soporte para activarla.'}</p><button type="button" onClick={()=>void cargar()}>Volver a consultar</button></section> : null;
 
   // Plan sin el beneficio: la tarjeta SE VE, bloqueada. Que exista y no se pueda tocar vende
   // el plan de arriba mejor que un beneficio invisible — el candado es el argumento.
@@ -120,10 +121,10 @@ export function WhatsappLinkSection({
             <h2 className="flex items-center gap-2 text-sm font-semibold text-brand-950">
               {titulo}
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                Plan Elite
+                Control
               </span>
             </h2>
-            <p className="text-[11.5px] font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-base">
               Vincula tu número y tus clientes reciben la confirmación de cada pedido, su
               entrada y el aviso de sus cuotas — directo de tu WhatsApp, sin que nadie los
               escriba a mano.
@@ -160,16 +161,16 @@ export function WhatsappLinkSection({
         </span>
         <div>
           <h2 className="text-sm font-semibold text-brand-950">{titulo}</h2>
-          <p className="text-[11.5px] font-light text-brand-950/50">
+          <p className="font-light text-brand-950/50 text-base">
             {estado?.vinculado
               ? `Vinculado${estado.phone ? ` · +${estado.phone}` : ''}`
-              : 'Vincula un número para enviar avisos directamente por WhatsApp.'}
+              : 'Conecta tu número para enviar avisos directamente por WhatsApp.'}
           </p>
         </div>
       </div>
 
       {estado?.autoPaused && (
-        <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
+        <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-amber-800 text-xs">
           <PauseCircle className="mt-0.5 h-4 w-4 shrink-0" />
           Envíos pausados automáticamente: WhatsApp dejó de confirmar entregas. Revisa que el
           número siga activo antes de reanudar.
@@ -179,14 +180,14 @@ export function WhatsappLinkSection({
       {qr && !estado?.vinculado && (
         <div className="mt-4 flex flex-col items-center">
           <img src={qr} alt="Código QR para vincular WhatsApp" className="h-52 w-52 rounded-xl border border-brand-950/10" />
-          <p className="mt-2 max-w-xs text-center text-[11.5px] font-light text-brand-950/50">
+          <p className="mt-2 max-w-xs text-center font-light text-brand-950/50 text-base">
             En tu teléfono: WhatsApp → Dispositivos vinculados → Vincular dispositivo, y escanea
             este código.
           </p>
         </div>
       )}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-red-600 text-base">{error}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {!estado?.vinculado && !qr && (

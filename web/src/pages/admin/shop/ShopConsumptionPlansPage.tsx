@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Wallet } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { TextureButton } from '@/components/ui/texture-button';
-import { shopApi, type RawConsumptionPlan } from './shopApi';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Wallet } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { shopApi,type RawConsumptionPlan } from './shopApi';
 import { shopMoneyFormatters } from './shopFormat';
 
 /**
@@ -32,7 +33,7 @@ export default function ShopConsumptionPlansPage() {
     cargar();
   }
 
-  if (!plans) return <p className="text-sm font-light text-brand-950/50">Cargando…</p>;
+  if (!plans) return <p className="font-light text-brand-950/50 text-base">Cargando…</p>;
 
   const activos = plans.filter((p) => !p.closedAt);
   const cerrados = plans.filter((p) => p.closedAt);
@@ -43,7 +44,7 @@ export default function ShopConsumptionPlansPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-brand-950">Planes de consumo</h1>
-        <p className="mt-0.5 text-sm font-light text-brand-950/50">
+        <p className="mt-0.5 font-light text-brand-950/50 text-base">
           Metros comprados por adelantado, pendientes de retirar. Se venden y se consumen desde Venta.
         </p>
       </div>
@@ -51,7 +52,7 @@ export default function ShopConsumptionPlansPage() {
       {activos.length > 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-brand-500/20 bg-brand-500/[0.05] px-4 py-3">
           <Wallet className="h-5 w-5 shrink-0 text-brand-500" />
-          <p className="text-sm text-brand-950/70">
+          <p className="text-brand-950/70 text-base">
             <span className="font-bold text-brand-950">{activos.length}</span> plan{activos.length === 1 ? '' : 'es'} activo
             {activos.length === 1 ? '' : 's'} · saldo pendiente por retirar valorizado en{' '}
             <span className="font-bold text-brand-950">{money(saldoTotal)}</span>
@@ -59,9 +60,9 @@ export default function ShopConsumptionPlansPage() {
         </div>
       )}
 
-      <div className="inline-flex gap-1 rounded-full bg-brand-950/[0.05] p-1">
+      <AnimatedTabs tone="light" className="inline-flex gap-1 rounded-full bg-brand-950/[0.05] p-1">
         {(['activos', 'cerrados'] as const).map((t) => (
-          <button
+          <AnimatedTab active={tab === t}
             key={t}
             type="button"
             onClick={() => setTab(t)}
@@ -70,12 +71,12 @@ export default function ShopConsumptionPlansPage() {
             }`}
           >
             {t === 'activos' ? `Activos (${activos.length})` : `Cerrados (${cerrados.length})`}
-          </button>
+          </AnimatedTab>
         ))}
-      </div>
+      </AnimatedTabs>
 
       {visibles.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-brand-950/15 py-10 text-center text-sm font-light text-brand-950/40">
+        <p className="rounded-2xl border border-dashed border-brand-950/15 py-10 text-center font-light text-brand-950/40 text-base">
           {tab === 'activos' ? 'Sin planes activos todavía.' : 'Ningún plan cerrado.'}
         </p>
       ) : (
@@ -86,10 +87,10 @@ export default function ShopConsumptionPlansPage() {
               <li key={p.id} className="rounded-2xl border border-brand-950/10 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-semibold text-brand-950">{p.customerName}</p>
-                    <p className="text-xs text-brand-950/45">{p.customerPhone} · {p.product.name}</p>
+                    <p className="font-semibold text-brand-950 text-base">{p.customerName}</p>
+                    <p className="text-brand-950/45 text-xs">{p.customerPhone} · {p.product.name}</p>
                   </div>
-                  <p className="text-right">
+                  <p className="text-right text-base">
                     <span className="block font-bold text-brand-950">
                       {p.remainingUnits} de {p.totalUnits}
                     </span>

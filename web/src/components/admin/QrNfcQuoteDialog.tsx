@@ -50,8 +50,8 @@ export function QrNfcQuoteDialog({ onClose }: Props) {
         {sent ? (
           <div className="text-center py-4 space-y-2">
             <p className="text-3xl">✅</p>
-            <p className="font-semibold text-brand-950">¡Solicitud enviada!</p>
-            <p className="text-sm text-brand-950/60 font-light">
+            <p className="font-semibold text-brand-950 text-base">¡Solicitud enviada!</p>
+            <p className="text-brand-950/60 font-light text-base">
               Te contactaremos pronto para coordinar el pago y la entrega.
             </p>
             <TextureButton variant="brand" size="default" onClick={onClose} className="mt-2 !w-auto mx-auto">
@@ -60,7 +60,7 @@ export function QrNfcQuoteDialog({ onClose }: Props) {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm text-brand-950/70 font-light">
+            <p className="text-brand-950/70 font-light text-base">
               QR físicos con tecnología NFC: además de escanearse con la cámara, se leen acercando el celular (sin
               apps). Son impermeables y llevan protección UV para que no se decoloren ni se dañen con el sol o la
               lluvia.
@@ -93,7 +93,7 @@ export function QrNfcQuoteDialog({ onClose }: Props) {
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-brand-950/40 mt-1.5">Se recomiendan 2 por mesa.</p>
+              <p className="text-brand-950/40 mt-1.5 text-xs">Se recomiendan 2 por mesa.</p>
             </div>
 
             <div className="flex items-baseline justify-between border-t border-brand-950/[0.06] pt-3">
@@ -102,11 +102,11 @@ export function QrNfcQuoteDialog({ onClose }: Props) {
               </span>
               <div className="text-right">
                 <span className="text-xl font-semibold text-brand-950">${totalUsd.toFixed(2)}</span>
-                {rateBs && <p className="text-xs text-brand-950/50">{formatBs(totalUsd, rateBs)}</p>}
+                {rateBs && <p className="text-brand-950/50 text-xs">{formatBs(totalUsd, rateBs)}</p>}
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
 
             <TextureButton variant="brand" size="default" disabled={sending} onClick={submit} className="disabled:opacity-50">
               {sending ? 'Enviando…' : 'Solicitar cotización'}

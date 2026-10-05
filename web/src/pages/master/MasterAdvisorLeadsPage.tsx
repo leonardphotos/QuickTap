@@ -38,7 +38,7 @@ function soloDigitos(tel: string): string {
 }
 
 /**
- * Asesorías: los prospectos que pidieron que los llamara un asesor por el Plan Elite.
+ * Asesorías: los prospectos que pidieron que los llamara un asesor por el Control.
  *
  * Existe además del aviso por WhatsApp porque el aviso se puede perder — el número del máster
  * puede estar desconectado o el formulario llegar fuera de su ventana horaria. Acá está
@@ -87,8 +87,8 @@ export default function MasterAdvisorLeadsPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Star className="h-5 w-5 text-[#B8902E]" /> Asesorías
         </h1>
-        <p className="text-sm opacity-60 font-light">
-          Prospectos que pidieron que los contacte un asesor por el Plan Elite.
+        <p className="opacity-60 font-light text-base">
+          Prospectos que pidieron que los contacte un asesor por el Control.
           {pendientes > 0 && <span className="font-semibold text-amber-600"> · {pendientes} por llamar</span>}
         </p>
       </div>
@@ -108,21 +108,21 @@ export default function MasterAdvisorLeadsPage() {
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {cargando ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin opacity-30" />
         </div>
       ) : leads.length === 0 ? (
-        <p className="text-sm opacity-40 font-light py-8 text-center">Sin solicitudes.</p>
+        <p className="opacity-40 font-light py-8 text-center text-base">Sin solicitudes.</p>
       ) : (
         <div className="space-y-2">
           {leads.map((l) => (
             <div key={l.id} className="rounded-2xl border border-black/10 p-4 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-semibold flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold flex items-center gap-2 flex-wrap text-base">
                     {l.businessName}
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${CLASE_DE[l.status]}`}>
                       {LABEL_DE[l.status]}
@@ -136,8 +136,8 @@ export default function MasterAdvisorLeadsPage() {
                       </span>
                     )}
                   </p>
-                  <p className="text-sm opacity-70">{l.contactName}</p>
-                  <p className="text-xs opacity-50">{l.address}</p>
+                  <p className="opacity-70 text-base">{l.contactName}</p>
+                  <p className="opacity-50 text-xs">{l.address}</p>
                 </div>
                 <div className="text-right shrink-0">
                   <a
@@ -148,7 +148,7 @@ export default function MasterAdvisorLeadsPage() {
                   >
                     <Phone className="h-3.5 w-3.5" /> {l.phone}
                   </a>
-                  <p className="text-[10px] opacity-40 mt-0.5">{fecha(l.createdAt)}</p>
+                  <p className="opacity-40 mt-0.5 text-xs">{fecha(l.createdAt)}</p>
                 </div>
               </div>
 
@@ -176,7 +176,7 @@ export default function MasterAdvisorLeadsPage() {
                   const v = e.target.value.trim();
                   if (v !== (l.notes ?? '')) cambiar(l, { notes: v || null });
                 }}
-                className="w-full rounded-lg border border-black/10 bg-transparent px-2.5 py-1.5 text-sm"
+                className="w-full rounded-lg border border-black/10 bg-transparent px-2.5 py-1.5 text-base"
               />
             </div>
           ))}

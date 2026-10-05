@@ -19,7 +19,7 @@ export function parseZoneList(raw: string): ParsedZoneRow[] {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const priceMatch = line.match(/([\$]?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(?:USD|Bs\.?|bolívares?)?\s*$/i);
+    const priceMatch = line.match(/([$]?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(?:USD|Bs\.?|bolívares?)?\s*$/i);
     if (!priceMatch) continue;
 
     let namePart = line.slice(0, priceMatch.index).trim();

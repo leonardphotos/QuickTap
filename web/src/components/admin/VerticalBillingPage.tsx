@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { api, getToken } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { useAuth } from '@/context/AuthContext';
-import { FIXED_PLAN_PRICES, type BillingCycle } from '@/utils/plans';
-import { SinglePlanCard, type SinglePlan } from '@/components/landing/SinglePlanCard';
+import { api,getToken } from '@/api/client';
 import { ChargeBreakdown } from '@/components/landing/ChargeBreakdown';
-import { PaymentForm, type SelectedPlan } from '@/components/landing/PaymentForm';
+import { PaymentForm,type SelectedPlan } from '@/components/landing/PaymentForm';
+import { SinglePlanCard,type SinglePlan } from '@/components/landing/SinglePlanCard';
 import { TextureButton } from '@/components/ui/texture-button';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { useAuth } from '@/context/AuthContext.shared';
+import { FIXED_PLAN_PRICES,type BillingCycle } from '@/utils/plans';
+import { useEffect,useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 export interface VerticalPlanOption {
   plan: SinglePlan;
@@ -91,7 +91,7 @@ export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaul
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">
           {restaurant.subscriptionStatus === 'TRIALING' ? 'Activar plan' : 'Renovar suscripción'}
         </h1>
-        <p className="text-sm text-brand-950/60 font-light mt-1">
+        <p className="text-brand-950/60 font-light mt-1 text-base">
           {restaurant.subscriptionStatus === 'TRIALING'
             ? trialingMessage
             : 'Paga tu mensualidad y escribe el número de referencia. Activaremos tu cuenta en cuanto lo confirmemos.'}
@@ -128,7 +128,7 @@ export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaul
             renderSuccess={(message) => (
               <div className="rounded-2xl border border-brand-950/10 bg-white p-8 text-center shadow-sm">
                 <p className="text-lg font-semibold text-brand-950">Pago en verificación</p>
-                <p className="text-sm text-brand-950/60 font-light mt-1">{message}</p>
+                <p className="text-brand-950/60 font-light mt-1 text-base">{message}</p>
                 <TextureButton
                   variant="brand"
                   size="default"

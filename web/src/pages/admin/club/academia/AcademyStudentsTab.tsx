@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Search, Ticket, UserPlus } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase, formatBs } from '@/utils/format';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Cell, ClubEyebrow, ClubPanel, ClubRow, ClubTable, PlainCell, type ClubColumn } from '../ClubTable';
-import { academyApi, LEVELS, WEEKDAY_SHORT, type ClassGroup, type Student } from './academyApi';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { formatBase,formatBs } from '@/utils/format';
 import { levelLabel } from '@/utils/padelLevel';
+import { Search,Ticket,UserPlus } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { Cell,ClubEyebrow,ClubPanel,ClubRow,ClubTable,PlainCell,type ClubColumn } from '../ClubTable';
+import { academyApi,LEVELS,WEEKDAY_SHORT,type ClassGroup,type Student } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
 
 const COLS: ClubColumn[] = [
@@ -62,7 +62,7 @@ export default function AcademyStudentsTab({
 
   return (
     <div className="flex flex-col gap-3.5">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <ClubEyebrow>Base de alumnos</ClubEyebrow>
       <ClubPanel
@@ -70,12 +70,12 @@ export default function AcademyStudentsTab({
         description="Cada alumno usa la misma ficha de cliente que sus reservas de cancha: el historial no se parte en dos."
         action={
           <>
-            <label className="relative block w-full sm:w-64">
+            <label className="relative block w-full sm:w-64 text-sm font-medium">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-950/30" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="w-full rounded-full border border-brand-950/10 bg-brand-950/[0.03] py-2 pl-9 pr-3.5 text-[13px] placeholder:text-brand-950/35 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30"
+                className="w-full rounded-full border border-brand-950/10 bg-brand-950/[0.03] py-2 pl-9 pr-3.5 placeholder:text-brand-950/35 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 text-base"
                 placeholder="Buscar por nombre o teléfono…"
               />
             </label>
@@ -87,7 +87,7 @@ export default function AcademyStudentsTab({
         }
       >
         {loading ? (
-          <p className="py-12 text-center text-sm font-light text-brand-950/40">Cargando…</p>
+          <p className="py-12 text-center font-light text-brand-950/40 text-base">Cargando…</p>
         ) : (
           <ClubTable columns={COLS} rows={students.length} empty="No hay alumnos todavía.">
             {students.map((s) => (
@@ -221,10 +221,10 @@ function StudentDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           <Field label="Teléfono del representante">
             <input value={guardianPhone} onChange={(e) => setGuardianPhone(e.target.value)} className={INPUT} placeholder="04141234567" />
           </Field>
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Si esta persona ya reservó cancha alguna vez, se usa su misma ficha de cliente: el historial no se parte en dos.
           </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
@@ -311,7 +311,7 @@ function EnrollDialog({
               <input value={override} onChange={(e) => setOverride(e.target.value)} className={INPUT} placeholder="El profesor lo autorizó" />
             </Field>
           )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Inscribiendo…' : 'Inscribir'}
           </TextureButton>
@@ -418,7 +418,7 @@ function PackageDialog({
               </select>
             </Field>
           )}
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             Al elegir un horario, ese puesto le queda reservado en todas las clases de esa franja mientras el lote esté
             vigente.
           </p>
@@ -432,7 +432,7 @@ function PackageDialog({
             </Field>
           </div>
           {perClass > 0 && (
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               Cada ficha vale {formatBase(perClass, symbol)} y se congela a ese precio.
             </p>
           )}
@@ -451,7 +451,7 @@ function PackageDialog({
             {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
                 en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
             {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(priceBase) > 0 && (
-              <p className="mt-1.5 text-[13px] font-bold text-brand-500">
+              <p className="mt-1.5 font-bold text-brand-500 text-base">
                 Transferir {formatBs(priceBase, rateBs)}
               </p>
             )}
@@ -460,7 +460,7 @@ function PackageDialog({
             <input value={reference} onChange={(e) => setReference(e.target.value)} className={INPUT} placeholder="Opcional" />
           </Field>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Registrando…' : 'Cobrar y entregar fichas'}
           </TextureButton>
@@ -472,7 +472,7 @@ function PackageDialog({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1 block text-[13px] font-medium text-brand-950/70">{label}</span>
       {children}
     </label>

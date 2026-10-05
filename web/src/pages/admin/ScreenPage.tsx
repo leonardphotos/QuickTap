@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { LogOut, RefreshCw } from 'lucide-react';
-import { api } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
-import type { Product, PublicMenu } from '../../types';
-import { productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
+import { LogOut,RefreshCw } from 'lucide-react';
+import { useEffect,useMemo,useState } from 'react';
+import { api } from '../../api/client';
+import { useAuth } from '../../context/AuthContext.shared';
+import type { Product,PublicMenu } from '../../types';
+import { productDisplayPriceBase,publicPriceLabel } from '../../utils/format';
 
 // El menú público ya excluye productos agotados/no disponibles server-side (stockControlEnabled +
 // stockQuantity, ver menu.service.ts) — con volver a pedirlo cada tanto alcanza para que un producto
@@ -136,13 +136,13 @@ export default function ScreenPage() {
                 <div className="absolute inset-x-0 bottom-0 p-6 flex items-end justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-2xl font-bold leading-tight line-clamp-2">{p.name}</p>
-                    {p.description && <p className="text-sm text-white/70 font-light line-clamp-1 mt-1">{p.description}</p>}
+                    {p.description && <p className="text-white/70 font-light line-clamp-1 mt-1 text-base">{p.description}</p>}
                   </div>
                   {price && (
                     <div className="text-right shrink-0">
-                      {displayPrice.isFromVariant && <p className="text-xs text-white/50 -mb-0.5">Desde</p>}
+                      {displayPrice.isFromVariant && <p className="text-white/50 -mb-0.5 text-xs">Desde</p>}
                       <p className="text-3xl font-extrabold whitespace-nowrap">{price.secondary}</p>
-                      <p className="text-sm text-white/60 whitespace-nowrap">{price.primary}</p>
+                      <p className="text-white/60 whitespace-nowrap text-base">{price.primary}</p>
                     </div>
                   )}
                 </div>

@@ -1,3 +1,7 @@
+import { readAddons, MEMBERSHIP_ADDONS } from '@/utils/membership-addons';
+import PaymentProofReview from '@/components/PaymentProofReview';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
+import { PLAN_LABELS } from '@/pages/admin/nav-links';
 import { useEffect, useState } from 'react';
 import { Copy } from 'lucide-react';
 import { masterApi } from '@/api/client';
@@ -15,6 +19,7 @@ interface PlanRequestRow {
   status: ProofStatus;
   restaurantId: string | null;
   plan: string;
+  membershipTerms?: { signupPromotionPrice?: { discountedMonths: number; monthsUsed: number }; inherited?: boolean; version?: string; currency?: string; implementation?: { mode: string; sites: number } };
   billingCycle: string;
   priceUsd: string;
   promoCode: string | null;
@@ -185,9 +190,9 @@ export default function MasterProofsPage() {
         <MoneyVisibilityToggle />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <AnimatedTabs tone="light" className="flex flex-nowrap gap-2">
         {TABS.map((t) => (
-          <button
+          <AnimatedTab active={kind === t.kind}
             key={t.kind}
             onClick={() => setKind(t.kind)}
             className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -206,13 +211,13 @@ export default function MasterProofsPage() {
                 {pendingCounts[t.kind]}
               </span>
             )}
-          </button>
+          </AnimatedTab>
         ))}
-      </div>
+      </AnimatedTabs>
 
-      <div className="flex flex-wrap gap-2">
+      <AnimatedTabs tone="brand" className="flex flex-nowrap gap-2">
         {STATUS_TABS.map((s) => (
-          <button
+          <AnimatedTab active={status === s.value}
             key={s.value}
             onClick={() => setStatus(s.value)}
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
@@ -222,31 +227,31 @@ export default function MasterProofsPage() {
             }`}
           >
             {s.label}
-          </button>
+          </AnimatedTab>
         ))}
-      </div>
+      </AnimatedTabs>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
-      {requests?.length === 0 && <p className="text-sm text-brand-950/40 font-light">Sin solicitudes aquí.</p>}
+      {requests?.length === 0 && <p className="text-brand-950/40 font-light text-base">Sin solicitudes aquí.</p>}
 
       <div className="space-y-4">
         {requests?.map((req) => (
           <div key={req.id} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex flex-col sm:flex-row gap-4">
             {req.payments.length > 0 ? (
               <div className="shrink-0 h-24 w-24 rounded-xl bg-amber-100 flex flex-col items-center justify-center gap-1 px-2 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-amber-700/70 font-medium">Fraccionado</p>
-                <p className="text-sm font-bold text-amber-700">
-                  <MaskedAmount value={`$${req.payments.reduce((a, p) => a + Number(p.amountUsd), 0).toFixed(2)}`} />
+                <p className="uppercase tracking-wide text-amber-700/70 font-medium text-xs">Fraccionado</p>
+                <p className="font-bold text-amber-700 text-base">
+                  <MaskedAmount value={`€${req.payments.reduce((a, p) => a + Number(p.amountUsd), 0).toFixed(2)}`} />
                 </p>
-                <p className="text-[10px] text-amber-700/70">
-                  de <MaskedAmount value={`$${req.priceUsd}`} />
+                <p className="text-amber-700/70 text-xs">
+                  de <MaskedAmount value={`€${req.priceUsd}`} />
                 </p>
               </div>
             ) : (
               <div className="shrink-0 h-24 w-24 rounded-xl bg-brand-950/[0.06] flex flex-col items-center justify-center gap-1 px-2 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-brand-950/40 font-medium">N.° referencia</p>
-                <p className="text-sm font-semibold text-brand-950 break-all leading-tight">{req.paymentReference}</p>
+                <p className="uppercase tracking-wide text-brand-950/40 font-medium text-xs">N.° referencia</p>
+                <p className="font-semibold text-brand-950 break-all leading-tight text-base">{req.paymentReference}</p>
                 <button
                   type="button"
                   onClick={() => copy(req.paymentReference, 'Referencia copiada')}
@@ -269,14 +274,17 @@ export default function MasterProofsPage() {
             )}
 
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-brand-950">
-                {req.plan} · {req.billingCycle} · <MaskedAmount value={`$${req.priceUsd}`} />
+              <p className="font-medium text-brand-950 text-base">
+                {PLAN_LABELS[req.plan] ?? req.plan} · {req.billingCycle} · <MaskedAmount value={`€${req.priceUsd}`} />
                 {req.promoCode && <span className="text-emerald-600"> ({req.promoCode} -{req.discountPercent}%)</span>}
               </p>
-              <p className="text-sm text-brand-950/60 font-light">
+              <p className="text-brand-500 text-xs">{req.membershipTerms?.inherited ? 'Condiciones heredadas: conservar contrato vigente' : 'Nueva oferta · EUR'}{req.membershipTerms?.implementation && ` · ${req.membershipTerms.implementation.sites} sede(s) · ${req.membershipTerms.implementation.mode === 'QUICKSTAR' ? 'QuickStar' : 'Acompañada'}`}</p>
+              {req.membershipTerms?.signupPromotionPrice && <p className="my-2 rounded-xl bg-emerald-50 p-3 text-emerald-800 text-xs">Promoción de bienvenida · {req.membershipTerms.signupPromotionPrice.discountedMonths} mensualidad(es) con descuento, desde la número {req.membershipTerms.signupPromotionPrice.monthsUsed + 1}. El importe de la solicitud ya incluye el beneficio.</p>}
+              {readAddons(req.membershipTerms).length>0 && <div className="rounded-xl bg-sky-50 p-3 my-2 text-xs">{readAddons(req.membershipTerms).map(a=><p key={a.code}>{MEMBERSHIP_ADDONS.find(d=>d.code===a.code)?.name} × {a.quantity} · €{(a.monthlyCents/100).toFixed(2)}/mes</p>)}</div>}
+              <p className="text-brand-950/60 font-light text-base">
                 {req.contactName} · {req.contactEmail} {req.contactPhone && `· ${req.contactPhone}`}
               </p>
-              <p className="text-xs text-brand-950/40 font-light mt-0.5">
+              <p className="text-brand-950/40 font-light mt-0.5 text-xs">
                 {req.restaurant ? (
                   <>Restaurante: {req.restaurant.name}</>
                 ) : (
@@ -292,14 +300,14 @@ export default function MasterProofsPage() {
                   {req.payments.map((p, i) => (
                     <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                       <div className="min-w-0">
-                        <p className="text-brand-950/80">
+                        <p className="text-brand-950/80 text-base">
                           Abono {i + 1} · {p.paymentMethod} · Ref. {p.paymentReference}
                         </p>
-                        <p className="text-xs text-brand-950/40">{new Date(p.createdAt).toLocaleString('es-VE')}</p>
+                        <p className="text-brand-950/40 text-xs">{new Date(p.createdAt).toLocaleString('es-VE')}</p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="font-semibold text-brand-950">
-                          <MaskedAmount value={`$${Number(p.amountUsd).toFixed(2)}`} />
+                          <MaskedAmount value={`€${Number(p.amountUsd).toFixed(2)}`} />
                         </span>
                         <a
                           href={p.proofImageUrl}
@@ -315,13 +323,15 @@ export default function MasterProofsPage() {
                 </div>
               )}
 
+              {req.proofImageUrl&&<PaymentProofReview fileKey={req.proofImageUrl} master/>}
+              {req.payments?.map(p=><PaymentProofReview key={p.id} fileKey={p.proofImageUrl} master/>)}
               {req.status === 'PENDING' && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {!req.restaurantId && (
                     <select
                       value={linking[req.id] ?? ''}
                       onChange={(e) => setLinking({ ...linking, [req.id]: e.target.value })}
-                      className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                      className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                     >
                       <option value="">Vincular a restaurante…</option>
                       {restaurants?.map((r) => (
@@ -334,7 +344,7 @@ export default function MasterProofsPage() {
                   <TextureButton
                     variant="brand"
                     size="sm"
-                    disabled={busyId === req.id || (!req.restaurantId && !linking[req.id])}
+                    disabled={busyId === req.id || (!req.restaurantId && !linking[req.id]) || (req.paymentReference === 'Pago fraccionado' && req.payments.reduce((sum, p) => sum + Number(p.amountUsd), 0) + 0.001 < Number(req.priceUsd))}
                     className="!w-auto disabled:opacity-50"
                     onClick={() => approve(req)}
                   >
@@ -406,7 +416,7 @@ export default function MasterProofsPage() {
 
               {pendingWhatsapp[req.id] !== undefined && (
                 <div className="mt-3 rounded-xl bg-brand-950/[0.04] p-3 flex flex-wrap items-center gap-3">
-                  <p className="text-sm text-brand-950">¿Desea enviar el mensaje vía WhatsApp?</p>
+                  <p className="text-brand-950 text-base">¿Desea enviar el mensaje vía WhatsApp?</p>
                   <div className="flex gap-2 ml-auto">
                     <TextureButton
                       variant="brand"
@@ -427,7 +437,7 @@ export default function MasterProofsPage() {
                     </TextureButton>
                   </div>
                   {!pendingWhatsapp[req.id] && (
-                    <p className="text-xs text-brand-950/40 w-full">
+                    <p className="text-brand-950/40 w-full text-xs">
                       Esta solicitud no tiene teléfono de contacto registrado.
                     </p>
                   )}

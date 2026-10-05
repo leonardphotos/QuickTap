@@ -41,7 +41,7 @@ export default function ClubExtrasStep({ products, selected, onChange, onContinu
   return (
     <div className="flex flex-1 flex-col">
       <h1 className="text-[26px] font-bold tracking-tight">¿Quieres algo al llegar?</h1>
-      <p className="mt-1 text-[13px] font-light text-club-text/65">
+      <p className="mt-1 font-light text-club-text/65 text-base">
         Lo dejamos listo en recepción. Se paga en el club, no ahora.
       </p>
 
@@ -64,8 +64,8 @@ export default function ClubExtrasStep({ products, selected, onChange, onContinu
                 <div className="flex h-20 w-full items-center justify-center bg-white/10 text-2xl">🎾</div>
               )}
               <div className="flex flex-1 flex-col p-2.5">
-                <p className="line-clamp-2 text-[13px] font-semibold leading-tight">{product.name}</p>
-                <p className="mt-auto pt-1.5 text-[14px] font-bold">
+                <p className="line-clamp-2 font-semibold leading-tight text-base">{product.name}</p>
+                <p className="mt-auto pt-1.5 font-bold text-base">
                   {symbol}
                   {product.priceBase}
                 </p>
@@ -106,7 +106,7 @@ export default function ClubExtrasStep({ products, selected, onChange, onContinu
 
       <div className="mt-auto pt-6">
         {total > 0 && (
-          <p className="mb-2 text-center text-[13px] font-light text-club-text/65">
+          <p className="mb-2 text-center font-light text-club-text/65 text-base">
             Total estimado: {symbol}
             {totalPrice.toFixed(2)}
           </p>

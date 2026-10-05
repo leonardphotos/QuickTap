@@ -72,12 +72,12 @@ export default function ComparativaPage() {
         faq={FAQ}
       />
 
-      <p className="text-xs font-bold uppercase tracking-widest text-brand-logo">Guía de compra</p>
+      <p className="font-bold uppercase tracking-widest text-brand-logo text-xs">Guía de compra</p>
       <h1 className="mt-3 text-2xl sm:text-3xl font-bold leading-tight max-w-3xl">
         ¿Cuál es el mejor software para tu restaurante? Compara los enfoques
       </h1>
       <div className="mt-5 space-y-4 max-w-3xl">
-        <p className="text-[15px] text-brand-950/70 font-light leading-relaxed">
+        <p className="text-brand-950/70 font-light leading-relaxed text-base">
           Antes de comparar marcas, compara enfoques: la mayoría de los locales termina eligiendo entre seguir a mano
           (cuaderno + WhatsApp), un punto de venta tradicional por licencia, apps de delivery de terceros, o una
           plataforma en la nube como QuickTap. Cada camino resuelve cosas distintas — esta tabla muestra qué cubre cada uno.
@@ -107,14 +107,14 @@ export default function ComparativaPage() {
             ))}
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-brand-950/45 font-light">
+        <p className="mt-2 text-brand-950/45 font-light text-xs">
           <Minus className="inline h-3 w-3 text-amber-700" /> = lo cubre parcialmente o con costo/módulo extra.
         </p>
       </div>
 
       <section className="mt-12 max-w-3xl">
         <h2 className="text-lg sm:text-xl font-bold mb-2">Para ser justos: cuándo NO elegir QuickTap</h2>
-        <p className="text-[15px] text-brand-950/70 font-light leading-relaxed">
+        <p className="text-brand-950/70 font-light leading-relaxed text-base">
           Si lo único que buscas es una máquina fiscal para facturar, o dependes por completo del tráfico que te traen
           las apps de delivery, un sistema de gestión no es tu primera compra. QuickTap rinde cuando quieres operar tu
           propio canal: tu carta, tus pedidos, tu delivery y tu inventario, con tus datos y sin comisiones por venta.
@@ -130,7 +130,7 @@ export default function ComparativaPage() {
           <li><strong className="font-semibold text-brand-950">Hardware:</strong> pregunta qué tienes que comprar. Lo razonable hoy es empezar con los teléfonos que ya tienen tú y tu equipo.</li>
           <li><strong className="font-semibold text-brand-950">Prueba real:</strong> si no puedes probarlo gratis con tu propia carta antes de pagar, sospecha.</li>
         </ul>
-        <p className="mt-4 text-brand-950/70 font-light">
+        <p className="mt-4 text-brand-950/70 font-light text-base">
           <Link to="/precios" className="text-brand-logo font-medium hover:underline">Mira los planes y precios de QuickTap</Link>{' '}
           o explora las funciones una por una desde el pie de esta página.
         </p>

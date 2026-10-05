@@ -131,7 +131,7 @@ export function ResumenRecetas({ recetas }: { recetas: RecetaResumen[] }) {
         <div className="space-y-3 border-t border-brand-950/10 px-3 py-3">
           {prepsNuevas.size > 0 && (
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+              <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">
                 Preparaciones nuevas ({prepsNuevas.size})
               </p>
               <ul className="mt-1 space-y-1">
@@ -150,7 +150,7 @@ export function ResumenRecetas({ recetas }: { recetas: RecetaResumen[] }) {
 
           {insumosNuevos.size > 0 ? (
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+              <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">
                 Insumos que no existen y se van a crear ({insumosNuevos.size})
               </p>
               <ul className="mt-1 space-y-1">
@@ -166,13 +166,13 @@ export function ResumenRecetas({ recetas }: { recetas: RecetaResumen[] }) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 text-[11px] font-light text-brand-950/40">
+              <p className="mt-1.5 font-light text-brand-950/40 text-xs">
                 Entran sin costo y sin stock: el precio de compra es del cliente. Un insumo que aparece en un solo
                 plato y suena raro suele ser la IA adornando — bórralo de esa ficha y no se crea.
               </p>
             </div>
           ) : (
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               No hace falta crear ningún insumo: todo lo que llevan estas recetas ya está en su inventario.
             </p>
           )}
@@ -254,7 +254,7 @@ export function ResumenInsumos({ insumos }: { insumos: InsumoResumen[] }) {
         <div className="space-y-3 border-t border-brand-950/10 px-3 py-3">
           {conImpacto.length > 0 ? (
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+              <p className="font-medium uppercase tracking-wide text-brand-950/40 text-xs">
                 Precios que van a llegar a una receta ({conImpacto.length})
               </p>
               <ul className="mt-1 space-y-1">
@@ -278,14 +278,14 @@ export function ResumenInsumos({ insumos }: { insumos: InsumoResumen[] }) {
               </ul>
             </div>
           ) : (
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               Ninguno de estos precios llega a una receta todavía: o son insumos nuevos, o los que ya existían no se
               usan en ningún plato.
             </p>
           )}
 
           {empaques > 0 && (
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               <span className="font-medium text-brand-950/70">{empaques} van a la ventana de empaques:</span>{' '}
               {incluidos
                 .filter((i) => i.tipoEmpaque)

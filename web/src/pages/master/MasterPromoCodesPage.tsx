@@ -74,17 +74,17 @@ export default function MasterPromoCodesPage() {
 
       <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Código</span>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="LANZAMIENTO20"
               required
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 uppercase"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 uppercase text-base"
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Descuento: {discountPercent}%</span>
             <input
               type="range"
@@ -107,13 +107,13 @@ export default function MasterPromoCodesPage() {
               value={durationValue}
               onChange={(e) => setDurationValue(e.target.value)}
               placeholder="Sin vencimiento"
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
             />
             <select
               value={durationUnit}
               onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}
               disabled={!durationValue}
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+              className="border border-brand-950/15 rounded-lg px-3 py-2 disabled:opacity-50 text-base"
             >
               {(Object.keys(DURATION_UNIT_LABEL) as DurationUnit[]).map((u) => (
                 <option key={u} value={u}>
@@ -122,24 +122,24 @@ export default function MasterPromoCodesPage() {
               ))}
             </select>
           </div>
-          <p className="text-xs text-brand-950/40 font-light mt-1">
+          <p className="text-brand-950/40 font-light mt-1 text-xs">
             El código deja de funcionar automáticamente al vencer. Déjalo vacío para que no venza.
           </p>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
           {saving ? 'Creando…' : 'Crear código'}
         </TextureButton>
       </form>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-        {codes?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin códigos todavía.</p>}
+        {codes?.length === 0 && <p className="p-5 text-brand-950/40 font-light text-base">Sin códigos todavía.</p>}
         {codes?.map((c) => (
           <div key={c.id} className="flex items-center justify-between gap-3 px-5 py-4">
             <div>
-              <p className="font-medium text-brand-950">{c.code}</p>
-              <p className="text-xs text-brand-950/40 font-light">
+              <p className="font-medium text-brand-950 text-base">{c.code}</p>
+              <p className="text-brand-950/40 font-light text-xs">
                 -{c.discountPercent}%
                 {c.expiresAt && (
                   <>

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Star, Trash2, UserPlus } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { canManagePartners } from '@/utils/roles';
-import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
-import { crmApi, type CrmCustomer } from './crmApi';
+import { useAuth } from '@/context/AuthContext.shared';
+import { formatBase } from '@/utils/format';
+import { canManagePartners } from '@/utils/roles';
+import { Loader2,Star,Trash2,UserPlus } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { crmApi,type CrmCustomer } from './crmApi';
 
 type Rango = 'day' | 'week' | 'month' | 'year';
 const RANGOS: { id: Rango; label: string }[] = [
@@ -99,17 +99,17 @@ export function PartnersSection() {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-3">
-        <p className="text-sm font-semibold text-violet-900 flex items-center gap-1.5">
+        <p className="font-semibold text-violet-900 flex items-center gap-1.5 text-base">
           <Star className="h-4 w-4" /> Socios
         </p>
-        <p className="text-xs text-violet-900/70 font-light leading-relaxed mt-1">
+        <p className="text-violet-900/70 font-light leading-relaxed mt-1 text-xs">
           Consumen a cuenta. Lo que se llevan <span className="font-semibold">no cuenta como venta</span> y no entra en
           administración, pero <span className="font-semibold">sí se descuenta del inventario</span>. Solo un dueño o
           administrador puede agregarlos.
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
@@ -135,7 +135,7 @@ export function PartnersSection() {
 
       {buscando && (
         <div className="rounded-2xl border border-brand-950/10 p-3 space-y-2">
-          <p className="text-xs font-semibold text-brand-950/50">
+          <p className="font-semibold text-brand-950/50 text-xs">
             Busca al cliente y márcalo como socio. Si no existe todavía, créalo primero en Clientes.
           </p>
           <input
@@ -143,7 +143,7 @@ export function PartnersSection() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre, teléfono o cédula…"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-3 py-2"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
           />
           <div className="max-h-56 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/10">
             {candidatos.map((c) => (
@@ -167,7 +167,7 @@ export function PartnersSection() {
               </button>
             ))}
             {candidatos.length === 0 && (
-              <p className="px-3 py-3 text-center text-xs text-brand-950/40 font-light">Sin resultados.</p>
+              <p className="px-3 py-3 text-center text-brand-950/40 font-light text-xs">Sin resultados.</p>
             )}
           </div>
           <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setBuscando(false)}>
@@ -200,9 +200,9 @@ export function PartnersSection() {
           )}
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-brand-950">Socios ({socios.length})</p>
+            <p className="font-semibold text-brand-950 text-base">Socios ({socios.length})</p>
             {socios.length === 0 ? (
-              <p className="text-sm text-brand-950/40 font-light">
+              <p className="text-brand-950/40 font-light text-base">
                 Todavía no hay socios. {puedeGestionar ? 'Usa "Agregar socio".' : 'Solo un administrador puede agregarlos.'}
               </p>
             ) : (
@@ -212,17 +212,17 @@ export function PartnersSection() {
                   return (
                     <div key={s.id} className="flex items-center gap-3 px-3 py-2.5">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-brand-950 truncate">{s.name}</p>
-                        <p className="text-xs text-brand-950/50 truncate">
+                        <p className="font-medium text-brand-950 truncate text-base">{s.name}</p>
+                        <p className="text-brand-950/50 truncate text-xs">
                           {s.phone}
                           {s.idNumber ? ` · ${s.idNumber}` : ''}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-brand-950">
+                        <p className="font-bold text-brand-950 text-base">
                           {formatBase(consumo?.costoBase ?? '0.00', symbol)}
                         </p>
-                        <p className="text-[10px] text-brand-950/40">{consumo?.pedidos ?? 0} pedidos</p>
+                        <p className="text-brand-950/40 text-xs">{consumo?.pedidos ?? 0} pedidos</p>
                       </div>
                       {puedeGestionar && (
                         <button
@@ -242,7 +242,7 @@ export function PartnersSection() {
               </div>
             )}
             {puedeGestionar && socios.length > 0 && (
-              <p className="text-[11px] font-light text-brand-950/40">
+              <p className="font-light text-brand-950/40 text-xs">
                 Quitar a alguien como socio no borra su ficha ni cambia lo que ya consumió: los pedidos viejos siguen
                 siendo consumo interno.
               </p>
@@ -251,7 +251,7 @@ export function PartnersSection() {
 
           {reporte && reporte.productos.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-brand-950">Qué consumieron</p>
+              <p className="font-semibold text-brand-950 text-base">Qué consumieron</p>
               <div className="rounded-2xl border border-brand-950/10 divide-y divide-brand-950/10 overflow-hidden">
                 {reporte.productos.slice(0, 15).map((p) => (
                   <div key={p.name} className="flex items-center justify-between gap-3 px-3 py-2">
@@ -273,9 +273,9 @@ export function PartnersSection() {
 function Cifra({ titulo, valor, nota, destacado }: { titulo: string; valor: string; nota?: string; destacado?: boolean }) {
   return (
     <div className={`rounded-2xl border px-3 py-2.5 ${destacado ? 'border-violet-200 bg-violet-50/60' : 'border-brand-950/10'}`}>
-      <p className="text-[11px] font-medium text-brand-950/50">{titulo}</p>
+      <p className="font-medium text-brand-950/50 text-xs">{titulo}</p>
       <p className={`text-lg font-bold tabular-nums ${destacado ? 'text-violet-900' : 'text-brand-950'}`}>{valor}</p>
-      {nota && <p className="text-[10px] font-light text-brand-950/40 leading-tight mt-0.5">{nota}</p>}
+      {nota && <p className="font-light text-brand-950/40 leading-tight mt-0.5 text-xs">{nota}</p>}
     </div>
   );
 }

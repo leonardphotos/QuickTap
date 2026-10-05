@@ -124,7 +124,7 @@ export default function MasterAiUsagePage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Consumo de IA</h1>
-          <p className="mt-1 text-sm font-light text-brand-950/50">
+          <p className="mt-1 font-light text-brand-950/50 text-base">
             Lo que gasta QuickTap en Gemini. Cada llamada de la carga de catálogo queda registrada con lo que costó, en
             qué se usó y a qué cliente se le estaba cargando.
           </p>
@@ -155,7 +155,7 @@ export default function MasterAiUsagePage() {
         </div>
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700 text-base">{error}</p>}
 
       {datos && t && (
         <>
@@ -208,7 +208,7 @@ export default function MasterAiUsagePage() {
 
           <Tarjeta titulo="Últimas llamadas">
             {datos.ultimas.length === 0 ? (
-              <p className="text-sm font-light text-brand-950/40">Nada todavía.</p>
+              <p className="font-light text-brand-950/40 text-base">Nada todavía.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -259,7 +259,7 @@ export default function MasterAiUsagePage() {
       )}
 
       {!datos && !cargando && !error && (
-        <p className="text-sm font-light text-brand-950/40">Sin datos todavía.</p>
+        <p className="font-light text-brand-950/40 text-base">Sin datos todavía.</p>
       )}
     </div>
   );
@@ -268,9 +268,9 @@ export default function MasterAiUsagePage() {
 function Kpi({ titulo, valor, detalle, alerta }: { titulo: string; valor: string; detalle: string; alerta?: boolean }) {
   return (
     <div className={`rounded-2xl border bg-white p-4 shadow-sm ${alerta ? 'border-amber-300' : 'border-brand-950/10'}`}>
-      <p className="text-[11px] uppercase tracking-wide text-brand-950/40">{titulo}</p>
+      <p className="uppercase tracking-wide text-brand-950/40 text-xs">{titulo}</p>
       <p className="mt-0.5 text-2xl font-semibold tabular-nums text-brand-950">{valor}</p>
-      <p className="text-[11px] font-light text-brand-950/50">{detalle}</p>
+      <p className="font-light text-brand-950/50 text-xs">{detalle}</p>
     </div>
   );
 }
@@ -278,7 +278,7 @@ function Kpi({ titulo, valor, detalle, alerta }: { titulo: string; valor: string
 function Tarjeta({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3 rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
-      <p className="font-semibold text-brand-950">{titulo}</p>
+      <p className="font-semibold text-brand-950 text-base">{titulo}</p>
       {children}
     </div>
   );
@@ -368,7 +368,7 @@ function ListaGrupos({
   etiqueta: (clave: string) => string;
   vacio: string;
 }) {
-  if (grupos.length === 0) return <p className="text-sm font-light text-brand-950/40">{vacio}</p>;
+  if (grupos.length === 0) return <p className="font-light text-brand-950/40 text-base">{vacio}</p>;
   return (
     <ul className="space-y-2">
       {grupos.map((g) => {

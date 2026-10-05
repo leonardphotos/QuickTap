@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ShopProductSeed, ShopVariant } from '@/data/shopRubros';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { shopApi, toShopProduct } from './shopApi';
-import type { RawShopTicket } from './shopApi';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { ShopProductSeed,ShopVariant } from '@/data/shopRubros';
+import { useCallback,useEffect,useRef,useState } from 'react';
 import { rollWidthLabel } from './printPricing';
+import type { RawShopTicket } from './shopApi';
+import { shopApi,toShopProduct } from './shopApi';
+import { shopTierPrice, type PriceTier } from '@/utils/shop-tier-price';
 
 /**
  * Estado de una sesión de QuickTap Shop: catálogo, carrito, ventas, compras y caja. El carrito
@@ -18,8 +19,10 @@ import { rollWidthLabel } from './printPricing';
 export type ShopProduct = ShopProductSeed;
 
 export interface CartLine {
+  priceTiers?: PriceTier[];
   key: string;
   productId: string;
+  variantId?: string;
   name: string;
   price: number;
   /** Copiados del producto al agregar — permiten recalcular el precio efectivo en vivo a medida
@@ -64,14 +67,14 @@ export interface CartLine {
 
 /** Precio unitario que realmente aplica a una línea del carrito: la promoción siempre gana (si
  * está seteada), si no el mayorista cuando la cantidad llega al mínimo, si no el precio de lista. */
-export function effectivePrice(c: Pick<CartLine, 'price' | 'promoPrice' | 'wholesalePrice' | 'wholesaleMinQty' | 'qty'>): number {
-  if (c.promoPrice != null) return c.promoPrice;
-  if (c.wholesalePrice != null && c.wholesaleMinQty != null && c.qty >= c.wholesaleMinQty) return c.wholesalePrice;
-  return c.price;
+export function effectivePrice(c: Pick<CartLine, 'price' | 'promoPrice' | 'wholesalePrice' | 'wholesaleMinQty' | 'priceTiers' | 'qty'>): number {
+  return shopTierPrice(c, c.qty);
 }
 
 export interface SaleItem {
+  pricingDiscountPercent?: number;
   productId: string;
+  variantId?: string;
   v1: string;
   v2: string;
   name: string;
@@ -100,6 +103,8 @@ export type CreditTerms = 'FULL' | 'INSTALLMENT';
 
 export interface Sale {
   id: string;
+  receiptNumber?: number;
+  serverReceipt?: Promise<{ id: string; receiptNumber: number }>;
   items: SaleItem[];
   total: number;
   time: Date;
@@ -108,12 +113,15 @@ export interface Sale {
    * al mismo cliente entre varias compras en la pantalla de Clientes. */
   customerPhone: string | null;
   returned: boolean;
+  returnedAt: Date | null;
   paymentMethod: string | null;
   paymentMeta: PaymentMeta | null;
   /** Venta fiada: 'FULL' = se paga todo más adelante, 'INSTALLMENT' = se abonó algo ahora, resto pendiente. Null = venta normal. */
   creditTerms: CreditTerms | null;
   /** Solo relevante si creditTerms está seteado — cuánto se cobró en el momento de la venta. */
   amountPaidNow: number | null;
+  /** Abonos posteriores de una venta fiada; el arqueo los atribuye al turno en que entraron. */
+  payments: { id: string; amount: number; method: string | null; createdAt: Date }[];
   /** Quién cobró la venta (cajero/vendedor) — nombre congelado al momento de vender, para el
    * historial cuando el local tiene varios usuarios con acceso a la caja. */
   soldByUserId: string | null;
@@ -269,6 +277,7 @@ function applyStockMovement(
 }
 
 export interface NewProductInput {
+  priceTiers?: PriceTier[];
   name: string;
   category: string;
   subcategory: string;
@@ -353,10 +362,10 @@ export function useShopSession(initialCategories: string[] = []) {
    * líneas que YA tienen un profesional no se tocan, para que un ticket con dos barberos siga
    * funcionando (se elige uno, se agrega lo suyo, se cambia y se agrega lo del otro).
    */
-  function selectActiveStaff(userId: string) {
+  const selectActiveStaff = useCallback((userId: string) => {
     setActiveStaffUserId(userId);
     setCart((prev) => prev.map((c) => (c.staffUserId ? c : { ...c, staffUserId: userId || undefined })));
-  }
+  }, []);
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -394,8 +403,10 @@ export function useShopSession(initialCategories: string[] = []) {
         setSales(
           state.sales.map((s) => ({
             id: s.id,
+            receiptNumber: s.receiptNumber,
             items: s.items.map((it) => ({
               productId: it.productId ?? '',
+              variantId: it.variantId ?? undefined,
               v1: it.v1,
               v2: it.v2,
               name: it.name,
@@ -415,10 +426,12 @@ export function useShopSession(initialCategories: string[] = []) {
             customerName: s.customerName,
             customerPhone: s.customerPhone,
             returned: s.returned,
+            returnedAt: s.returnedAt ? new Date(s.returnedAt) : null,
             paymentMethod: s.paymentMethod,
             paymentMeta: s.paymentMeta,
             creditTerms: s.creditTerms,
             amountPaidNow: s.amountPaidNow,
+            payments: s.payments.map((payment) => ({ ...payment, createdAt: new Date(payment.createdAt) })),
             soldByUserId: s.soldByUserId,
             soldByUserName: s.soldByUserName,
           })),
@@ -449,11 +462,9 @@ export function useShopSession(initialCategories: string[] = []) {
             time: new Date(a.time),
           })),
         );
-        setCategories((prev) => {
-          const merged = [...state.categories];
-          for (const c of prev) if (!merged.includes(c)) merged.push(c);
-          return merged;
-        });
+        // El servidor es la fuente de verdad: volver a añadir las categorías iniciales
+        // haría reaparecer una categoría que el dueño acaba de eliminar.
+        setCategories(state.categories);
         setSubcategories(state.subcategories);
         setTill(state.till ? { opening: state.till.opening, openedAt: new Date(state.till.openedAt) } : null);
         setClosedTills(
@@ -490,6 +501,36 @@ export function useShopSession(initialCategories: string[] = []) {
     shopApi.addCategory(trimmed).catch((err) => console.error('No se pudo guardar la categoría', err));
   }
 
+  async function renameCategory(oldName: string, name: string) {
+    await shopApi.renameCategory(oldName, name);
+    setCategories((prev) => prev.map((c) => c === oldName ? name : c));
+    setProducts((prev) => prev.map((p) => p.category === oldName ? { ...p, category: name } : p));
+    setSubcategories((prev) => {
+      const next = { ...prev };
+      next[name] = next[oldName] ?? [];
+      delete next[oldName];
+      return next;
+    });
+  }
+
+  async function deleteCategory(name: string, destination?: string) {
+    await shopApi.deleteCategory(name, destination);
+    setCategories((prev) => prev.filter((c) => c !== name));
+    if (destination) setProducts((prev) => prev.map((p) => p.category === name ? { ...p, category: destination, subcategory: '' } : p));
+    setSubcategories((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  }
+
+  async function moveProductsToCategory(ids: string[], category: string) {
+    const realIds = await Promise.all(ids.map(resolveServerProductId));
+    await shopApi.moveProductsToCategory(realIds, category);
+    const selected = new Set(ids);
+    setProducts((prev) => prev.map((p) => selected.has(p.id) ? { ...p, category, subcategory: '' } : p));
+  }
+
   function addSubcategory(category: string, name: string) {
     const trimmed = name.trim();
     if (!trimmed || !category) return;
@@ -513,6 +554,7 @@ export function useShopSession(initialCategories: string[] = []) {
         {
           key,
           productId: product.id,
+          variantId: variant.id,
           name: product.name,
           // La variante manda cuando trae precio propio: en la lista de Monteranch la misma
           // manguera vale distinto según la presión, y todo lo de abajo (subtotal, comanda,
@@ -520,6 +562,7 @@ export function useShopSession(initialCategories: string[] = []) {
           price: variant.price ?? product.price,
           cost: variant.cost,
           wholesalePrice: product.wholesalePrice,
+          priceTiers: product.priceTiers,
           wholesaleMinQty: product.wholesaleMinQty,
           promoPrice: product.promoPrice,
           v1: variant.v1,
@@ -527,6 +570,7 @@ export function useShopSession(initialCategories: string[] = []) {
           qty,
           disc: 0,
           soldByWeight: variant.soldByWeight,
+          unitLabel: product.saleUnit === 'MT' ? 'm' : product.saleUnit === 'KG' ? 'Kg' : undefined,
           staffUserId: activeStaffUserId || undefined,
         },
       ];
@@ -549,6 +593,7 @@ export function useShopSession(initialCategories: string[] = []) {
         name: product.name,
         price: product.price,
         promoPrice: product.promoPrice,
+        priceTiers: product.priceTiers,
         // v1 = ancho del rollo: identifica la variante que lleva los metros lineales de ESE
         // rollo, que es de donde se descuenta el material (ver rollWidthLabel).
         v1: rollWidthLabel(quote.rollWidth),
@@ -569,10 +614,11 @@ export function useShopSession(initialCategories: string[] = []) {
    * de Publicidad — ver ShopPosPage): no hay ShopProduct/ShopVariant detrás, así que name/price/cost
    * se escriben a mano en el momento de la venta en vez de venir de un producto existente. */
   function addAdhocLine(name: string, price: number, cost: number) {
+    if (!name.trim() || !Number.isFinite(price) || price <= 0 || !Number.isFinite(cost) || cost < 0) return;
     setCart((prev) => [
       ...prev,
       {
-        key: `adhoc-${Date.now()}`,
+        key: `adhoc-${crypto.randomUUID()}`,
         productId: '',
         name,
         price,
@@ -648,34 +694,34 @@ export function useShopSession(initialCategories: string[] = []) {
     setCart([]);
   }
 
-  function openTill(opening: number) {
-    setTill({ opening, openedAt: new Date() });
-    shopApi.openTill(opening).catch((err) => console.error('No se pudo abrir la caja en el servidor', err));
+  async function openTill(opening: number) {
+    const opened = await shopApi.openTill(opening);
+    setTill({ opening: opened.opening, openedAt: new Date(opened.openedAt) });
   }
 
   /** Cierra la caja y congela el arqueo en closedTills — antes el resumen se perdía apenas se
    * cerraba (no quedaba ningún "informe de caja" para consultar después). */
-  function closeTill(counted: number) {
+  async function closeTill(counted: number) {
     if (!till) return;
-    const salesSinceOpen = sales.filter((s) => !s.returned && s.time >= till.openedAt);
-    const totalSales = salesSinceOpen.reduce((a, s) => a + s.total, 0);
-    const expected = till.opening + totalSales;
+    // El servidor vuelve a calcular el arqueo contra la base en el instante del cierre. Es la
+    // única fuente fiable si otra tablet registró un abono o devolución mientras esta estaba
+    // abierta; el cliente no fabrica un informe optimista que luego cambie al recargar.
+    const closed = await shopApi.closeTill(counted);
     setClosedTills((prev) => [
       {
-        id: `ct${Date.now()}`,
-        openedAt: till.openedAt,
-        closedAt: new Date(),
-        opening: till.opening,
-        salesCount: salesSinceOpen.length,
-        totalSales,
-        expected,
-        counted,
-        diff: counted - expected,
+        id: closed.id,
+        openedAt: new Date(closed.openedAt),
+        closedAt: new Date(closed.closedAt as string),
+        opening: closed.opening,
+        salesCount: closed.salesCount ?? 0,
+        totalSales: closed.totalSales ?? 0,
+        expected: closed.expected ?? 0,
+        counted: closed.counted ?? 0,
+        diff: closed.diff ?? 0,
       },
       ...prev,
     ]);
     setTill(null);
-    shopApi.closeTill(counted).catch((err) => console.error('No se pudo cerrar la caja en el servidor', err));
   }
 
   function checkout(
@@ -696,12 +742,14 @@ export function useShopSession(initialCategories: string[] = []) {
       const product = products.find((p) => p.id === c.productId);
       return {
         productId: c.productId,
+        variantId: c.variantId,
         v1: c.v1,
         v2: c.v2,
         name: c.name,
         category: product ? product.category : null,
         qty: c.qty,
         price: effectivePrice(c) * (1 - (c.disc || 0) / 100),
+        pricingDiscountPercent: c.disc || 0,
         // Mismo criterio que el precio: costo de la variante si lo tiene. El servidor lo
         // vuelve a resolver al guardar (ver recordSale), esto es para el margen en pantalla.
         cost: c.cost ?? (product ? product.cost : 0),
@@ -735,10 +783,12 @@ export function useShopSession(initialCategories: string[] = []) {
       customerName: customer?.name || null,
       customerPhone: customer?.phone || null,
       returned: false,
+      returnedAt: null,
       paymentMethod,
       paymentMeta,
       creditTerms: credit?.terms ?? null,
       amountPaidNow: credit ? credit.amountPaidNow : null,
+      payments: [],
       soldByUserId: user?.id ?? null,
       soldByUserName: user?.name ?? null,
     };
@@ -781,7 +831,12 @@ export function useShopSession(initialCategories: string[] = []) {
     const serverTickets = recordSalePromise.then((s) => s.tickets ?? []);
     serverTickets.catch(() => {});
 
-    return { ...sale, serverSaleId, serverTickets };
+    const serverReceipt = recordSalePromise.then(s => {
+      setSales(previous => previous.map(row => row.id === sale.id ? { ...row, id: s.id, receiptNumber: s.receiptNumber } : row));
+      return { id: s.id, receiptNumber: s.receiptNumber };
+    });
+    serverReceipt.catch(() => {});
+    return { ...sale, serverSaleId, serverTickets, serverReceipt };
   }
 
   /**
@@ -816,15 +871,17 @@ export function useShopSession(initialCategories: string[] = []) {
       customerName: null,
       customerPhone: null,
       returned: false,
+      returnedAt: null,
       paymentMethod: input.paymentMethod,
       paymentMeta,
       creditTerms: null,
       amountPaidNow: null,
+      payments: [],
       soldByUserId: user?.id ?? null,
       soldByUserName: user?.name ?? null,
     };
     setSales((prev) => [sale, ...prev]);
-    shopApi
+    const serverReceipt = shopApi
       .recordSale({
         items: saleItems.map((it) => ({ ...it, productId: undefined })),
         total,
@@ -836,15 +893,19 @@ export function useShopSession(initialCategories: string[] = []) {
         amountPaidNow: null,
         bankAccountId: input.bankAccountId ?? undefined,
       })
-      .catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
-    return sale;
+      .then(s => {
+        setSales(previous => previous.map(row => row.id === sale.id ? { ...row, id: s.id, receiptNumber: s.receiptNumber } : row));
+        return { id: s.id, receiptNumber: s.receiptNumber };
+      });
+    serverReceipt.catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
+    return { ...sale, serverReceipt };
   }
 
   function returnSale(saleId: string) {
     const sale = sales.find((s) => s.id === saleId);
     if (!sale || sale.returned) return;
     setProducts((prev) => applyStockMovement(prev, sale.items, serviceSupplies, 1));
-    setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, returned: true } : s)));
+    setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, returned: true, returnedAt: new Date() } : s)));
     shopApi.returnSale(saleId).catch((err) => console.error('No se pudo registrar la devolución en el servidor', err));
   }
 
@@ -984,20 +1045,19 @@ export function useShopSession(initialCategories: string[] = []) {
    * Si el servidor rechaza el cambio se revierte en pantalla: dejar los productos "publicados"
    * localmente haría creer que la tienda ya los muestra cuando no.
    */
-  function setProductsPublished(ids: string[], isPublished: boolean) {
+  async function setProductsPublished(ids: string[], isPublished: boolean) {
     const affected = new Set(ids);
     const previous = products;
     setProducts((prev) => prev.map((p) => (affected.has(p.id) ? { ...p, isPublished } : p)));
 
-    (async () => {
-      try {
-        const realIds = await Promise.all(ids.map((id) => resolveServerProductId(id)));
-        await shopApi.setProductsPublished(realIds, isPublished);
-      } catch (err) {
-        console.error('No se pudo actualizar la vitrina en el servidor', err);
-        setProducts(previous);
-      }
-    })();
+    try {
+      const realIds = await Promise.all(ids.map((id) => resolveServerProductId(id)));
+      await shopApi.setProductsPublished(realIds, isPublished);
+    } catch (err) {
+      console.error('No se pudo actualizar la vitrina en el servidor', err);
+      setProducts(previous);
+      throw err;
+    }
   }
 
   /**
@@ -1041,6 +1101,9 @@ export function useShopSession(initialCategories: string[] = []) {
     categories,
     subcategories,
     addCategory,
+    renameCategory,
+    deleteCategory,
+    moveProductsToCategory,
     addSubcategory,
     addToCart,
     addAdhocLine,

@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
-import { ReportReceipt, REPORT_AREA_LABELS, type ReportData, type ReportKind } from './ReportReceipt';
+import { useAuth } from '@/context/AuthContext.shared';
+import { useRef,useState } from 'react';
+import { ReportReceipt,type ReportData } from './ReportReceipt';
+import { REPORT_AREA_LABELS,type ReportKind } from './ReportReceipt.shared';
 
 function todayStr(): string {
   const now = new Date();
@@ -105,11 +106,11 @@ export function ReportPickerForm({ onGenerated }: { onGenerated: (report: Report
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Área</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Área</p>
         <select
           value={area}
           onChange={(e) => setArea(e.target.value as ReportKind)}
-          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
         >
           {(Object.keys(REPORT_AREA_LABELS) as ReportKind[]).map((k) => (
             <option key={k} value={k}>
@@ -120,7 +121,7 @@ export function ReportPickerForm({ onGenerated }: { onGenerated: (report: Report
       </div>
 
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Período</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Período</p>
         <div className="flex flex-wrap gap-1.5">
           {(Object.keys(RANGE_OPTION_LABELS) as ReportRangeOption[]).map((r) => (
             <button
@@ -139,18 +140,18 @@ export function ReportPickerForm({ onGenerated }: { onGenerated: (report: Report
 
       {rangeOption === 'custom' && (
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha exacta</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Fecha exacta</p>
           <input
             type="date"
             value={date}
             max={todayStr()}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <TextureButton variant="brand" size="default" disabled={generating} onClick={generate} className="disabled:opacity-50">
         {generating ? 'Generando…' : 'Generar reporte'}
@@ -174,7 +175,7 @@ export function ReportResult({ report, dateLabel, area }: { report: ReportData; 
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-brand-950/70">
+      <p className="text-brand-950/70 text-base">
         Reporte de {REPORT_AREA_LABELS[report.kind]} del {dateLabel} listo. Descarga el PDF para tu registro.
       </p>
       <TextureButton variant="brand" size="default" onClick={download}>

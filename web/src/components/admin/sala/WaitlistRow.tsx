@@ -33,8 +33,8 @@ export function WaitlistRow({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-brand-950">{entry.customerName}</p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-brand-950/50">
+          <p className="truncate font-semibold text-brand-950 text-base">{entry.customerName}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-2 text-brand-950/50 text-xs">
             <span className="flex items-center gap-1">
               <Users className="h-3 w-3" /> {entry.partySize}
             </span>
@@ -51,7 +51,7 @@ export function WaitlistRow({
               entry.zone && <span className="truncate">{entry.zone.name}</span>
             )}
           </p>
-          {entry.note && <p className="mt-0.5 truncate text-[11px] italic text-brand-950/40">{entry.note}</p>}
+          {entry.note && <p className="mt-0.5 truncate italic text-brand-950/40 text-xs">{entry.note}</p>}
         </div>
         {entry.status === 'NOTIFIED' && (
           <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">

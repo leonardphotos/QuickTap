@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, RotateCcw, ScanLine, Trash2, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
+import { AlertTriangle,CheckCircle2,RotateCcw,ScanLine,Trash2,XCircle } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
 import { playScannerSound } from './shopSounds';
 
 /**
@@ -83,7 +83,7 @@ export default function ShopTicketsPage() {
     try {
       // El QR puede traer la URL completa si alguien lo generó así: se queda con el token.
       const token = codigo.trim().replace(/^.*\/entrada\//, '');
-      const { data } = await api.post('/shop/tickets/check-in', { accessToken: token });
+      const { data } = await api.post('/shop/tickets/check-in', { accessToken: token, eventId: eventoId || undefined });
       const r = data.data;
       setResultado({
         tipo: r.resultado,
@@ -160,24 +160,24 @@ export default function ShopTicketsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-brand-950">Entradas</h1>
-        <p className="text-sm font-light text-brand-950/50">
+        <p className="font-light text-brand-950/50 text-base">
           Escanea el código de cada asistente en la puerta. Una entrada ya usada se avisa al momento.
         </p>
       </div>
 
       {eventos?.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-brand-950/15 py-10 text-center text-sm font-light text-brand-950/40">
+        <p className="rounded-2xl border border-dashed border-brand-950/15 py-10 text-center font-light text-brand-950/40 text-base">
           Todavía no hay eventos. Créalos en Inventario, en la categoría Tickets.
         </p>
       )}
 
       {eventos && eventos.length > 0 && (
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Evento</span>
           <select
             value={eventoId}
             onChange={(e) => setEventoId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 sm:max-w-md"
+            className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 sm:max-w-md text-base"
           >
             {eventos.map((e) => (
               <option key={e.id} value={e.id}>
@@ -194,8 +194,8 @@ export default function ShopTicketsPage() {
         <>
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand-950/[0.08] bg-white p-4">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-brand-950">{evento.nombre}</p>
-              <p className="text-xs font-light text-brand-950/50">
+              <p className="font-semibold text-brand-950 text-base">{evento.nombre}</p>
+              <p className="font-light text-brand-950/50 text-xs">
                 {evento.fecha?.split('-').reverse().join('/')}
                 {evento.hora && ` · ${evento.hora}`}
                 {` · ${evento.emitidas} entradas emitidas`}
@@ -207,7 +207,7 @@ export default function ShopTicketsPage() {
                 {evento.verificadas}
                 <span className="text-base font-medium text-brand-950/40">/{evento.emitidas}</span>
               </p>
-              <p className="text-[11px] font-light text-brand-950/45">ya entraron</p>
+              <p className="font-light text-brand-950/45 text-xs">ya entraron</p>
             </div>
             <button
               type="button"
@@ -246,8 +246,8 @@ export default function ShopTicketsPage() {
                     return <Icono className="h-7 w-7 shrink-0" />;
                   })()}
                   <div className="min-w-0">
-                    <p className="text-[15px] font-bold leading-tight">{resultado.mensaje}</p>
-                    {resultado.detalle && <p className="truncate text-[12px] opacity-90">{resultado.detalle}</p>}
+                    <p className="font-bold leading-tight text-base">{resultado.mensaje}</p>
+                    {resultado.detalle && <p className="truncate opacity-90 text-xs">{resultado.detalle}</p>}
                   </div>
                 </div>
               )}
@@ -261,13 +261,13 @@ export default function ShopTicketsPage() {
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar por puesto, nombre o teléfono"
-                className="w-full max-w-xs rounded-lg border border-brand-950/15 px-3 py-1.5 text-sm"
+                className="w-full max-w-xs rounded-lg border border-brand-950/15 px-3 py-1.5 text-base"
               />
             </div>
 
-            {lista === null && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
+            {lista === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
             {lista?.tickets.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-brand-950/15 py-8 text-center text-sm font-light text-brand-950/40">
+              <p className="rounded-2xl border border-dashed border-brand-950/15 py-8 text-center font-light text-brand-950/40 text-base">
                 Todavía no se ha vendido ninguna entrada de este evento.
               </p>
             )}
@@ -288,8 +288,8 @@ export default function ShopTicketsPage() {
                     {t.puesto}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-brand-950">{t.titular ?? 'Sin nombre'}</p>
-                    <p className="text-[11px] font-light text-brand-950/45">
+                    <p className="truncate font-medium text-brand-950 text-base">{t.titular ?? 'Sin nombre'}</p>
+                    <p className="font-light text-brand-950/45 text-xs">
                       {t.telefono ?? 'sin teléfono'}
                       {t.usada && t.usadaEl && ` · entró ${new Date(t.usadaEl).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}`}
                     </p>

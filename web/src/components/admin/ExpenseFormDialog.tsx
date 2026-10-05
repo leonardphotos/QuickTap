@@ -1,52 +1,13 @@
-import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { methodAccountsOf } from '@/utils/payment-accounts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { SupplierPicker } from './SupplierPicker';
-import { MethodAccountPicker } from './MethodAccountPicker';
+import { useAuth } from '@/context/AuthContext.shared';
 import type { Supplier } from '@/types';
-
-export type ExpenseCategory =
-  | 'UTILITIES'
-  | 'SUPPLIES'
-  | 'RENT'
-  | 'PAYROLL'
-  | 'ADMINISTRATIVE'
-  | 'MARKETING'
-  | 'TRANSPORT'
-  | 'MAINTENANCE'
-  | 'FURNITURE'
-  | 'FUEL'
-  | 'TRAVEL'
-  | 'MEALS'
-  | 'LODGING'
-  | 'OTHER';
-
-export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  UTILITIES: 'Servicios públicos',
-  SUPPLIES: 'Compra de producto e insumos',
-  RENT: 'Arriendo',
-  PAYROLL: 'Nómina',
-  ADMINISTRATIVE: 'Gastos administrativos',
-  MARKETING: 'Mercadeo y Publicidad',
-  TRANSPORT: 'Transporte (fletes, taxis)',
-  MAINTENANCE: 'Mantenimiento',
-  FURNITURE: 'Muebles',
-  FUEL: 'Combustible / gasolina',
-  TRAVEL: 'Viáticos y viajes',
-  MEALS: 'Comidas',
-  LODGING: 'Hospedaje / hotel',
-  OTHER: 'Otros',
-};
-
-export type ExpenseDocumentType = 'FISCAL_INVOICE' | 'DELIVERY_NOTE';
-
-export const DOCUMENT_TYPE_LABELS: Record<ExpenseDocumentType, string> = {
-  FISCAL_INVOICE: 'Factura fiscal',
-  DELIVERY_NOTE: 'Nota de entrega',
-};
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import { useEffect,useState } from 'react';
+import { CATEGORY_LABELS,DOCUMENT_TYPE_LABELS,type ExpenseCategory,type ExpenseDocumentType } from './ExpenseFormDialog.shared';
+import { MethodAccountPicker } from './MethodAccountPicker';
+import { SupplierPicker } from './SupplierPicker';
 
 /** Categorías de gasto de operación/viaje: para estas, el formulario ofrece de una vez los
  * campos de soporte (quién lo gastó, recibo) en vez de tenerlos escondidos. */
@@ -67,6 +28,8 @@ interface InventoryOption {
   id: string;
   name: string;
   unit: string;
+  quantity: string;
+  isProductStock?: boolean;
 }
 
 /** Gasto ya cargado que se está corrigiendo (monto mal tipeado, categoría equivocada, factura
@@ -98,6 +61,7 @@ export interface EditableExpense {
    * deshacía el ingreso de stock al guardar. */
   inventoryItem?: { id: string; name: string } | null;
   inventoryQuantity?: string | null;
+  inventoryRestocks?: { inventoryItemId: string | null; itemName: string; unit: string; quantity: string }[];
 }
 
 /** Casilla de "adjuntar foto" reusada 3 veces (factura, presupuesto, comprobante de pago) —
@@ -124,12 +88,11 @@ function AttachmentField({
             Quitar
           </button>
         ) : (
-          <label className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer">
+          <label className="text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer text-sm font-medium">
             Adjuntar
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -186,12 +149,14 @@ export function ExpenseForm({
     expense?.supplier ? ({ id: expense.supplier.id, name: expense.supplier.name } as Supplier) : null,
   );
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
-  const [isRestock, setIsRestock] = useState(!!expense?.inventoryItem);
+  const [isRestock, setIsRestock] = useState(!!expense?.inventoryItem || !!expense?.inventoryRestocks?.length);
   const [inventoryItems, setInventoryItems] = useState<InventoryOption[]>([]);
-  const [inventoryItemId, setInventoryItemId] = useState(expense?.inventoryItem?.id ?? '');
-  const [inventoryQuantity, setInventoryQuantity] = useState(
-    expense?.inventoryQuantity ? Number(expense.inventoryQuantity).toString() : '',
-  );
+  const [restockLines, setRestockLines] = useState<{ inventoryItemId: string; quantity: string }[]>(() => {
+    if (expense?.inventoryRestocks?.length) {
+      return expense.inventoryRestocks.map((line) => ({ inventoryItemId: line.inventoryItemId ?? '', quantity: Number(line.quantity).toString() }));
+    }
+    return [{ inventoryItemId: expense?.inventoryItem?.id ?? '', quantity: expense?.inventoryQuantity ? Number(expense.inventoryQuantity).toString() : '' }];
+  });
   const [isCredit, setIsCredit] = useState(expense?.isCredit ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -271,7 +236,9 @@ export function ExpenseForm({
 
   useEffect(() => {
     if (isRestock && inventoryItems.length === 0) {
-      api.get('/inventory').then((res) => setInventoryItems(res.data.data));
+      api.get('/inventory').then((res) =>
+        setInventoryItems((res.data.data as InventoryOption[]).filter((item) => !item.isProductStock)),
+      );
     }
   }, [isRestock, inventoryItems.length]);
 
@@ -285,8 +252,12 @@ export function ExpenseForm({
       setError('Escribe una descripción.');
       return;
     }
-    if (isRestock && (!inventoryItemId || !inventoryQuantity)) {
-      setError('Elige el insumo y la cantidad recibida.');
+    if (isRestock && restockLines.some((line) => !line.inventoryItemId || !(Number(line.quantity) > 0))) {
+      setError('Completa el insumo y la cantidad de cada línea.');
+      return;
+    }
+    if (isRestock && new Set(restockLines.map((line) => line.inventoryItemId)).size !== restockLines.length) {
+      setError('No repitas el mismo insumo en la factura.');
       return;
     }
     // El método de pago es obligatorio: sin él, el arqueo por método nunca cuadra. Solo el
@@ -320,8 +291,12 @@ export function ExpenseForm({
         // una compra no puede deshacer el ingreso de stock.
         ...(!supportsRestock && isEdit
           ? {}
+          : isEdit && (expense?.inventoryRestocks?.length ?? 0) > 1
+            ? {}
           : isRestock
-            ? { inventoryItemId, inventoryQuantity: Number(inventoryQuantity) }
+            ? isEdit
+              ? { inventoryItemId: restockLines[0]?.inventoryItemId, inventoryQuantity: Number(restockLines[0]?.quantity) }
+              : { inventoryRestocks: restockLines.map((line) => ({ inventoryItemId: line.inventoryItemId, quantity: Number(line.quantity) })) }
             : isEdit
               ? { inventoryItemId: null, inventoryQuantity: null }
               : {}),
@@ -355,7 +330,7 @@ export function ExpenseForm({
   if (showSupplierPicker) {
     return (
       <div className="space-y-3">
-        <p className="text-sm font-medium text-brand-950/70">Escoge el proveedor</p>
+        <p className="font-medium text-brand-950/70 text-base">Escoge el proveedor</p>
         <SupplierPicker
           onSelect={(s) => {
             setSupplier(s);
@@ -373,21 +348,21 @@ export function ExpenseForm({
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2">
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Monto</p>
           <input
             autoFocus
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
             placeholder="0.00"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
         </div>
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Moneda</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Moneda</p>
           <select
             value={amountCurrency}
             onChange={(e) => setAmountCurrency(e.target.value as 'BASE' | 'BS')}
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           >
             <option value="BASE">$</option>
             <option value="BS">Bs</option>
@@ -395,20 +370,20 @@ export function ExpenseForm({
         </div>
       </div>
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descripción</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Descripción</p>
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ej: Compra de agua embotellada"
-          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
         />
       </div>
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Categoría</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Categoría</p>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value as ExpenseCategory | '')}
-          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
         >
           <option value="">Sin categoría</option>
           {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
@@ -421,14 +396,14 @@ export function ExpenseForm({
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó? {!isCredit && <span className="text-red-500">*</span>}</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">¿Con qué se pagó? {!isCredit && <span className="text-red-500">*</span>}</p>
           <select
             value={paymentMethod}
             onChange={(e) => {
               setPaymentMethod(e.target.value);
               setAccountKey('main');
             }}
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           >
             <option value="">{isCredit ? 'Queda a crédito' : 'Escoge un método…'}</option>
             {Object.entries(PAYMENT_METHOD_LABELS).map(([v, label]) => (
@@ -447,51 +422,51 @@ export function ExpenseForm({
           )}
         </div>
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha del gasto</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Fecha del gasto</p>
           <input
             type="date"
             value={expenseDate}
             onChange={(e) => setExpenseDate(e.target.value)}
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
         </div>
       </div>
-      <p className="text-[11px] text-brand-950/40 font-light -mt-1">
+      <p className="text-brand-950/40 font-light -mt-1 text-xs">
         Deja la fecha vacía si el gasto es de hoy.
       </p>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nº de factura o referencia</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Nº de factura o referencia</p>
           <input
             value={referenceNumber}
             onChange={(e) => setReferenceNumber(e.target.value)}
             placeholder="Opcional"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
         </div>
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">
             ¿Quién lo gastó?{isFieldTrip ? '' : ' (opcional)'}
           </p>
           <input
             value={spentByName}
             onChange={(e) => setSpentByName(e.target.value)}
             placeholder={isFieldTrip ? 'Ej: chofer, vendedor…' : 'Opcional'}
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
         </div>
       </div>
 
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Vencimiento de la factura (opcional)</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Vencimiento de la factura (opcional)</p>
         <input
           type="date"
           value={invoiceDueDate}
           onChange={(e) => setInvoiceDueDate(e.target.value)}
-          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
         />
-        <p className="text-[11px] text-brand-950/40 font-light mt-1">
+        <p className="text-brand-950/40 font-light mt-1 text-xs">
           Si la cargas, Cuentas por pagar te avisa cuando la factura esté por vencer o vencida.
         </p>
       </div>
@@ -523,7 +498,7 @@ export function ExpenseForm({
       </div>
 
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Tipo de documento (opcional)</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Tipo de documento (opcional)</p>
         <div className="flex flex-wrap gap-1.5">
           {(Object.keys(DOCUMENT_TYPE_LABELS) as ExpenseDocumentType[]).map((d) => (
             <button
@@ -541,7 +516,7 @@ export function ExpenseForm({
         {ivaEnabled && (documentType === 'FISCAL_INVOICE' || ivaAmount !== '') && (
           <div className="mt-3 rounded-xl border border-brand-950/10 bg-brand-50/40 p-3">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <label className="text-xs font-medium text-brand-950/60">
+              <label className="text-brand-950/60 text-sm font-medium">
                 IVA incluido en el total {ivaRequired ? <span className="text-red-500">*</span> : '(opcional)'}
                 <div className="relative mt-1">
                   <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-brand-950/40">
@@ -556,7 +531,7 @@ export function ExpenseForm({
                       setIvaTouched(true);
                       setIvaAmount(e.target.value);
                     }}
-                    className="w-40 rounded-lg border border-brand-950/15 py-1.5 pl-8 pr-2 text-sm font-semibold text-brand-950"
+                    className="w-40 rounded-lg border border-brand-950/15 py-1.5 pl-8 pr-2 font-semibold text-brand-950 text-base"
                   />
                 </div>
               </label>
@@ -583,7 +558,7 @@ export function ExpenseForm({
                 )}
               </div>
             </div>
-            <p className="mt-2 text-[11px] font-light text-brand-950/50">
+            <p className="mt-2 font-light text-brand-950/50 text-xs">
               Este IVA es el crédito fiscal que va al Libro de compras. Si la factura tiene renglones exentos, corrige el monto a mano.
             </p>
           </div>
@@ -591,25 +566,25 @@ export function ExpenseForm({
       </div>
 
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nota (opcional)</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Nota (opcional)</p>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Detalle adicional, condiciones, por qué del gasto…"
           rows={2}
-          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 resize-none"
+          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 resize-none text-base"
         />
       </div>
 
       {/* Imputar el gasto a un evento: es lo que le da costo real al evento (local, sonido,
           permisos). Solo se ofrece si el local tiene eventos cargados. */}
       {esLocal && eventos.length > 0 && (
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Gasto de un evento</span>
           <select
             value={eventoId}
             onChange={(e) => setEventoId(e.target.value)}
-            className="mt-1 w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           >
             <option value="">No es de un evento</option>
             {eventos.map((ev) => (
@@ -639,45 +614,45 @@ export function ExpenseForm({
       </div>
 
       {supportsRestock && (
-        <label className="flex items-center gap-1.5 text-sm">
+        <label className="flex items-center gap-1.5 text-sm font-medium">
           <input type="checkbox" checked={isRestock} onChange={(e) => setIsRestock(e.target.checked)} />
           ¿Es reabastecimiento de inventario?
         </label>
       )}
       {supportsRestock && isRestock && (
-        <div className="grid grid-cols-2 gap-2 pl-5">
-          <select
-            value={inventoryItemId}
-            onChange={(e) => setInventoryItemId(e.target.value)}
-            className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-          >
-            <option value="">Insumo…</option>
-            {inventoryItems.map((it) => (
-              <option key={it.id} value={it.id}>
-                {it.name} ({it.unit})
-              </option>
-            ))}
-          </select>
-          <input
-            value={inventoryQuantity}
-            onChange={(e) => setInventoryQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
-            placeholder="Cantidad recibida"
-            className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-          />
+        <div className="space-y-2 pl-5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-light text-brand-950/55 text-xs">Agrega todos los insumos que aparecen en esta factura.</p>
+            {!isEdit && <button type="button" onClick={() => setRestockLines((lines) => [...lines, { inventoryItemId: '', quantity: '' }])} className="text-xs font-semibold text-brand-500">+ Otro insumo</button>}
+          </div>
+          {restockLines.map((line, index) => {
+            const selected = inventoryItems.find((item) => item.id === line.inventoryItemId) ?? null;
+            return <div key={index} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
+              <div className="grid grid-cols-[1fr_0.8fr_auto] gap-2">
+                <select value={line.inventoryItemId} onChange={(e) => setRestockLines((lines) => lines.map((row, i) => i === index ? { ...row, inventoryItemId: e.target.value } : row))} className="min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base">
+                  <option value="">Insumo…</option>
+                  {inventoryItems.map((it) => <option key={it.id} value={it.id}>{it.name} ({it.unit})</option>)}
+                </select>
+                <input value={line.quantity} onChange={(e) => setRestockLines((lines) => lines.map((row, i) => i === index ? { ...row, quantity: e.target.value.replace(/[^0-9.]/g, '') } : row))} placeholder={selected ? `Cantidad en ${selected.unit}` : 'Cantidad'} className="min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
+                {!isEdit && restockLines.length > 1 && <button type="button" aria-label="Quitar insumo" onClick={() => setRestockLines((lines) => lines.filter((_, i) => i !== index))} className="px-2 text-red-600">×</button>}
+              </div>
+              {selected && <p className="font-medium text-brand-950/60 text-xs">Existencia: {selected.quantity} {selected.unit} · Se sumarán {line.quantity || '0'} {selected.unit}</p>}
+            </div>;
+          })}
         </div>
       )}
 
-      <label className="flex items-center gap-1.5 text-sm">
+      <label className="flex items-center gap-1.5 text-sm font-medium">
         <input type="checkbox" checked={isCredit} onChange={(e) => setIsCredit(e.target.checked)} />
         ¿A crédito? (queda pendiente por pagar al proveedor)
       </label>
 
-      <label className="flex items-center gap-1.5 text-sm">
+      <label className="flex items-center gap-1.5 text-sm font-medium">
         <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
         ¿Es un gasto recurrente? (alquiler, nómina, servicios…)
       </label>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
         {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : mode === 'purchase' ? 'Guardar compra' : 'Guardar gasto'}

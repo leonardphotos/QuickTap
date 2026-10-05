@@ -1,0 +1,20 @@
+Registro en tres pasos · 2026-10-05 · Solo local, sin despliegue
+
+Cambios: RegistrationFlow.tsx, registration-flow.css, RegisterPage.tsx; etiquetas accesibles del selector WhatsApp.
+Vista previa aislada: /dev/registration.html (no crea cuentas ni cobra).
+Ruta integrada: /admin/register?plan=ESSENTIAL.
+
+Verificaciones ejecutadas:
+- npm run typecheck --prefix web: correcto.
+- npm run build --prefix web: correcto; aviso existente de chunks >500 kB.
+- Navegador: correo requerido impide avanzar vacío.
+- Correo y teléfono de prueba, datos de restaurante, Esencial -> revisión: €12,50 / €24,99.
+- Atrás y editar conservan datos; cambiar a Operación muestra €20,00 / €39,99 y reinicia aceptación de condiciones.
+- Error de enlace ocupado simulado mantiene datos y permite reintentar; envío simulado termina con plan OPERATIONS y ciclo MONTHLY.
+- Google simulado usa nombre/correo, no pide contraseña; Control muestra €30,00 / €59,99.
+- Ruta real local muestra botón de Google; se recorrieron sus tres pasos sin enviar el registro.
+- 390 px: revisión sin desbordamiento horizontal, campos y precios legibles.
+- No se registraron usuarios en producción ni se enviaron pagos ni correos.
+
+Límites: OAuth real y creación persistente de cuenta no ejecutados. Se mantienen las APIs existentes; después de registrar se selecciona plan y ciclo MONTHLY en Facturación. La simulación no constituye prueba del servicio de autenticación ni de pago. Borrador solo en memoria, no persiste al recargar.
+Capturas en /Users/leonardoperez/.codex/visualizations/2026/09/25/01a0daf3-4393-7d80-af7d-ae1b6357a609/: registro-nuevo-escritorio.png, registro-plan-escritorio.png, registro-revision-movil.png.

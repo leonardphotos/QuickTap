@@ -116,8 +116,8 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
             {done ? (
               <div className="text-center py-8 space-y-2">
                 <p className="text-4xl">✅</p>
-                <p className="font-semibold text-brand-950">¡Solicitud enviada!</p>
-                <p className="text-sm text-brand-950/60 font-light">
+                <p className="font-semibold text-brand-950 text-base">¡Solicitud enviada!</p>
+                <p className="text-brand-950/60 font-light text-base">
                   Recibirás la confirmación de tu reserva vía WhatsApp.
                 </p>
                 <TextureButton variant="brand" size="default" onClick={onClose} className="mt-4 !w-auto mx-auto">
@@ -129,7 +129,7 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                 <h3 className="font-semibold text-brand-950">Reservar mesa</h3>
 
                 <div>
-                  <p className="text-sm font-semibold text-brand-950 mb-2">Elige tu(s) mesa(s)</p>
+                  <p className="font-semibold text-brand-950 mb-2 text-base">Elige tu(s) mesa(s)</p>
                   <div className="flex items-center gap-3 text-xs text-brand-950/50 mb-2">
                     <span className="flex items-center gap-1">
                       <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Disponible
@@ -142,9 +142,9 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                     </span>
                   </div>
                   {loadingTables ? (
-                    <p className="text-sm text-brand-950/40 font-light py-4 text-center">Cargando mesas…</p>
+                    <p className="text-brand-950/40 font-light py-4 text-center text-base">Cargando mesas…</p>
                   ) : tables.length === 0 ? (
-                    <p className="text-sm text-brand-950/40 font-light py-4 text-center">
+                    <p className="text-brand-950/40 font-light py-4 text-center text-base">
                       Este restaurante no tiene mesas configuradas.
                     </p>
                   ) : (
@@ -175,28 +175,28 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
-                  <label className="inline-flex items-center gap-1.5">
+                  <label className="inline-flex items-center gap-1.5 text-sm font-medium">
                     <span className="text-xs font-semibold text-brand-950/60">Día</span>
                     <input
                       type="date"
                       value={date}
                       min={todayStr()}
                       onChange={(e) => setDate(e.target.value)}
-                      className="w-auto text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="w-auto border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                     />
                   </label>
-                  <label className="inline-flex items-center gap-1.5">
+                  <label className="inline-flex items-center gap-1.5 text-sm font-medium">
                     <span className="text-xs font-semibold text-brand-950/60">Hora</span>
                     <input
                       type="time"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
-                      className="w-auto text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="w-auto border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                     />
                   </label>
                 </div>
 
-                <label className="block">
+                <label className="block text-sm font-medium">
                   <span className="text-xs font-semibold text-brand-950/60">Cantidad de personas</span>
                   <input
                     type="number"
@@ -204,34 +204,34 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                     max={100}
                     value={partySize}
                     onChange={(e) => setPartySize(Number(e.target.value) || 1)}
-                    className="mt-1 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                 </label>
 
                 <div className="space-y-2 pt-1 border-t border-brand-950/10">
-                  <p className="text-sm font-semibold text-brand-950 pt-2">Tus datos</p>
+                  <p className="font-semibold text-brand-950 pt-2 text-base">Tus datos</p>
                   <input
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Nombre *"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                   <input
                     value={customerIdNumber}
                     onChange={(e) => setCustomerIdNumber(e.target.value)}
                     placeholder="Cédula *"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                   <input
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="Teléfono *"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                 </div>
 
-                {error && <p className="text-xs text-red-600">{error}</p>}
+                {error && <p className="text-red-600 text-xs">{error}</p>}
 
                 <TextureButton
                   variant="brand"

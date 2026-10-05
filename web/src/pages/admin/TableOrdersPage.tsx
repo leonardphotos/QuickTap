@@ -1,29 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
-import { apiOrigin } from '@/utils/apiOrigin';
-import { Check, CreditCard, Link2, Lock, LogOut, MoveHorizontal, Plus, Printer, SplitSquareHorizontal } from 'lucide-react';
-import { api, getToken } from '../../api/client';
-import type { FloorPlan, FloorPlanTable, Product, TableSession } from '../../types';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TextureButton } from '@/components/ui/texture-button';
-import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
-import { EditOrderDialog, getPaymentStatus, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
+import { FloorPlanCanvas,SaveFloorPlanButton } from '@/components/admin/FloorPlanCanvas';
+import { saveFloorPlan,type FloorPlanPatch } from '@/components/admin/FloorPlanCanvas.shared';
+import { EditOrderDialog } from '@/components/admin/LiveOrdersPanel';
+import { getPaymentStatus,type LiveOrder } from '@/components/admin/LiveOrdersPanel.shared';
+import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
-import { FloorPlanCanvas, SaveFloorPlanButton, saveFloorPlan, type FloorPlanPatch } from '@/components/admin/FloorPlanCanvas';
-import { isAdminCashier } from '@/utils/roles';
-import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { SalaSidebar } from '@/components/admin/sala/SalaSidebar';
-import { SalaTopBar, todayIso } from '@/components/admin/sala/SalaTopBar';
-import { SeatDialog } from '@/components/admin/sala/SeatDialog';
-import { NewReservationDialog } from '@/components/admin/sala/NewReservationDialog';
-import { NewWaitlistDialog } from '@/components/admin/sala/NewWaitlistDialog';
-import { currentMealServiceId } from '@/utils/meal-services';
-import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
-import type { Reservation, WaitlistEntry, WaitlistResponse } from '@/types';
+import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+import { apiOrigin } from '@/utils/apiOrigin';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
+import { isAdminCashier } from '@/utils/roles';
+import { ChevronLeft,Check,CreditCard,Link2,Lock,LogOut,MoveHorizontal,Plus,Printer,SplitSquareHorizontal,UserRoundPlus } from 'lucide-react';
+import { useEffect,useMemo,useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import { api,getToken } from '../../api/client';
+import type { FloorPlan,FloorPlanTable,TableSession } from '../../types';
 
 const STATUS_LABEL: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
@@ -46,7 +40,7 @@ export default function TableOrdersPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [manualOrderOpen, setManualOrderOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [manualOrderNewAccount, setManualOrderNewAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -72,8 +66,6 @@ export default function TableOrdersPage() {
   useEffect(() => {
     load();
     loadOrders();
-    loadWaitlist();
-    api.get('/products').then((res) => setProducts(res.data.data));
 
     const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
     socket.on('order:new', load);
@@ -81,10 +73,6 @@ export default function TableOrdersPage() {
     socket.on('table:service-request', load);
     socket.on('table:service-ack', load);
     socket.on('table:merge-updated', load);
-    socket.on('reservation:new', () => loadReservations());
-    socket.on('reservation:updated', () => loadReservations());
-    socket.on('waitlist:new', loadWaitlist);
-    socket.on('waitlist:updated', loadWaitlist);
     socket.on('order:new', loadOrders);
     socket.on('order:updated', loadOrders);
 
@@ -108,64 +96,6 @@ export default function TableOrdersPage() {
   // Unir mesas es una decisión de sala (juntar dos mesas para un grupo grande), no de
   // configuración: la toma quien atiende, igual que atender un llamado.
   const [mergingTables, setMergingTables] = useState(false);
-
-  // --- Sala: reservas del día y lista de espera de la puerta ---
-  const [salaDate, setSalaDate] = useState(todayIso());
-  const [mealServiceId, setMealServiceId] = useState(() => currentMealServiceId(new Date()));
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [waitlist, setWaitlist] = useState<WaitlistResponse | null>(null);
-  // Qué se está por sentar: una reserva o alguien de la lista de espera.
-  const [seating, setSeating] = useState<
-    { kind: 'reservation'; reservation: Reservation } | { kind: 'waitlist'; entry: WaitlistEntry } | null
-  >(null);
-  const [newReservationOpen, setNewReservationOpen] = useState(false);
-  const [newWaitlistOpen, setNewWaitlistOpen] = useState(false);
-  const [salaBusy, setSalaBusy] = useState(false);
-  const [salaError, setSalaError] = useState<string | null>(null);
-  const canManageReservations = isAdminCashier(user?.role);
-
-  function loadReservations(date = salaDate) {
-    api.get('/reservations', { params: { date } }).then((res) => setReservations(res.data.data));
-  }
-  function loadWaitlist() {
-    api.get('/waitlist').then((res) => setWaitlist(res.data.data));
-  }
-
-  /** Envuelve una acción de Sala: apaga el error viejo, marca ocupado y recarga lo que toque. */
-  async function runSalaAction(fn: () => Promise<unknown>, fallback: string) {
-    setSalaBusy(true);
-    setSalaError(null);
-    try {
-      await fn();
-      loadReservations();
-      loadWaitlist();
-      load();
-      return true;
-    } catch (e: any) {
-      setSalaError(e.response?.data?.error ?? fallback);
-      return false;
-    } finally {
-      setSalaBusy(false);
-    }
-  }
-
-  /** Manda el mensaje por el bot si el restaurante lo tiene vinculado; si no, abre wa.me. */
-  function whatsapp(phone: string, message: string) {
-    const fallback = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-    void sendWhatsappOrOpen(phone, message, fallback);
-  }
-
-  async function confirmSeat(tableId: string, idNumber?: string) {
-    if (!seating) return;
-    const ok = await runSalaAction(
-      () =>
-        seating.kind === 'reservation'
-          ? api.patch(`/reservations/${seating.reservation.id}/seat`, { tableId })
-          : api.patch(`/waitlist/${seating.entry.id}/seat`, { tableId, customerIdNumber: idNumber }),
-      'No se pudo sentar.',
-    );
-    if (ok) setSeating(null);
-  }
 
   async function mergeTables(
     primaryTableId: string,
@@ -207,10 +137,6 @@ export default function TableOrdersPage() {
     }
   }
 
-  // Cambiar de día recarga solo las reservas: el plano siempre muestra AHORA.
-  useEffect(() => {
-    loadReservations(salaDate);
-  }, [salaDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sections = useMemo(() => {
     if (!plan) return [];
@@ -258,7 +184,10 @@ export default function TableOrdersPage() {
     try {
       await api.patch(`/table-sessions/${activeSession.id}/close`);
       setSelected(null);
+      setSelectedSessionId(null);
       setEditingOrder(null);
+      setManualOrderOpen(false);
+      setManualOrderNewAccount(false);
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo cerrar la mesa.');
@@ -405,6 +334,10 @@ export default function TableOrdersPage() {
     setSelected(t);
     if (t.sessions.length === 0) {
       setSelectedSessionId(null);
+      // Una mesa libre no necesita confirmación: el siguiente paso lógico es armar el pedido.
+      // Abrirlo de inmediato evita el diálogo redundante de “Generar orden”.
+      setManualOrderNewAccount(false);
+      setManualOrderOpen(true);
       return;
     }
     const mostRecentSession = t.sessions[t.sessions.length - 1];
@@ -436,6 +369,22 @@ export default function TableOrdersPage() {
     if (full) setEditingOrder(full);
   }
 
+  /** Cierra el creador de pedidos abierto desde una mesa libre por completo. De este modo, al
+   * cancelar o terminar una cuenta nueva no reaparece detrás el diálogo residual de la mesa. */
+  function closeManualOrder() {
+    const isAdditionalAccount = manualOrderNewAccount;
+    setManualOrderOpen(false);
+    setManualOrderNewAccount(false);
+
+    // Al abrir una mesa libre se entra directo al creador; no hay ningún contexto útil al cual
+    // regresar. En cambio, una "Nueva cuenta" sí conserva la mesa existente para seguir operando.
+    if (!isAdditionalAccount) {
+      setSelected(null);
+      setSelectedSessionId(null);
+      setEditingOrder(null);
+    }
+  }
+
   /** Generar orden / Rodar mesa / Quitar clave / Cerrar mesa — se muestran tanto en el diálogo
    * de mesa (mesa libre / respaldo sin pedido cargado aún) como fijos arriba de "Editar pedido".
    * En tablet horizontal (POS) se ven como botones cuadrados en grilla en vez de píldoras apiladas. */
@@ -443,12 +392,15 @@ export default function TableOrdersPage() {
     if (!activeSession) return null;
     const items = [
       {
-        key: 'generar',
+        key: 'nueva-cuenta',
         variant: 'brand' as const,
-        onClick: () => setManualOrderOpen(true),
+        onClick: () => {
+          setManualOrderNewAccount(true);
+          setManualOrderOpen(true);
+        },
         disabled: busy,
-        icon: Plus,
-        label: 'Generar orden',
+        icon: UserRoundPlus,
+        label: 'Nueva cuenta',
       },
       {
         key: 'cobrar',
@@ -496,14 +448,14 @@ export default function TableOrdersPage() {
         destructive: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
       };
       return (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           {items.map(({ key, variant, onClick, disabled, icon: Icon, label }) => (
             <button
               key={key}
               type="button"
               onClick={onClick}
               disabled={disabled}
-              className={`flex-1 h-16 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-[0.97] disabled:opacity-40 ${posColorClass[variant]}`}
+              className={`h-16 w-[calc(50%-0.25rem)] min-w-36 sm:w-44 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-[0.97] disabled:opacity-40 ${posColorClass[variant]}`}
             >
               <Icon className="h-5 w-5 shrink-0" />
               <span className="text-xs font-semibold leading-tight text-center">{label}</span>
@@ -555,7 +507,7 @@ export default function TableOrdersPage() {
   const mesaFooter =
     activeSession && editingOrder && editingOrder.channel === 'DINE_IN' ? (
       <>
-        <p className="text-sm font-semibold text-brand-950 flex items-center gap-2">
+        <p className="font-semibold text-brand-950 flex items-center gap-2 text-base">
           {selected?.number}
           {activeSession.pinRequired && (
             <span className="inline-flex items-center gap-1 text-xs text-brand-500 font-normal">
@@ -593,13 +545,13 @@ export default function TableOrdersPage() {
     ) : null;
 
   if (!plan) {
-    return <p className="text-brand-950/50 font-light">Cargando plano de mesas…</p>;
+    return <p className="text-brand-950/50 font-light text-base">Cargando plano de mesas…</p>;
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Órdenes de Mesa</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Mesas</h1>
         {sections.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             {canEditPlan && !editingPlan && !mergingTables && (
@@ -628,51 +580,14 @@ export default function TableOrdersPage() {
       </div>
 
       {sections.length === 0 && (
-        <p className="text-sm text-brand-950/40 py-10 text-center font-light">
+        <p className="text-brand-950/40 py-10 text-center font-light text-base">
           Todavía no hay mesas creadas. Ve a Mesas / QR para crearlas.
         </p>
       )}
 
-      {sections.length > 0 && (
-        <SalaTopBar
-          date={salaDate}
-          onDateChange={setSalaDate}
-          mealServiceId={mealServiceId}
-          onMealServiceChange={setMealServiceId}
-        />
-      )}
-
-      {salaError && <p className="text-sm text-red-600">{salaError}</p>}
-
-      <div className={sections.length > 0 && isPos ? 'grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start' : 'space-y-4'}>
+      <div className="rounded-3xl border border-brand-950/10 bg-white p-3 sm:p-4 space-y-4 shadow-sm">
         {sections.length > 0 && (
-          <SalaSidebar
-            reservations={reservations}
-            waitlist={waitlist}
-            mealServiceId={mealServiceId}
-            onSeatReservation={(r) => setSeating({ kind: 'reservation', reservation: r })}
-            onSeatWaitlist={(e) => setSeating({ kind: 'waitlist', entry: e })}
-            onNotifyWaitlist={(e) => runSalaAction(() => api.patch(`/waitlist/${e.id}/notify`), 'No se pudo avisar.')}
-            onCancelWaitlist={(e) => runSalaAction(() => api.patch(`/waitlist/${e.id}/cancel`), 'No se pudo quitar de la lista.')}
-            onWhatsappReservation={(r) =>
-              whatsapp(r.customerPhone, `Hola ${r.customerName}, te escribimos de ${restaurant?.name ?? ''} sobre tu reserva de las ${r.time}.`)
-            }
-            onWhatsappWaitlist={(e) =>
-              e.customerPhone && whatsapp(e.customerPhone, `Hola ${e.customerName}, ¡tu mesa en ${restaurant?.name ?? ''} está lista!`)
-            }
-            onNewWaitlistEntry={() => setNewWaitlistOpen(true)}
-            onNewReservation={() => setNewReservationOpen(true)}
-            canCreateReservation={canManageReservations}
-            onOpenTable={(tableId) => {
-              const table = sections.flatMap((z) => z.tables).find((t) => t.id === tableId);
-              if (table) openTable(table);
-            }}
-          />
-        )}
-
-      <div className="rounded-3xl border border-brand-950/10 bg-white p-8 space-y-10 shadow-sm">
-        {sections.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-brand-950/50 font-light">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-[#0f6e46]" /> Libre
@@ -712,6 +627,7 @@ export default function TableOrdersPage() {
           <div key={zone.id}>
             <h2 className="text-sm font-semibold text-brand-950/70 mb-4">{zone.name}</h2>
             <FloorPlanCanvas
+              spacious
               tables={zone.tables}
               mode={editingPlan ? 'edit' : mergingTables ? 'merge' : 'view'}
               patches={planPatches}
@@ -724,66 +640,21 @@ export default function TableOrdersPage() {
           </div>
         ))}
       </div>
-      </div>
 
-      <SeatDialog
-        open={!!seating}
-        title={seating?.kind === 'reservation' ? 'Sentar reserva' : 'Sentar de la lista de espera'}
-        personName={
-          seating?.kind === 'reservation' ? seating.reservation.customerName : (seating?.entry.customerName ?? '')
-        }
-        suggestedTableIds={seating?.kind === 'reservation' ? seating.reservation.tables.map((t) => t.id) : undefined}
-        tables={sections.flatMap((z) => z.tables)}
-        needsIdNumber={seating?.kind === 'waitlist'}
-        busy={salaBusy}
-        error={salaError}
-        onSeat={confirmSeat}
-        onClose={() => {
-          setSeating(null);
-          setSalaError(null);
-        }}
-      />
-
-      <NewReservationDialog
-        open={newReservationOpen}
-        date={salaDate}
-        tables={sections.flatMap((z) => z.tables)}
-        busy={salaBusy}
-        error={salaError}
-        onCreate={async (input) => {
-          const ok = await runSalaAction(() => api.post('/reservations', input), 'No se pudo crear la reserva.');
-          if (ok) setNewReservationOpen(false);
-        }}
-        onClose={() => {
-          setNewReservationOpen(false);
-          setSalaError(null);
-        }}
-      />
-
-      <NewWaitlistDialog
-        open={newWaitlistOpen}
-        zones={plan?.zones.map((z) => ({ id: z.id, name: z.name })) ?? []}
-        busy={salaBusy}
-        error={salaError}
-        onCreate={async (input) => {
-          const ok = await runSalaAction(() => api.post('/waitlist', input), 'No se pudo anotar en la lista.');
-          if (ok) setNewWaitlistOpen(false);
-        }}
-        onClose={() => {
-          setNewWaitlistOpen(false);
-          setSalaError(null);
-        }}
-      />
-
-      <Dialog open={!!selected && !editingOrder} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{selected?.number}</DialogTitle>
+      <Dialog open={!!selected && !editingOrder && !manualOrderOpen} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent hideClose className="!inset-0 !left-0 !top-0 !flex !h-dvh !max-h-none !w-full !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !overflow-hidden !rounded-none !border-0 !p-0 data-[state=open]:!animate-none data-[state=closed]:!animate-none">
+          <DialogHeader className="shrink-0 border-b border-brand-950/10 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
+            <div className="flex items-center gap-3">
+              <button type="button" aria-label="Volver a mesas" onClick={() => setSelected(null)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-950/5 text-brand-950"><ChevronLeft className="h-5 w-5" /></button>
+              <DialogTitle className="text-xl">{selected?.number}</DialogTitle>
+            </div>
           </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#f6f7fa] px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6">
+          <div className="mx-auto w-full max-w-5xl">
           {activeSession ? (
             <div className="space-y-4">
               {renderAccountSwitcher()}
-              <p className="text-sm text-brand-950/70">
+              <p className="text-brand-950/70 text-base">
                 <span className="font-medium text-brand-950">{activeSession.customerName}</span>
                 {' · Cédula '}
                 {activeSession.customerIdNumber}
@@ -794,18 +665,18 @@ export default function TableOrdersPage() {
                 )}
               </p>
 
-              <ul className="space-y-3 max-h-72 overflow-y-auto">
+              <ul className="grid gap-3 md:grid-cols-2">
                 {activeSession.orders.map((o) => (
                   <li
                     key={o.orderId}
-                    className="border-b border-brand-950/10 pb-2 cursor-pointer -mx-1 px-1 rounded-lg hover:bg-brand-950/[0.03] transition-colors"
+                    className="cursor-pointer rounded-2xl border border-brand-950/10 bg-white p-4 hover:border-brand-500/40 transition-colors"
                     onClick={() => {
                       const full = liveOrders?.find((lo) => lo.id === o.orderId);
                       if (full) setEditingOrder(full);
                     }}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-brand-950">
+                      <p className="font-semibold text-brand-950 text-base">
                         Pedido #{o.pedidoNumber}{' '}
                         <span
                           className={`font-normal ${o.status === 'NEEDS_CONFIRMATION' ? 'text-amber-600' : 'text-brand-950/40'}`}
@@ -854,13 +725,13 @@ export default function TableOrdersPage() {
                 ))}
               </ul>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-red-600 text-base">{error}</p>}
 
               {renderMesaActions()}
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-brand-950/40 font-light">Esta mesa está libre.</p>
+              <p className="text-brand-950/40 font-light text-base">Esta mesa está libre.</p>
               <TextureButton
                 variant="brand"
                 size="default"
@@ -871,6 +742,8 @@ export default function TableOrdersPage() {
               </TextureButton>
             </div>
           )}
+          </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -891,7 +764,7 @@ export default function TableOrdersPage() {
               </button>
             ))}
             {freeTables.length === 0 && (
-              <p className="col-span-4 text-sm text-brand-950/40 font-light text-center py-4">
+              <p className="col-span-4 text-brand-950/40 font-light text-center py-4 text-base">
                 No hay otras mesas libres.
               </p>
             )}
@@ -953,13 +826,27 @@ export default function TableOrdersPage() {
       </Dialog>
 
       {manualOrderOpen && selected && (
-        <ManualOrderDialog
-          tableId={selected.id}
-          tableNumber={selected.number}
-          sessions={selected.sessions}
-          products={products}
-          onClose={() => setManualOrderOpen(false)}
-          onCreated={load}
+        <CreateOrderDialog
+          initialTableId={selected.id}
+          initialNewAccount={manualOrderNewAccount}
+          existingOrders={(liveOrders ?? []).map((order) => ({
+            id: order.id,
+            orderNumber: order.orderNumber,
+            channel: order.channel,
+            customerName: order.customerName ?? null,
+            table: order.table ? { number: order.table.number } : null,
+          }))}
+          onClose={() => {
+            closeManualOrder();
+          }}
+          onCreated={() => {
+            load();
+            loadOrders();
+          }}
+          onSelectExisting={(orderId) => {
+            const order = liveOrders?.find((item) => item.id === orderId);
+            if (order) setEditingOrder(order);
+          }}
         />
       )}
 

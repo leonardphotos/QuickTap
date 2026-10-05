@@ -41,7 +41,7 @@ export function InlinePanel({ title, description, onClose, closeLabel = 'Cerrar'
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-brand-950">{title}</h2>
-          {description && <p className="mt-0.5 text-sm text-brand-950/50 font-light">{description}</p>}
+          {description && <p className="mt-0.5 text-brand-950/50 font-light text-base">{description}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {actions}

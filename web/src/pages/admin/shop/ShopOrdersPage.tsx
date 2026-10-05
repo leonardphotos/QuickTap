@@ -1,14 +1,14 @@
+import { api,getToken } from '@/api/client';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { apiOrigin } from '@/utils/apiOrigin';
+import { formatBase,formatBs } from '@/utils/format';
 import { frecuenciaLabel } from '@/utils/frecuencia';
 import { waPhone } from '@/utils/waPhone';
-import { useCallback, useEffect, useState } from 'react';
-import { io, type Socket } from 'socket.io-client';
-import { apiOrigin } from '@/utils/apiOrigin';
-import { Bike, Check, Download, MessageCircle, Store, X } from 'lucide-react';
-import { api, getToken } from '@/api/client';
-import { TextureButton } from '@/components/ui/texture-button';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase, formatBs } from '@/utils/format';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Bike,Check,Download,MessageCircle,Store,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { io,type Socket } from 'socket.io-client';
 import { useTicketDownload } from './TicketDownloadRig';
 import type { RawShopTicket } from './shopApi';
 
@@ -16,7 +16,7 @@ export interface ShopOrder {
   id: string;
   orderNumber: number;
   mode: 'PICKUP' | 'DELIVERY';
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+  status: 'PENDING' | 'PROCESSING' | 'CONFIRMED' | 'CANCELLED';
   customerName: string;
   customerPhone: string;
   customerIdNumber?: string | null;
@@ -123,11 +123,11 @@ export default function ShopOrdersPage({
     };
   }, []);
 
-  async function act(order: ShopOrder, action: 'confirm' | 'cancel') {
+  async function act(order: ShopOrder, action: 'confirm' | 'cancel', paymentMethod?: string) {
     setBusyId(order.id);
     setError(null);
     try {
-      const res = await api.post(`/shop/orders/${order.id}/${action}`, {});
+      const res = await api.post(`/shop/orders/${order.id}/${action}`, paymentMethod ? { paymentMethod } : {});
       const updated: ShopOrder = res.data.data;
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
       if (action === 'confirm' && updated.tickets && updated.tickets.length > 0) {
@@ -143,14 +143,14 @@ export default function ShopOrdersPage({
   const pending = orders.filter((o) => o.status === 'PENDING');
   const visible = filter === 'PENDING' ? pending : orders;
 
-  if (loading) return <p className="text-sm text-brand-950/40 font-light">Cargando pedidos…</p>;
+  if (loading) return <p className="text-brand-950/40 font-light text-base">Cargando pedidos…</p>;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold tracking-tight text-brand-950">Pedidos de la tienda</h1>
-          <p className="text-sm font-light text-brand-950/50">
+          <p className="font-light text-brand-950/50 text-base">
             Lo que la gente pide desde tu catálogo en internet. Al confirmar se registra como venta y se
             descuenta del inventario.
           </p>
@@ -187,8 +187,8 @@ export default function ShopOrdersPage({
                     onClick={() => onRetomarPedido?.(p)}
                     className="min-w-0 flex-1 text-left"
                   >
-                    <p className="truncate text-[14px] font-semibold text-brand-950">{p.label}</p>
-                    <p className="truncate text-[11.5px] font-light text-brand-950/50">
+                    <p className="truncate font-semibold text-brand-950 text-base">{p.label}</p>
+                    <p className="truncate font-light text-brand-950/50 text-base">
                       {p.items.length} producto{p.items.length === 1 ? '' : 's'}
                       {unidades > 0 && ` · ${unidades} und`} · {formatBase(total, restaurant.currencySymbol ?? '$')}
                       {p.createdByUserName && ` · ${p.createdByUserName}`}
@@ -209,14 +209,14 @@ export default function ShopOrdersPage({
         </section>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-brand-950/15 py-12 text-center">
-          <p className="text-sm text-brand-950/50 font-light">
+          <p className="text-brand-950/50 font-light text-base">
             {filter === 'PENDING' ? 'No tienes pedidos por atender.' : 'Todavía no ha entrado ningún pedido.'}
           </p>
-          <p className="mt-1 text-xs text-brand-950/35 font-light">
+          <p className="mt-1 text-brand-950/35 font-light text-xs">
             Comparte el enlace de tu tienda desde Ajustes para empezar a recibirlos.
           </p>
         </div>
@@ -246,7 +246,7 @@ export default function ShopOrdersPage({
                 {entradasEmitidas.tickets.length === 1 ? '' : 's'}
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm font-light text-brand-950/60">
+            <p className="font-light text-brand-950/60 text-base">
               Pago confirmado. Descarga la imagen de cada entrada para mandársela a{' '}
               {entradasEmitidas.order.customerName || 'el comprador'}.
             </p>
@@ -310,8 +310,9 @@ function OrderCard({
   order: ShopOrder;
   restaurant: AuthRestaurant;
   busy: boolean;
-  onAct: (order: ShopOrder, action: 'confirm' | 'cancel') => void;
+  onAct: (order: ShopOrder, action: 'confirm' | 'cancel', paymentMethod?: string) => void;
 }) {
+  const [confirmationMethod, setConfirmationMethod] = useState(order.paymentMethod ?? '');
   const symbol = restaurant.currencySymbol ?? '$';
   const rate = restaurant.exchangeRate?.rateBs;
   const waLink = `https://wa.me/${waPhone(order.customerPhone)}?text=${encodeURIComponent(
@@ -330,23 +331,23 @@ function OrderCard({
               {order.mode === 'DELIVERY' ? 'Delivery' : 'Retiro'}
             </span>
           </div>
-          <p className="mt-0.5 text-xs font-light text-brand-950/50">
+          <p className="mt-0.5 font-light text-brand-950/50 text-xs">
             {new Date(order.createdAt).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
         {/* Financiado: lo grande es la inicial, que es lo que este cliente debía transferir hoy.
             Poner el precio completo acá hace que se le reclame plata que no debía todavía. */}
         <div className="text-right">
-          <p className="text-sm font-bold text-brand-950">
+          <p className="font-bold text-brand-950 text-base">
             {formatBase(order.plan ? order.plan.inicial : order.total, symbol)}
           </p>
           {rate && (
-            <p className="text-xs font-light text-brand-950/50">
+            <p className="font-light text-brand-950/50 text-xs">
               {formatBs(order.plan ? order.plan.inicial : order.total, rate)}
             </p>
           )}
           {order.plan && (
-            <p className="mt-0.5 text-[11px] font-medium leading-tight text-amber-700">
+            <p className="mt-0.5 font-medium leading-tight text-amber-700 text-xs">
               inicial · de {formatBase(order.total, symbol)}
             </p>
           )}
@@ -425,12 +426,23 @@ function OrderCard({
 
         {order.status === 'PENDING' && (
           <>
+            {!order.paymentMethod && (
+              <select
+                value={confirmationMethod}
+                onChange={(event) => setConfirmationMethod(event.target.value)}
+                className="h-9 rounded-xl border border-brand-950/15 bg-white px-3 text-brand-950 focus:border-brand-500 focus:outline-none text-base"
+                aria-label="Método de pago"
+              >
+                <option value="">Método de pago</option>
+                {Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            )}
             <TextureButton
               variant="brand"
               size="sm"
-              disabled={busy}
+              disabled={busy || (!order.paymentMethod && !confirmationMethod)}
               className="!w-auto disabled:opacity-50"
-              onClick={() => onAct(order, 'confirm')}
+              onClick={() => onAct(order, 'confirm', order.paymentMethod ?? confirmationMethod)}
             >
               <Check className="mr-1.5 h-3.5 w-3.5" />
               {busy ? 'Confirmando…' : 'Confirmar y registrar venta'}
@@ -458,6 +470,7 @@ function OrderCard({
 function StatusPill({ status }: { status: ShopOrder['status'] }) {
   const map = {
     PENDING: { label: 'Por atender', className: 'bg-amber-100 text-amber-700' },
+    PROCESSING: { label: 'Procesando', className: 'bg-sky-100 text-sky-700' },
     CONFIRMED: { label: 'Confirmado', className: 'bg-emerald-100 text-emerald-700' },
     CANCELLED: { label: 'Cancelado', className: 'bg-brand-950/10 text-brand-950/50' },
   }[status];

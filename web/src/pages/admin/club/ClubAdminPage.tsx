@@ -1,30 +1,31 @@
-import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ChevronRight, HandCoins, Receipt, ShoppingBag, TrendingUp, Wallet } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { api } from '@/api/client';
-import { useAuth, type AuthRestaurant } from '@/context/AuthContext';
-import { methodAccountsOf } from '@/utils/payment-accounts';
+import { AccountingHub } from '@/components/admin/AccountingHub';
+import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
+import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
-import { formatBase, formatBs, formatBsAbsolute } from '@/utils/format';
+import { PayablesSection } from '@/components/admin/PayablesSection';
+import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
+import { useAuth,type AuthRestaurant } from '@/context/AuthContext.shared';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
 import type { PaymentMethod } from '@/types';
-import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
-import { CashSessionControl } from '@/components/admin/CashSessionControl';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TextureButton } from '@/components/ui/texture-button';
-import { PayablesSection } from '@/components/admin/PayablesSection';
-import { AccountingHub } from '@/components/admin/AccountingHub';
-import ClubOccupancyPage from './ClubOccupancyPage';
-import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { formatBase,formatBs,formatBsAbsolute } from '@/utils/format';
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import { CalendarCheck,ChevronRight,HandCoins,Receipt,ShoppingBag,TrendingUp,Wallet } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import ClubConsumptionPage from './ClubConsumptionPage';
-import ClubHistoryTab from './ClubHistoryTab';
-import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
-import { clubStoreApi, type StoreSale } from './clubStoreApi';
-import { academyApi } from './academia/academyApi';
-import { card } from './clubStyle';
 import { ClubDateRangeFilter } from './ClubDateRangeFilter';
-import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
+import ClubHistoryTab from './ClubHistoryTab';
+import ClubOccupancyPage from './ClubOccupancyPage';
+import { academyApi } from './academia/academyApi';
+import { clubApi,todayCaracas,type ClubBooking } from './clubApi';
+import { clubStoreApi,type StoreSale } from './clubStoreApi';
+import { card } from './clubStyle';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -182,8 +183,8 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   if (!canSeeMoney) {
     return (
       <div className={cn(card, 'p-8 text-center')}>
-        <p className="font-semibold text-brand-950">Solo para administración</p>
-        <p className="mt-1 text-[13px] font-light text-brand-950/50">Pídele acceso al dueño del club.</p>
+        <p className="font-semibold text-brand-950 text-base">Solo para administración</p>
+        <p className="mt-1 font-light text-brand-950/50 text-base">Pídele acceso al dueño del club.</p>
       </div>
     );
   }
@@ -211,11 +212,11 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           píldora misma nunca se activaba —al ser de ancho automático siempre "cabe"— y en su
           lugar estiraba la página, que en un celular se podía arrastrar 245px de lado. */}
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+        <AnimatedTabs tone="light" className="flex  items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {(
             ['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'contabilidad', 'historial'] as const
           ).map((t) => (
-            <button
+            <AnimatedTab active={tab === t}
               key={t}
               type="button"
               onClick={() => setTab(t)}
@@ -236,18 +237,18 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
                   {payablesCount}
                 </span>
               )}
-            </button>
+            </AnimatedTab>
           ))}
-        </div>
+        </AnimatedTabs>
       </div>
 
       {tab === 'deudas' &&
         (!debts ? (
-          <p className="text-[13px] font-light text-brand-950/45">Cargando deudas…</p>
+          <p className="font-light text-brand-950/45 text-base">Cargando deudas…</p>
         ) : debts.totals.count === 0 ? (
           <div className={cn(card, 'p-8 text-center')}>
-            <p className="font-semibold text-brand-950">Nadie debe nada</p>
-            <p className="mt-1 text-[13px] font-light text-brand-950/50">
+            <p className="font-semibold text-brand-950 text-base">Nadie debe nada</p>
+            <p className="mt-1 font-light text-brand-950/50 text-base">
               Cuando quede una reserva, una venta fiada o una mensualidad sin cobrar, aparece acá.
             </p>
           </div>
@@ -392,8 +393,8 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
               <p className="text-[19px] font-bold leading-none tracking-tight text-brand-950">
                 {money(Number(debts.totals.total))}
               </p>
-              <p className="mt-1.5 text-[12px] font-medium text-brand-950/50">Deudas de clientes</p>
-              <p className="text-[11px] font-light text-brand-950/35">
+              <p className="mt-1.5 font-medium text-brand-950/50 text-xs">Deudas de clientes</p>
+              <p className="font-light text-brand-950/35 text-xs">
                 {debts.totals.count === 0
                   ? 'Nadie debe. Bien.'
                   : `${debts.totals.count} cliente(s) por cobrar · toca para ver`}
@@ -513,12 +514,12 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
               .map((m) => (
                 <div key={m.id} className="flex items-center gap-3 p-3.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-medium text-brand-950">{m.description}</p>
-                    <p className="text-[12px] font-light text-brand-950/40">
+                    <p className="truncate font-medium text-brand-950 text-base">{m.description}</p>
+                    <p className="font-light text-brand-950/40 text-xs">
                       {new Date(m.createdAt).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })}
                     </p>
                   </div>
-                  <p className="shrink-0 text-[14px] font-bold text-brand-950">−{money(Number(m.amountBase))}</p>
+                  <p className="shrink-0 font-bold text-brand-950 text-base">−{money(Number(m.amountBase))}</p>
                 </div>
               ))}
           </div>
@@ -562,8 +563,8 @@ function Metric({
         <Icon className="h-4.5 w-4.5" />
       </div>
       <p className="mt-3 text-[19px] font-bold leading-none tracking-tight text-brand-950">{value}</p>
-      <p className="mt-1.5 text-[12px] font-medium text-brand-950/50">{label}</p>
-      {sub && <p className="text-[11px] font-light text-brand-950/35">{sub}</p>}
+      <p className="mt-1.5 font-medium text-brand-950/50 text-xs">{label}</p>
+      {sub && <p className="font-light text-brand-950/35 text-xs">{sub}</p>}
     </div>
   );
 }
@@ -601,9 +602,9 @@ function DebtQuickAccess({
         <HandCoins className="h-4.5 w-4.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[17px] font-bold leading-none tracking-tight text-brand-950">{total}</p>
-        <p className="mt-1 truncate text-[12px] font-medium text-brand-950/50">{label}</p>
-        <p className="text-[11px] font-light text-brand-950/35">
+        <p className="font-bold leading-none tracking-tight text-brand-950 text-base">{total}</p>
+        <p className="mt-1 truncate font-medium text-brand-950/50 text-xs">{label}</p>
+        <p className="font-light text-brand-950/35 text-xs">
           {count === 0 ? 'Sin deudas' : `${count} por cobrar · toca para ver`}
         </p>
       </div>
@@ -653,7 +654,7 @@ function DebtList({
             className="flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-brand-950/[0.03]"
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-semibold text-brand-950">
+              <p className="truncate font-semibold text-brand-950 text-base">
                 {r.name}
                 {r.overdue && (
                   <span className="ml-1.5 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
@@ -661,17 +662,17 @@ function DebtList({
                   </span>
                 )}
               </p>
-              <p className="truncate text-[12px] font-light text-brand-950/45">
+              <p className="truncate font-light text-brand-950/45 text-xs">
                 {r.detail}
                 {r.phone && ` · ${r.phone}`}
               </p>
               {Number(r.paidBase) > 0 && (
-                <p className="text-[11px] font-light text-brand-950/35">
+                <p className="font-light text-brand-950/35 text-xs">
                   abonó {money(Number(r.paidBase))} de {money(Number(r.dueBase))}
                 </p>
               )}
             </div>
-            <p className="shrink-0 text-[15px] font-bold text-amber-700">{money(Number(r.balanceBase))}</p>
+            <p className="shrink-0 font-bold text-amber-700 text-base">{money(Number(r.balanceBase))}</p>
           </button>
         ))}
       </div>
@@ -780,16 +781,16 @@ function DebtPaymentDialog({
         </DialogHeader>
 
         {done ? (
-          <p className="py-4 text-center text-sm font-semibold text-emerald-700">
+          <p className="py-4 text-center font-semibold text-emerald-700 text-base">
             ✓ Pago de {formatBase(amount, symbol)} registrado
           </p>
         ) : (
           <div className="space-y-3">
             <div className="rounded-xl bg-brand-950/[0.04] px-3 py-2.5 text-sm">
-              <p className="text-brand-950/60">{DEBT_SOURCE_LABEL[source]}</p>
-              <p className="mt-0.5 font-medium text-brand-950">{row.detail}</p>
+              <p className="text-brand-950/60 text-base">{DEBT_SOURCE_LABEL[source]}</p>
+              <p className="mt-0.5 font-medium text-brand-950 text-base">{row.detail}</p>
             </div>
-            <label className="block">
+            <label className="block text-sm font-medium">
               <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Monto ({symbol})</span>
               <input
                 type="number"
@@ -797,7 +798,7 @@ function DebtPaymentDialog({
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
               />
               <span className="mt-1 block text-[11px] font-light text-brand-950/40">
                 Saldo pendiente: {formatBase(balance, symbol)}
@@ -829,21 +830,21 @@ function DebtPaymentDialog({
               {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
                   en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
               {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(amount) > 0 && (
-                <p className="mt-1.5 text-[13px] font-bold text-brand-500">Transferir {formatBs(amount, rateBs)}</p>
+                <p className="mt-1.5 font-bold text-brand-500 text-base">Transferir {formatBs(amount, rateBs)}</p>
               )}
             </div>
             {source !== 'store' && (
-              <label className="block">
+              <label className="block text-sm font-medium">
                 <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Referencia</span>
                 <input
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   placeholder="Opcional"
-                  className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  className="w-full rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                 />
               </label>
             )}
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
             <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
               {saving ? 'Registrando…' : `Cobrar ${formatBase(amount || '0', symbol)}`}
             </TextureButton>
@@ -860,7 +861,7 @@ function Stat({ value, label, tone }: { value: number; label: string; tone?: 'wa
       <p className={cn('text-[22px] font-bold tracking-tight', tone === 'warn' ? 'text-amber-600' : 'text-brand-950')}>
         {value}
       </p>
-      <p className="text-[12px] font-light text-brand-950/45">{label}</p>
+      <p className="font-light text-brand-950/45 text-xs">{label}</p>
     </div>
   );
 }

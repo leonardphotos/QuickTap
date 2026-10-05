@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 /**
  * Hoja inferior de la tienda virtual — mismas medidas y curvatura que las del menú de
@@ -29,11 +30,19 @@ export function ShopSheet({ onClose, children }: { onClose: () => void; children
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute inset-x-3 bottom-3 mx-auto max-w-[420px] rounded-[36px] bg-white shadow-2xl">
-        <div className="max-h-[85dvh] overflow-y-auto px-6 pb-6 pt-3">
+    <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true">
+      <div className="shop-sheet-scrim absolute inset-0 bg-black/35 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="shop-sheet-panel absolute inset-x-2 bottom-2 mx-auto max-w-[440px] rounded-[34px] border border-white/70 bg-white/94 shadow-[0_28px_90px_-28px_rgba(0,0,0,.48)] backdrop-blur-2xl sm:inset-x-4 sm:bottom-4">
+        <div className="max-h-[88dvh] overflow-y-auto px-5 pb-6 pt-3 sm:px-6">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-brand-950/15" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-brand-950/[0.055] text-brand-950/55 transition-transform active:scale-90"
+          >
+            <X className="h-4 w-4" />
+          </button>
           {children}
         </div>
       </div>

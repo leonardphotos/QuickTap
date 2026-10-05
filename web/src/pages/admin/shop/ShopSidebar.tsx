@@ -57,7 +57,7 @@ export function ShopSidebar({
       // Siempre montada; oculta se desliza fuera con transform para poder animarla, e `inert`
       // la saca del tab order mientras no se ve.
       inert={hidden || undefined}
-      className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-[264px] overflow-y-auto bg-gradient-to-b from-brand-950 to-brand-900 px-4 py-6 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+      className={`quicktap-glass-sidebar hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-[264px] overflow-y-auto px-4 py-6 transition-transform duration-300 ease-out motion-reduce:transition-none ${
         hidden ? '-translate-x-full' : 'translate-x-0'
       }`}
     >
@@ -67,7 +67,7 @@ export function ShopSidebar({
           onClick={() => onSelect('admin')}
           className="flex min-w-0 flex-1 items-center gap-3 px-2 text-left"
         >
-          <img src={logoUrl || '/logo/icono.png'} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+          <img src={logoUrl || '/logo/icono.png?v=20261002'} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
           <span className="truncate text-[17px] font-semibold tracking-tight text-white">{businessName}</span>
         </button>
         <button
@@ -91,7 +91,7 @@ export function ShopSidebar({
         </button>
       )}
 
-      <nav className="flex flex-1 flex-col gap-0.5">
+      <BounceNavigation aria-label="Menú del negocio" className="flex flex-1 flex-col gap-0.5">
         {tabs.map((t) => {
           const active = screen === t.id;
           return (
@@ -99,8 +99,9 @@ export function ShopSidebar({
               key={t.id}
               type="button"
               onClick={() => onSelect(t.id)}
+              aria-current={active ? 'page' : undefined}
               className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-[14.5px] font-medium transition-colors ${
-                active ? 'bg-brand-500/20 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+                active ? 'bg-brand-500/25 text-white shadow-[inset_3px_0_0_#38bdf8]' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
               }`}
             >
               <t.icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-sky-300' : 'opacity-80'}`} />
@@ -109,7 +110,7 @@ export function ShopSidebar({
             </button>
           );
         })}
-      </nav>
+      </BounceNavigation>
 
       <div className="mt-2 flex shrink-0 items-center gap-2">
         <button
@@ -135,8 +136,8 @@ export function ShopSidebar({
           {userName.charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{userName}</p>
-          <p className="truncate text-xs text-white/50">
+          <p className="truncate font-semibold text-white text-base">{userName}</p>
+          <p className="truncate text-white/50 text-xs">
             {ROLE_LABELS[userRole as keyof typeof ROLE_LABELS] ?? userRole}
             {planLabel ? ` · ${planLabel}` : ''}
           </p>
@@ -145,3 +146,4 @@ export function ShopSidebar({
     </aside>
   );
 }
+import { BounceNavigation } from '@/components/ui/bounce-navigation';

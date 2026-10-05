@@ -28,8 +28,8 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean }
->(({ className, children, hideClose, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean; placement?: 'center' | 'left' }
+>(({ className, children, hideClose, placement = 'center', ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -38,14 +38,16 @@ const DialogContent = React.forwardRef<
         // w-[calc(100%-2rem)] y no w-full: sin esto el diálogo queda pegado borde a
         // borde en un teléfono (ancho = 100% del viewport, cero margen), y el
         // texto que se acerca al borde derecho se ve cortado contra la pantalla.
-        'fixed left-1/2 top-1/2 z-[1100] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[24px] border border-brand-950/[0.06] bg-white p-6 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.35)] max-h-[85vh] overflow-y-auto data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out',
+        placement === 'left'
+          ? 'fixed inset-y-0 left-0 z-[1100] h-dvh w-[min(272px,90vw)] overflow-hidden bg-white shadow-xl'
+          : 'fixed left-1/2 top-1/2 z-[1100] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[24px] border border-brand-950/[0.06] bg-white p-6 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.35)] max-h-[85vh] overflow-y-auto data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out',
         className,
       )}
       {...props}
     >
       {children}
       {!hideClose && (
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 text-brand-950/40 hover:text-brand-950 hover:bg-brand-950/5 transition-colors focus:outline-none">
+        <DialogPrimitive.Close className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full text-brand-950/40 transition-[color,background-color,transform] duration-150 ease-out-strong hover:bg-brand-950/5 hover:text-brand-950 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 motion-reduce:transition-none">
           <X className="h-4 w-4" />
           <span className="sr-only">Cerrar</span>
         </DialogPrimitive.Close>

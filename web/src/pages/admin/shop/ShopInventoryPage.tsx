@@ -1,20 +1,21 @@
-import { Suspense, lazy, Fragment, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
-import { PackagePlus, ChevronDown, ClipboardList, Eye, EyeOff, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Store, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { ShopPriceLabelsDialog } from './ShopPriceLabelsDialog';
-import { ShopImportProductsDialog } from './ShopImportProductsDialog';
-import { useAuth } from '@/context/AuthContext';
+import { MeterSaleFields } from './MeterSaleFields';
 import { api } from '@/api/client';
-import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
-import { getRubroFeatures, isServiceRubro, isTicketRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
-import { formatStock, formatUnidad, shopMoneyFormatters, tienePreciosDistintos } from './shopFormat';
-import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
-import { shopApi, fetchProductLots, type ProductLots } from './shopApi';
-import { costPerM2FromRoll, formatRollWidths, parseRollWidths, rollWidthLabel } from './printPricing';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { useAuth } from '@/context/AuthContext.shared';
+import { getRubroFeatures,isServiceRubro,isTicketRubro,type ShopProductSeed,type ShopRubro,type ShopVariant } from '@/data/shopRubros';
 import { resolveVariantDims } from '@/data/variantDims';
+import { ChevronDown,ClipboardList,Eye,EyeOff,FileSpreadsheet,FlaskConical,FolderPlus,Package,PackagePlus,Pencil,Plus,ScanLine,Search,Sparkles,Store,Tags,Trash2,TrendingUp,Truck,X } from 'lucide-react';
+import type { KeyboardEvent } from 'react';
+import { Fragment,Suspense,lazy,useRef,useState } from 'react';
+import { costPerM2FromRoll,formatRollWidths,parseRollWidths,rollWidthLabel } from './printPricing';
+import { fetchProductLots,shopApi,type ProductLots } from './shopApi';
+import { formatStock,formatUnidad,shopMoneyFormatters,tienePreciosDistintos } from './shopFormat';
+import { ShopImportProductsDialog } from './ShopImportProductsDialog';
+import { ShopPriceLabelsDialog } from './ShopPriceLabelsDialog';
+import { productStatus,productStock,type ShopProduct,type ShopSession } from './shopSession';
 // Carga diferida: mismo motivo que en el POS — @zxing solo baja al abrir el escáner.
 const ShopSkuScanDialog = lazy(() => import('./ShopSkuScanDialog'));
 
@@ -39,7 +40,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function ShopInventoryPage({ session, rubro, restaurant, modo }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, deleteProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies, setProductsPublished } = session;
+  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, deleteProduct, categories, addCategory, renameCategory, deleteCategory, moveProductsToCategory, subcategories, serviceSupplies, setServiceSupplies, setProductsPublished } = session;
   const { user } = useAuth();
   // Depurar el catálogo es de administración: el cajero cobra, no borra productos.
   const canDeleteProducts = user?.role === 'OWNER' || user?.role === 'ADMIN';
@@ -58,6 +59,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   const [productToDelete, setProductToDelete] = useState<ShopProduct | null>(null);
 
   const [category, setCategory] = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [bulkDestination, setBulkDestination] = useState('');
+  const [categoryDialog, setCategoryDialog] = useState<'rename' | 'delete' | null>(null);
+  const [categoryName, setCategoryName] = useState('');
+  const [categoryDestination, setCategoryDestination] = useState('');
+  const [categoryBusy, setCategoryBusy] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Lotes del producto abierto: cada entrada con lo que queda y lo que costó. Se pide al abrir
@@ -104,18 +112,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   // Variantes correctas para la categoría elegida en el formulario (ver variantDims.ts): una
   // joyería que también vende carteras no las mide en "Material", las mide en Talla/Color.
   const variantDims = resolveVariantDims(rubro, npCategory);
-  // La categoría "Tickets" convierte al producto en un evento. Se sigue aceptando "Eventos"
-  // porque los locales que ya la crearon con ese nombre tienen productos dentro y renombrarla
-  // por detrás los dejaría sin fecha ni cupo.
-  // La categoría "Tickets"/"Eventos" convierte UN producto en evento (cualquier rubro puede
-  // vender la entrada suelta de algo puntual); el rubro Tickera hace que TODO producto nuevo
-  // lo sea, sin necesidad de esa categoría.
-  const esEvento = isTicketShop || ['tickets', 'eventos'].includes(npCategory.trim().toLowerCase());
-  const usaUnidades = ['ferreteria', 'carniceria', 'fruteria', 'panaderia'].includes(rubro?.id ?? '');
+  // Solo Tickera puede crear eventos/entradas; una categoría llamada Tickets en cualquier
+  // otro local sigue siendo una categoría normal de inventario.
+  const esEvento = isTicketShop;
+  const rubroPorMetro = ['agencia_publicidad', 'decoracion', 'ropa', 'marroquineria', 'mueblerias', 'zapateria'].includes(rubro.id);
+  const usaUnidades = rubroPorMetro || ['ferreteria', 'carniceria', 'fruteria', 'panaderia'].includes(rubro.id);
   const [npSubcategory, setNpSubcategory] = useState('');
-  // Eventos: la categoría "Eventos" convierte el producto en una entrada con fecha y cupo.
-  // El nombre de la categoría solo dispara el formulario; lo que manda es la bandera isEvent,
-  // así el local puede renombrarla sin romper nada.
+  // Tickera crea eventos con fecha y cupo; el resto de los locales crea inventario normal.
   // Unidad de venta: por unidad, por kilo o por metro. Se ofrece en ferretería y en los rubros
   // que venden a granel; el resto no necesita la decisión y no se le muestra.
   const [npSaleUnit, setNpSaleUnit] = useState<'UND' | 'KG' | 'MT'>('UND');
@@ -175,6 +178,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   const [supplyDraft, setSupplyDraft] = useState<{ supplyProductId: string; supplyV1: string; supplyV2: string; quantity: string }[]>([]);
   const [savingSupplies, setSavingSupplies] = useState(false);
   const [npWholesalePrice, setNpWholesalePrice] = useState('');
+  const [npPriceTiers, setNpPriceTiers] = useState<TierDraft[]>([]);
   const [npWholesaleMinQty, setNpWholesaleMinQty] = useState('');
   const [npPromoPrice, setNpPromoPrice] = useState('');
   const [npExpiryDate, setNpExpiryDate] = useState('');
@@ -338,6 +342,44 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q);
   });
 
+  async function saveCategoryChange() {
+    if (!category || !categoryDialog) return;
+    setCategoryBusy(true);
+    setCategoryError('');
+    try {
+      if (categoryDialog === 'rename') {
+        const name = categoryName.trim();
+        await renameCategory(category, name);
+        setCategory(name);
+        if (npCategory === category) setNpCategory(name);
+      } else {
+        await deleteCategory(category, categoryDestination || undefined);
+        if (npCategory === category) setNpCategory(categoryDestination || categories.find((c) => c !== category) || '');
+        setCategory(null);
+      }
+      setCategoryDialog(null);
+    } catch (err) {
+      setCategoryError(err instanceof Error ? err.message : 'No se pudo guardar el cambio.');
+    } finally {
+      setCategoryBusy(false);
+    }
+  }
+
+  async function saveBulkCategory() {
+    if (!selectedProductIds.length || !bulkDestination) return;
+    setCategoryBusy(true);
+    setCategoryError('');
+    try {
+      await moveProductsToCategory(selectedProductIds, bulkDestination);
+      setSelectedProductIds([]);
+      setBulkDestination('');
+    } catch (err) {
+      setCategoryError(err instanceof Error ? err.message : 'No se pudieron mover los productos.');
+    } finally {
+      setCategoryBusy(false);
+    }
+  }
+
   const puProduct = products.find((p) => p.id === puProductId);
   // "Fraccionable" = se compra y se vende en cantidades con decimales (Kg, Mt). soldByWeight es
   // la marca vieja y solo cubre peso; saleUnit es la que usa el POS, así que se miran las dos.
@@ -454,6 +496,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpRollPriceWidth('');
     setNpRollMeters({});
     setNpWholesalePrice('');
+    setNpPriceTiers([]);
     setNpWholesaleMinQty('');
     setNpPromoPrice('');
     setNpExpiryDate('');
@@ -518,6 +561,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpV2('');
     setNpStock('');
     setNpWholesalePrice(p.wholesalePrice != null ? String(p.wholesalePrice) : '');
+    setNpPriceTiers((p.priceTiers ?? []).map(t => ({ minQty: String(t.minQty), price: String(t.price) })));
     setNpWholesaleMinQty(p.wholesaleMinQty != null ? String(p.wholesaleMinQty) : '');
     setNpPromoPrice(p.promoPrice != null ? String(p.promoPrice) : '');
     setNpExpiryDate(p.expiryDate ?? '');
@@ -557,6 +601,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpV2('');
     setNpStock('');
     setNpWholesalePrice('');
+    setNpPriceTiers([]);
     setNpWholesaleMinQty('');
     setNpPromoPrice('');
     setNpExpiryDate('');
@@ -569,7 +614,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     if (!npV1.trim() || (variantDims.dim2 && !npV2.trim())) return;
     setNpVariants((prev) => [
       ...prev,
-      { v1: npV1.trim(), v2: variantDims.dim2 ? npV2.trim() : '', stock: Number(npStock) || 0, soldByWeight: npSoldByWeight },
+      { v1: npV1.trim(), v2: variantDims.dim2 ? npV2.trim() : '', stock: Number(npStock.replace(',', '.')) || 0, soldByWeight: npSoldByWeight },
     ]);
     setNpV1('');
     setNpV2('');
@@ -612,10 +657,12 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   }
 
   function saveNewProduct() {
-    const price = Number(npPrice) || 0;
+    const priceTiers = parsePriceTiers(npPriceTiers);
+    if (!priceTiers) return setSaveError('Revisa los precios por cantidad: cantidades y precios mayores a cero, sin repetir cantidades mínimas.');
+    const price = Number(npPrice.replace(',', '.')) || 0;
     if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
-    if (!esEvento && !isServiceShop && !npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
-    if (!price) return setSaveError('El precio de venta debe ser mayor a 0.');
+    if (!Number.isFinite(price) || price <= 0) return setSaveError('El precio de venta debe ser mayor a 0.');
+    if (npSaleUnit === 'MT' && !npAreaRoll && npVariants.length === 0 && (!npBasicStock.trim() || !Number.isFinite(Number(npBasicStock.replace(',', '.'))) || Number(npBasicStock.replace(',', '.')) < 0)) return setSaveError('Indica los metros disponibles: un número igual o mayor a cero (ej. 12,5).');
     const rollWidths = npAreaRoll ? parseRollWidths(npRollWidths) : [];
     if (npAreaRoll && rollWidths.length === 0) {
       return setSaveError('Ingresa al menos un ancho de rollo (ej. 1,06 1,37 1,60).');
@@ -636,7 +683,6 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     if (!esEvento && !npAreaRoll && !isServiceShop && npVariants.length === 0 && npBasicStock.trim() === '') {
       return setSaveError('Ingresa el stock del producto, o agrega al menos una variante (talla/color) si aplica.');
     }
-    if (!esEvento && !editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
     setSaveError(null);
     // El esquema exige al menos una variante; en impresión por m² se crea una sola, nominal,
     // con stock alto para que nunca dispare alertas de agotado (el stock real es el rollo). En
@@ -656,19 +702,20 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
         ? [{ v1: 'Único', v2: '', stock: 0, soldByWeight: false }]
         : npVariants.length > 0
           ? npVariants
-          : [{ v1: 'Único', v2: '', stock: Number(npBasicStock) || 0, soldByWeight: npSoldByWeight }];
+          : [{ v1: 'Único', v2: '', stock: Number(npBasicStock.replace(',', '.')) || 0, soldByWeight: npSoldByWeight }];
     const input = {
       name: npName.trim(),
       category: npCategory,
       subcategory: npSubcategory.trim(),
       brand: npBrand.trim(),
-      sku: isServiceShop ? '' : npSku.trim(),
+      sku: npSku.trim(),
       location: npLocation.trim(),
       price,
       cost: Number(npCost) || 0,
       minStock: Number(npMinStock) || 0,
       variants,
       wholesalePrice: !isServiceShop && npWholesalePrice !== '' ? Number(npWholesalePrice) || 0 : undefined,
+      priceTiers,
       wholesaleMinQty: !isServiceShop && npWholesaleMinQty !== '' ? Number(npWholesaleMinQty) || 0 : undefined,
       promoPrice: !isServiceShop && npPromoPrice !== '' ? Number(npPromoPrice) || 0 : undefined,
       expiryDate: !isServiceShop && npExpiryDate ? npExpiryDate : undefined,
@@ -676,7 +723,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
       pricingMode: (npAreaRoll ? 'AREA_ROLL' : isServiceShop ? 'SERVICE' : 'UNIT') as 'UNIT' | 'AREA_ROLL' | 'SERVICE',
       rollWidths: npAreaRoll ? rollWidths : undefined,
       rollLengthM: npAreaRoll ? Number(npRollLength.replace(',', '.')) || 50 : undefined,
-      saleUnit: usaUnidades ? npSaleUnit : undefined,
+      saleUnit: npAreaRoll ? 'UND' : npSaleUnit,
       isEvent: esEvento,
       // Un evento se crea para venderse: nace visible en la taquilla.
       isPublished: esEvento ? true : undefined,
@@ -775,9 +822,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           { label: 'Productos sin stock', value: String(out) },
         ].map((m) => (
           <div key={m.label} className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
-            <p className="text-sm font-medium text-brand-950/50">{m.label}</p>
+            <p className="font-medium text-brand-950/50 text-base">{m.label}</p>
             <p className="text-[24px] font-bold text-brand-950 tracking-tight mt-1.5">{m.value}</p>
-            {m.sub && <p className="text-xs font-medium text-brand-950/40 mt-1">{m.sub}</p>}
+            {m.sub && <p className="font-medium text-brand-950/40 mt-1 text-xs">{m.sub}</p>}
           </div>
         ))}
       </div>
@@ -788,7 +835,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             <Sparkles className="h-4 w-4 text-brand-500" />
             <h3 className="text-[15px] font-bold text-brand-950">Productos sugeridos para tu rubro</h3>
           </div>
-          <p className="text-sm text-brand-950/50 mb-3.5">
+          <p className="text-brand-950/50 mb-3.5 text-base">
             Toca uno para precargar el formulario de "Nuevo producto" (categoría, precio y variantes incluidas —
             los que se venden por peso ya vienen marcados) y ajústalo antes de guardar.
           </p>
@@ -839,6 +886,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             >
               <FolderPlus className="h-3.5 w-3.5" /> Nueva categoría
             </button>
+            {category && canDeleteProducts && (
+              <>
+                <button type="button" onClick={() => { setCategoryName(category); setCategoryError(''); setCategoryDialog('rename'); }} className="flex items-center gap-1 text-[13px] font-semibold px-3.5 py-1.5 rounded-full border border-brand-950/15 text-brand-950/70">
+                  <Pencil className="h-3.5 w-3.5" /> Editar categoría
+                </button>
+                <button type="button" onClick={() => { setCategoryDestination(''); setCategoryError(''); setCategoryDialog('delete'); }} className="flex items-center gap-1 text-[13px] font-semibold px-3.5 py-1.5 rounded-full border border-red-200 text-red-600">
+                  <Trash2 className="h-3.5 w-3.5" /> Eliminar categoría
+                </button>
+              </>
+            )}
           </div>
           <div className="relative w-full sm:w-56">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
@@ -846,15 +903,29 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar SKU o producto…"
-              className="w-full border border-brand-950/15 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="w-full border border-brand-950/15 rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </div>
         </div>
+
+        {selectedProductIds.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-brand-500/5 p-3 text-sm">
+            <span className="font-medium">{selectedProductIds.length} seleccionados</span>
+            <select value={bulkDestination} onChange={(e) => setBulkDestination(e.target.value)} aria-label="Categoría de destino" className="rounded-lg border border-brand-950/15 bg-white px-3 py-2 text-base">
+              <option value="">Mover a categoría…</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button type="button" disabled={!bulkDestination || categoryBusy} onClick={saveBulkCategory} className="rounded-lg bg-brand-500 px-3 py-2 font-semibold text-white disabled:opacity-50">Aplicar</button>
+            <button type="button" onClick={() => setSelectedProductIds([])} className="text-brand-950/60">Cancelar selección</button>
+          </div>
+        )}
+        {categoryError && !categoryDialog && <p role="alert" className="mb-3 text-sm text-red-600">{categoryError}</p>}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] font-bold uppercase text-brand-950/40 text-left">
+                <th className="pb-2 pr-3"><input type="checkbox" aria-label="Seleccionar productos visibles" checked={filtered.length > 0 && filtered.every((p) => selectedProductIds.includes(p.id))} onChange={(e) => setSelectedProductIds((prev) => e.target.checked ? [...new Set([...prev, ...filtered.map((p) => p.id)])] : prev.filter((id) => !filtered.some((p) => p.id === id)))} /></th>
                 <th className="pb-2 pr-3">Producto</th>
                 <th className="pb-2 pr-3">SKU</th>
                 <th className="pb-2 pr-3">Categoría</th>
@@ -867,7 +938,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center text-brand-950/40 py-8">Sin resultados.</td>
+                  <td colSpan={8} className="text-center text-brand-950/40 py-8">Sin resultados.</td>
                 </tr>
               ) : (
                 filtered.map((p) => {
@@ -880,6 +951,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         onClick={() => { const abrir = !expanded; setExpandedId(abrir ? p.id : null); if (abrir) loadLots(p.id); }}
                         className="cursor-pointer hover:bg-brand-950/[0.03] border-t border-brand-950/[0.05]"
                       >
+                        <td className="py-3 pr-3"><input type="checkbox" aria-label={`Seleccionar ${p.name}`} checked={selectedProductIds.includes(p.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSelectedProductIds((prev) => e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id))} /></td>
                         <td className="py-3 pr-3">
                           <div className="flex items-center gap-2.5">
                             <ChevronDown className={`h-3.5 w-3.5 text-brand-950/30 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -1012,7 +1084,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                       </tr>
                       {expanded && (
                         <tr className="bg-brand-950/[0.02]">
-                          <td colSpan={7} className="py-2.5 pl-12 pr-3">
+                          <td colSpan={8} className="py-2.5 pl-12 pr-3">
                             {p.variants.map((v, i) => {
                               const isBasicVariant = v.v1 === 'Único' && !v.v2;
                               return (
@@ -1028,11 +1100,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                               );
                             })}
                             <div className="mt-2.5 pt-2.5 border-t border-brand-950/[0.06]">
-                              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-1.5">Lotes en existencia</p>
+                              <p className="font-bold uppercase text-brand-950/40 mb-1.5 text-xs">Lotes en existencia</p>
                               {lotsLoading ? (
-                                <p className="text-[12px] text-brand-950/40">Cargando…</p>
+                                <p className="text-brand-950/40 text-xs">Cargando…</p>
                               ) : !lots || lots.variantes.every((g) => g.lotes.length === 0) ? (
-                                <p className="text-[12px] text-brand-950/40">
+                                <p className="text-brand-950/40 text-xs">
                                   Sin lotes registrados. Cada compra que cargues desde “Registrar compra” entra como un lote con su propio costo.
                                 </p>
                               ) : (
@@ -1044,7 +1116,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                                         {/* El encabezado por variante solo tiene sentido si hay más de una:
                                             en un producto simple sería una línea que dice "Único". */}
                                         {lots.variantes.length > 1 && (
-                                          <p className="text-[12px] font-semibold text-brand-950 mb-0.5">
+                                          <p className="font-semibold text-brand-950 mb-0.5 text-xs">
                                             {g.variante}
                                             <span className="ml-1.5 font-normal text-brand-950/40">
                                               {money(g.precio)} · costo {money(g.costoActual)}
@@ -1052,7 +1124,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                                           </p>
                                         )}
                                         {g.lotes.length === 0 ? (
-                                          <p className="text-[12px] text-brand-950/35 pl-2">
+                                          <p className="text-brand-950/35 pl-2 text-xs">
                                             {formatUnidad(g.stock, lots.producto.unidad)} sin lote registrado.
                                           </p>
                                         ) : (
@@ -1078,7 +1150,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                                               </div>
                                             ))}
                                             {g.sinLote > 0.001 && (
-                                              <p className="text-[11px] text-brand-950/35">
+                                              <p className="text-brand-950/35 text-xs">
                                                 {formatUnidad(g.sinLote, lots.producto.unidad)} en stock sin lote que lo respalde.
                                               </p>
                                             )}
@@ -1100,9 +1172,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                               )}
                             </div>
                             <div className="mt-2.5 pt-2.5 border-t border-brand-950/[0.06]">
-                              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-1.5">Historial de movimientos</p>
+                              <p className="font-bold uppercase text-brand-950/40 mb-1.5 text-xs">Historial de movimientos</p>
                               {productMovements(p).length === 0 ? (
-                                <p className="text-[12px] text-brand-950/40">Sin movimientos todavía.</p>
+                                <p className="text-brand-950/40 text-xs">Sin movimientos todavía.</p>
                               ) : (
                                 <div className="flex flex-col gap-1">
                                   {productMovements(p).map((m, i) => (
@@ -1136,7 +1208,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           <DialogHeader>
             <DialogTitle>Escanear producto</DialogTitle>
           </DialogHeader>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Código de barras / SKU</span>
             <input
               ref={scanInputRef}
@@ -1144,10 +1216,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               onChange={(e) => setScanCode(e.target.value)}
               onKeyDown={handleScanKeyDown}
               placeholder="Escanea o tipea el código y Enter"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </label>
-          <p className="text-[12px] text-brand-950/40">
+          <p className="text-brand-950/40 text-xs">
             Si el código ya pertenece a un producto se abre para editarlo (sumar stock, corregir precio, etc.); si no existe, se abre Nuevo producto con el código ya cargado.
           </p>
           <DialogFooter className="sm:justify-between">
@@ -1226,15 +1298,15 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
 
             return (
               <>
-                <p className="text-sm text-brand-950/60 -mt-1">{lotProduct.name}</p>
+                <p className="text-brand-950/60 -mt-1 text-base">{lotProduct.name}</p>
 
                 {lotProduct.variants.length > 1 && (
-                  <label className="block text-sm">
+                  <label className="block text-sm font-medium">
                     <span className="text-brand-950/70">Variante</span>
                     <select
                       value={lotVariantIndex}
                       onChange={(e) => setLotVariantIndex(Number(e.target.value))}
-                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                     >
                       {lotProduct.variants.map((v, i) => (
                         <option key={i} value={i}>
@@ -1249,18 +1321,18 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                   {/* En un producto por rollo/unidad hace falta saber cuántos entran; el peso es
                       del lote completo. En uno que se vende por Kg, los Kg ya son la cantidad. */}
                   {!porPeso && (
-                    <label className="block text-sm w-28 shrink-0">
+                    <label className="block w-28 shrink-0 text-sm font-medium">
                       <span className="text-brand-950/70">Cantidad</span>
                       <input
                         type="number"
                         step="1"
                         value={lotUnits}
                         onChange={(e) => setLotUnits(e.target.value)}
-                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                       />
                     </label>
                   )}
-                  <label className="block text-sm flex-1">
+                  <label className="block flex-1 text-sm font-medium">
                     <span className="text-brand-950/70">Peso ({unidad})</span>
                     <input
                       type="number"
@@ -1268,10 +1340,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                       value={lotKg}
                       onChange={(e) => setLotKg(e.target.value)}
                       placeholder="43.000"
-                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                     />
                   </label>
-                  <label className="block text-sm flex-1">
+                  <label className="block flex-1 text-sm font-medium">
                     <span className="text-brand-950/70">Costo del lote</span>
                     <input
                       type="number"
@@ -1279,25 +1351,25 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                       value={lotCost}
                       onChange={(e) => setLotCost(e.target.value)}
                       placeholder="150.00"
-                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                     />
                   </label>
                 </div>
 
-                <label className="block text-sm">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/70">Proveedor</span>
                   <input
                     value={lotSupplier}
                     onChange={(e) => setLotSupplier(e.target.value)}
                     placeholder="Nombre del proveedor"
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                   />
                 </label>
 
                 {/* A cuánto sale, antes de guardar: es lo que decide si el precio de venta
                     todavía deja margen con este lote. */}
                 {costoLote > 0 && cantidad > 0 && (
-                  <p className="text-[12.5px] text-brand-950/55">
+                  <p className="text-brand-950/55 text-base">
                     Sale a <span className="font-semibold text-brand-950">{money(costoUnit)}</span>
                     {porPeso ? ` por ${unidad}` : ' cada uno'}
                     {!porPeso && kg > 0 && <> · {money(costoPorKg)} por {unidad}</>}
@@ -1335,33 +1407,33 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           <DialogHeader>
             <DialogTitle>Registrar compra a proveedor</DialogTitle>
           </DialogHeader>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Proveedor</span>
             <input
               value={puSupplier}
               onChange={(e) => setPuSupplier(e.target.value)}
               placeholder={rubro.suppliers[0] ?? 'Nombre del proveedor'}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Producto</span>
             <select
               value={puProductId}
               onChange={(e) => onPuProductChange(e.target.value)}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             >
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Variante</span>
             <select
               value={puVariantIndex}
               onChange={(e) => setPuVariantIndex(Number(e.target.value))}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             >
               {puProduct?.variants.map((v, i) => (
                 <option key={i} value={i}>
@@ -1372,7 +1444,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             </select>
           </label>
           <div className="flex gap-3">
-            <label className="block text-sm flex-1">
+            <label className="block flex-1 text-sm font-medium">
               <span className="text-brand-950/70">
                 Cantidad
                 {puProduct?.pricingMode === 'AREA_ROLL'
@@ -1399,12 +1471,12 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                       ? '10.000'
                       : '10'
                 }
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </label>
-            <label className="block text-sm flex-1">
+            <label className="block flex-1 text-sm font-medium">
               <span className="text-brand-950/70">{puCostoTotal ? 'Costo del lote' : 'Costo unitario'}</span>
-              <input type="number" value={puCost} onChange={(e) => setPuCost(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
+              <input type="number" value={puCost} onChange={(e) => setPuCost(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base" />
             </label>
           </div>
           {/*
@@ -1414,7 +1486,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             dividir a mano y arrastrar el error de redondeo al margen.
           */}
           {puFraccionable && (
-            <label className="flex items-center gap-2 text-[13px] text-brand-950/70">
+            <label className="flex items-center gap-2 text-brand-950/70 text-sm font-medium">
               <input
                 type="checkbox"
                 checked={puCostoTotal}
@@ -1425,7 +1497,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             </label>
           )}
           {puCostoUnitarioCalculado !== null && (
-            <p className="text-[12px] text-brand-950/50">
+            <p className="text-brand-950/50 text-xs">
               Sale a <span className="font-semibold text-brand-950/70">{money(puCostoUnitarioCalculado)}</span> por{' '}
               {puProduct?.saleUnit === 'MT' ? 'metro' : 'kilo'} · se vende a {money(puProduct?.price ?? 0)}
             </p>
@@ -1447,24 +1519,24 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           <DialogHeader>
             <DialogTitle>Recuento físico</DialogTitle>
           </DialogHeader>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Producto</span>
             <select
               value={rcProductId}
               onChange={(e) => onRcProductChange(e.target.value)}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             >
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Variante</span>
             <select
               value={rcVariantIndex}
               onChange={(e) => setRcVariantIndex(Number(e.target.value))}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             >
               {rcProduct?.variants.map((v, i) => (
                 <option key={i} value={i}>
@@ -1474,7 +1546,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               ))}
             </select>
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">
               Cantidad contada
               {rcProduct?.pricingMode === 'AREA_ROLL'
@@ -1489,21 +1561,21 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               value={rcCounted}
               onChange={(e) => setRcCounted(e.target.value)}
               placeholder="0"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </label>
           {rcProduct && rcCounted !== '' && (
-            <p className="text-[12.5px] font-medium text-brand-950/60">
+            <p className="font-medium text-brand-950/60 text-base">
               Diferencia: {(Number(rcCounted) || 0) - (rcProduct.variants[rcVariantIndex]?.stock ?? 0)}
             </p>
           )}
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Motivo (opcional)</span>
             <input
               value={rcReason}
               onChange={(e) => setRcReason(e.target.value)}
               placeholder="Ej: Auditoría mensual"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </label>
           <DialogFooter>
@@ -1525,14 +1597,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           <DialogHeader>
             <DialogTitle>Insumos de "{suppliesFor?.name}"</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-brand-950/50">
+          <p className="text-brand-950/50 text-xs">
             Qué gasta este servicio del inventario cada vez que se vende. Se descuenta solo al cobrar — el
             barbero no registra nada aparte.
           </p>
 
           <div className="space-y-2 max-h-[46vh] overflow-y-auto">
             {supplyDraft.length === 0 && (
-              <p className="text-sm text-brand-950/40 py-3 text-center">Este servicio todavía no consume insumos.</p>
+              <p className="text-brand-950/40 py-3 text-center text-base">Este servicio todavía no consume insumos.</p>
             )}
             {supplyDraft.map((row, i) => {
               const supply = products.find((x) => x.id === row.supplyProductId);
@@ -1554,7 +1626,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         };
                         setSupplyDraft(next);
                       }}
-                      className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                      className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                     >
                       <option value="">— Elegir insumo —</option>
                       {products
@@ -1581,7 +1653,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         next[i] = { ...next[i], supplyV1: v1, supplyV2: v2 };
                         setSupplyDraft(next);
                       }}
-                      className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                      className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                     >
                       {supply.variants.map((v, vi) => (
                         <option key={vi} value={`${v.v1}|${v.v2}`}>
@@ -1591,7 +1663,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                     </select>
                   )}
 
-                  <label className="flex items-center gap-2 text-xs">
+                  <label className="flex items-center gap-2 text-sm font-medium">
                     <span className="text-brand-950/60 shrink-0">Consume por servicio</span>
                     <input
                       value={row.quantity}
@@ -1602,7 +1674,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                       }}
                       placeholder="0,025"
                       inputMode="decimal"
-                      className="w-24 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                      className="w-24 border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                     />
                     {perUse > 0 && (
                       <span className="text-brand-950/40">
@@ -1653,46 +1725,50 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                 label={
                   esEvento
                     ? 'Imagen del boleto digital'
-                    : editingProductId
-                      ? 'Foto del producto'
-                      : 'Foto del producto (obligatoria)'
+                    : 'Foto del producto (opcional)'
                 }
                 uploadUrl="/shop/products/upload-photo"
                 shape="square"
                 aiEnabled
               />
               {esEvento && (
-                <p className="mt-1 text-[11px] font-light text-brand-950/45">
+                <p className="mt-1 font-light text-brand-950/45 text-xs">
                   Es el arte que el comprador ve en su entrada, a pantalla completa. Se ve mejor
                   vertical. Si no cargas ninguna, la entrada usa un fondo con el degradado de
                   QuickTap.
                 </p>
               )}
             </div>
-            <label className="block text-sm sm:col-span-2">
+            <label className="block sm:col-span-2 text-sm font-medium">
               <span className="text-brand-950/70">Nombre</span>
               <input
                 ref={npNameInputRef}
                 value={npName}
                 onChange={(e) => setNpName(e.target.value)}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70 flex items-center justify-between gap-2">
                 Categoría
                 <button type="button" onClick={() => openNewCategoryDialog(true)} className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 flex items-center gap-1">
                   <FolderPlus className="h-3 w-3" /> Nueva
                 </button>
               </span>
-              <select value={npCategory} onChange={(e) => setNpCategory(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500">
+              <select value={npCategory} onChange={(e) => setNpCategory(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base">
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
             {/* Unidad de venta: cambia qué significa el precio (por unidad, por kilo o por metro)
                 y cómo se pide la cantidad al vender. */}
-            {usaUnidades && !esEvento && (
-              <label className="block text-sm">
+            {(rubroPorMetro || npSaleUnit === 'MT') && !esEvento && !isServiceShop && <MeterSaleFields
+              enabled={npSaleUnit === 'MT' && !npAreaRoll}
+              onEnabled={enabled => {setNpSaleUnit(enabled ? 'MT' : 'UND'); if(enabled){setNpAreaRoll(false);setNpSoldByWeight(false);} }}
+              stock={npBasicStock} onStock={setNpBasicStock} price={npPrice} onPrice={setNpPrice}
+              currency={restaurant.currencySymbol} hasVariants={npVariants.length > 0}
+            />}
+            {usaUnidades && !rubroPorMetro && !npAreaRoll && !esEvento && (
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">Se vende por</span>
                 <div className="mt-1 flex gap-1.5">
                   {([
@@ -1726,16 +1802,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                 "metros que se van gastando" que pidió el negocio. */}
             {usaUnidades && !esEvento && npSaleUnit !== 'UND' && (
               <div className="rounded-xl border border-brand-950/10 p-3">
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={npPlanEnabled} onChange={(e) => setNpPlanEnabled(e.target.checked)} />
                   <span className="font-medium text-brand-950">Ofrecer plan de consumo</span>
                 </label>
-                <p className="mt-0.5 text-[11px] font-light text-brand-950/45">
+                <p className="mt-0.5 font-light text-brand-950/45 text-xs">
                   El cliente paga un paquete por adelantado a una tarifa más baja y lo retira con el tiempo.
                 </p>
                 {npPlanEnabled && (
                   <div className="mt-2.5 space-y-2.5">
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-brand-950/70">Tarifa del plan (por {npSaleUnit === 'KG' ? 'kilo' : 'metro'})</span>
                       <input
                         type="number"
@@ -1744,16 +1820,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         value={npPlanRate}
                         onChange={(e) => setNpPlanRate(e.target.value)}
                         placeholder={`normal ${npPrice || '0'}`}
-                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                       />
                     </label>
-                    <label className="block text-sm">
+                    <label className="block text-sm font-medium">
                       <span className="text-brand-950/70">Tamaños de paquete que se ofrecen</span>
                       <input
                         value={npPlanSizes}
                         onChange={(e) => setNpPlanSizes(e.target.value)}
                         placeholder="50, 100, 500"
-                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                       />
                       <span className="mt-1 block text-[11px] font-light text-brand-950/45">Separados por coma.</span>
                     </label>
@@ -1767,26 +1843,26 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             {esEvento && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="block text-sm">
+                  <label className="block text-sm font-medium">
                     <span className="text-brand-950/70">Fecha del evento</span>
                     <input
                       type="date"
                       value={npEventDate}
                       onChange={(e) => setNpEventDate(e.target.value)}
-                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                     />
                   </label>
-                  <label className="block text-sm">
+                  <label className="block text-sm font-medium">
                     <span className="text-brand-950/70">Hora de inicio</span>
                     <input
                       type="time"
                       value={npEventTime}
                       onChange={(e) => setNpEventTime(e.target.value)}
-                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                     />
                   </label>
                 </div>
-                <label className="block text-sm">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/70">Puestos disponibles</span>
                   <input
                     type="number"
@@ -1795,7 +1871,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                     value={npEventSeats}
                     onChange={(e) => setNpEventSeats(e.target.value)}
                     placeholder="Ej: 120"
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                   <span className="mt-1 block text-[11px] font-light text-brand-950/45">
                     El cupo hace de stock: cada entrada vendida descuenta un puesto.
@@ -1803,14 +1879,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                 </label>
 
                 {/* Lo que ve el comprador al tocar "Más información" en la taquilla. */}
-                <label className="block text-sm sm:col-span-2">
+                <label className="block sm:col-span-2 text-sm font-medium">
                   <span className="text-brand-950/70">Descripción del evento</span>
                   <textarea
                     value={npEventDescription}
                     onChange={(e) => setNpEventDescription(e.target.value)}
                     rows={4}
                     placeholder="De qué se trata, qué incluye, cómo llegar, qué llevar…"
-                    className="mt-1 w-full resize-none rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                    className="mt-1 w-full resize-none rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                   />
                 </label>
 
@@ -1843,14 +1919,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                   </div>
                 </div>
 
-                <label className="block text-sm sm:col-span-2">
+                <label className="block sm:col-span-2 text-sm font-medium">
                   <span className="text-brand-950/70">Cláusulas / términos</span>
                   <textarea
                     value={npEventTerms}
                     onChange={(e) => setNpEventTerms(e.target.value)}
                     rows={4}
                     placeholder="Condiciones de la entrada: reembolsos, edad mínima, qué pasa si se suspende…"
-                    className="mt-1 w-full resize-none rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                    className="mt-1 w-full resize-none rounded-lg border border-brand-950/15 px-3 py-2 text-base"
                   />
                   <span className="mt-1 block text-[11px] font-light text-brand-950/45">
                     El comprador tiene que aceptarlas antes de ver el precio y pagar.
@@ -1859,35 +1935,35 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
 
                 {/* Financiamiento: la plantilla que se copia al plan de cuotas de cada venta. */}
                 <div className="rounded-xl border border-brand-950/[0.08] p-3 sm:col-span-2">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
                     <input type="checkbox" checked={npFinancing} onChange={(e) => setNpFinancing(e.target.checked)} />
                     <span className="font-medium text-brand-950">Permitir pago financiado</span>
                   </label>
                   {npFinancing && (
                     <>
                       <div className="mt-3 grid grid-cols-3 gap-2">
-                        <label className="block text-sm">
+                        <label className="block text-sm font-medium">
                           <span className="text-brand-950/70">Inicial (%)</span>
                           <input
                             type="number" min={0} max={99} value={npDownPercent}
                             onChange={(e) => setNpDownPercent(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                           />
                         </label>
-                        <label className="block text-sm">
+                        <label className="block text-sm font-medium">
                           <span className="text-brand-950/70">Cuotas</span>
                           <input
                             type="number" min={2} max={60} value={npInstallments}
                             onChange={(e) => setNpInstallments(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                           />
                         </label>
-                        <label className="block text-sm">
+                        <label className="block text-sm font-medium">
                           <span className="text-brand-950/70">Cada</span>
                           <select
                             value={npFrequency}
                             onChange={(e) => setNpFrequency(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                           >
                             <option value="SEMANAL">Semana</option>
                             <option value="QUINCENAL">15 días</option>
@@ -1897,26 +1973,26 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         </label>
                       </div>
                       {npFrequency === 'CUSTOM' && (
-                        <label className="mt-2 block text-sm">
+                        <label className="mt-2 block text-sm font-medium">
                           <span className="text-brand-950/70">Cada cuántos días</span>
                           <div className="mt-1 flex items-center gap-2">
                             <span className="text-sm text-brand-950/60">Cada</span>
                             <input
                               type="number" min={1} max={365} value={npFreqDays}
                               onChange={(e) => setNpFreqDays(e.target.value)}
-                              className="w-24 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                              className="w-24 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                             />
                             <span className="text-sm text-brand-950/60">días</span>
                           </div>
                         </label>
                       )}
-                      <label className="mt-2 block text-sm">
+                      <label className="mt-2 block text-sm font-medium">
                         <span className="text-brand-950/70">Aceptar financiamiento hasta</span>
                         <input
                           type="date"
                           value={npFinDeadline}
                           onChange={(e) => setNpFinDeadline(e.target.value)}
-                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base"
                         />
                         <span className="mt-1 block text-[11px] font-light text-brand-950/50">
                           Pasada la fecha solo se vende de contado, y antes de ella se ofrecen únicamente las
@@ -1931,7 +2007,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         const n = Math.max(1, Number(npInstallments) || 1);
                         const cuota = Math.round(((precio - inicial) / n) * 100) / 100;
                         return precio > 0 ? (
-                          <p className="mt-2 text-[11.5px] font-light text-brand-950/55">
+                          <p className="mt-2 font-light text-brand-950/55 text-base">
                             Inicial de {money(inicial)} y {n} cuota{n === 1 ? '' : 's'} de {money(cuota)}.
                           </p>
                         ) : null;
@@ -1941,36 +2017,36 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                 </div>
               </>
             )}
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Subcategoría</span>
               <input
                 value={npSubcategory}
                 onChange={(e) => setNpSubcategory(e.target.value)}
                 list="shop-subcategory-suggestions"
                 placeholder="Ej: Bebidas frías"
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
               <datalist id="shop-subcategory-suggestions">
                 {(subcategories[npCategory] ?? []).map((s) => <option key={s} value={s} />)}
               </datalist>
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Marca</span>
               <input
                 value={npBrand}
                 onChange={(e) => setNpBrand(e.target.value)}
                 list="shop-brand-suggestions"
                 placeholder="Ej: Coca-Cola"
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
               <datalist id="shop-brand-suggestions">
                 {brandOptions.map((b) => <option key={b} value={b} />)}
               </datalist>
             </label>
             {!isServiceShop && (
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70 flex items-center justify-between gap-2">
-                  SKU / código de barras
+                  SKU / código de barras (opcional)
                   <span className="flex items-center gap-2">
                     <button
                       type="button"
@@ -1995,9 +2071,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                   value={npSku}
                   onChange={(e) => setNpSku(e.target.value)}
                   onKeyDown={handleSkuKeyDown}
-                  placeholder="Escanea o tipea el código y Enter"
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  placeholder="Escanea, escribe o déjalo vacío"
+                  maxLength={60}
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
+                {!editingProductId && <span className="mt-1 block text-xs text-brand-950/50">Si lo dejas vacío, QuickTap generará un SKU al guardar.</span>}
                 {npSkuDuplicate && (
                   <span className="mt-1 block text-[11px] font-medium text-amber-600">
                     Ya existe un producto con este SKU — si es el mismo producto, mejor editalo en vez de crear uno nuevo.
@@ -2005,22 +2083,22 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                 )}
               </label>
             )}
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Ubicación</span>
-              <input value={npLocation} onChange={(e) => setNpLocation(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
+              <input value={npLocation} onChange={(e) => setNpLocation(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base" />
             </label>
-            <label className="block text-sm">
+            <label className={`block text-sm ${npSaleUnit === 'MT' && !npAreaRoll ? 'hidden' : ''}`}>
               <span className="text-brand-950/70">Precio de venta{npAreaRoll ? ' (por m²)' : ''}</span>
-              <input type="number" value={npPrice} onChange={(e) => setNpPrice(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
+              <input type="number" value={npPrice} onChange={(e) => setNpPrice(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base" />
             </label>
-            <label className="block text-sm">
-              <span className="text-brand-950/70">Costo{npAreaRoll ? ' (por m²)' : ''}</span>
-              <input type="number" value={npCost} onChange={(e) => setNpCost(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
+            <label className="block text-sm font-medium">
+              <span className="text-brand-950/70">Costo{npAreaRoll ? ' (por m²)' : npSaleUnit === 'MT' ? ' por metro' : ''}</span>
+              <input type="number" value={npCost} onChange={(e) => setNpCost(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base" />
             </label>
             {!npAreaRoll && !isServiceShop && (
-              <label className="block text-sm">
-                <span className="text-brand-950/70">Stock mínimo</span>
-                <input type="number" value={npMinStock} onChange={(e) => setNpMinStock(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
+              <label className="block text-sm font-medium">
+                <span className="text-brand-950/70">Stock mínimo{npSaleUnit === 'MT' ? ' (m)' : ''}</span>
+                <input type="number" value={npMinStock} onChange={(e) => setNpMinStock(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base" />
               </label>
             )}
           </div>
@@ -2028,24 +2106,24 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           {/* ---------- Impresión de gran formato (vinil / banner) — solo agencias de publicidad ---------- */}
           {(features.areaRoll || npAreaRoll) && (
           <div className="border-t border-brand-950/[0.06] pt-3.5">
-            <label className="flex items-center gap-2 text-sm font-medium text-brand-950">
-              <input type="checkbox" checked={npAreaRoll} onChange={(e) => setNpAreaRoll(e.target.checked)} />
+            <label className="flex items-center gap-2 text-brand-950 text-sm font-medium">
+              <input type="checkbox" checked={npAreaRoll} onChange={(e) => {setNpAreaRoll(e.target.checked); if(e.target.checked){setNpSaleUnit('UND');setNpSoldByWeight(false);}}} />
               Se vende por metro cuadrado (impresión en vinil / banner)
             </label>
-            <p className="text-xs text-brand-950/50 mt-1">
+            <p className="text-brand-950/50 mt-1 text-xs">
               El material sale de rollos de ancho fijo y el sobrante a lo ancho no se reaprovecha, así que
               al cliente se le cobra el ancho completo del rollo por el largo impreso.
             </p>
 
             {npAreaRoll && (
               <div className="mt-3 space-y-3">
-                <label className="block text-sm">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/70">Anchos de rollo disponibles (m)</span>
                   <input
                     value={npRollWidths}
                     onChange={(e) => setNpRollWidths(e.target.value)}
                     placeholder="Banner: 1,06 1,37 1,60 1,84 · Vinil: 1,22 1,40 1,52"
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                   {parseRollWidths(npRollWidths).length > 0 && (
                     <span className="mt-1 block text-[11px] text-brand-950/50">
@@ -2054,13 +2132,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                   )}
                 </label>
 
-                <label className="block text-sm">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/70">Largo del rollo (m)</span>
                   <input
                     value={npRollLength}
                     onChange={(e) => setNpRollLength(e.target.value)}
                     placeholder="50"
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                   />
                 </label>
 
@@ -2071,8 +2149,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                   const fullRollM2 = (w: number) => Math.round((w * rollLen + Number.EPSILON) * 100) / 100;
                   return (
                     <div>
-                      <p className="text-sm text-brand-950/70">Metros cuadrados disponibles de cada rollo</p>
-                      <p className="text-xs text-brand-950/45 mt-0.5 mb-2">
+                      <p className="text-brand-950/70 text-base">Metros cuadrados disponibles de cada rollo</p>
+                      <p className="text-brand-950/45 mt-0.5 mb-2 text-xs">
                         Los m² que te quedan hoy. Se descuentan solos con cada impresión y se reponen desde
                         "Registrar compra" al comprar un rollo nuevo.
                       </p>
@@ -2080,14 +2158,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         {parseRollWidths(npRollWidths).map((w) => {
                           const label = rollWidthLabel(w);
                           return (
-                            <label key={label} className="flex items-center gap-1.5 text-sm">
+                            <label key={label} className="flex items-center gap-1.5 text-sm font-medium">
                               <span className="text-brand-950/60 w-12 shrink-0">{label} m</span>
                               <input
                                 value={npRollMeters[label] ?? ''}
                                 onChange={(e) => setNpRollMeters((prev) => ({ ...prev, [label]: e.target.value }))}
                                 placeholder={String(fullRollM2(w))}
                                 inputMode="decimal"
-                                className="w-20 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                                className="w-20 border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                               />
                               <span className="text-brand-950/40 text-xs">m²</span>
                             </label>
@@ -2110,24 +2188,24 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                 })()}
 
                 <div className="rounded-xl bg-brand-950/[0.03] border border-brand-950/10 p-3">
-                  <p className="text-xs font-semibold text-brand-950 mb-2">Calcular el costo por m² desde el rollo</p>
+                  <p className="font-semibold text-brand-950 mb-2 text-xs">Calcular el costo por m² desde el rollo</p>
                   <div className="flex gap-2">
-                    <label className="block text-xs flex-1">
+                    <label className="block flex-1 text-sm font-medium">
                       <span className="text-brand-950/60">Precio del rollo</span>
                       <input
                         value={npRollPrice}
                         onChange={(e) => setNpRollPrice(e.target.value)}
                         placeholder="180"
-                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                       />
                     </label>
-                    <label className="block text-xs flex-1">
+                    <label className="block flex-1 text-sm font-medium">
                       <span className="text-brand-950/60">Ancho de ese rollo</span>
                       <input
                         value={npRollPriceWidth}
                         onChange={(e) => setNpRollPriceWidth(e.target.value)}
                         placeholder="1,37"
-                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                       />
                     </label>
                   </div>
@@ -2158,16 +2236,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           )}
 
           <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll || isServiceShop || esEvento ? 'hidden' : ''}`}>
-            <p className="text-sm font-bold text-brand-950 mb-1">
+            <p className="font-bold text-brand-950 mb-1 text-base">
               Stock por {variantDims.dim1}{variantDims.dim2 ? ` y ${variantDims.dim2}` : ''}
             </p>
-            <p className="text-xs text-brand-950/50 mb-3">
+            <p className="text-brand-950/50 mb-3 text-xs">
               Si es un producto básico (no maneja {variantDims.dim1.toLowerCase()}
               {variantDims.dim2 ? `/${variantDims.dim2.toLowerCase()}` : ''}), ingresa su stock directamente. Si
               maneja variantes, agrégalas abajo en vez de llenar el stock básico.
             </p>
-            {(features.weight !== 'none' || npSoldByWeight) && (
-              <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer">
+            {npSaleUnit !== 'MT' && (features.weight !== 'none' || npSoldByWeight) && (
+              <label className="flex items-center gap-2 mb-3 cursor-pointer text-sm font-medium">
                 <input type="checkbox" checked={npSoldByWeight} onChange={(e) => setNpSoldByWeight(e.target.checked)} />
                 <span className="text-brand-950/70">
                   Se vende por peso (Kg)
@@ -2178,43 +2256,43 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               </label>
             )}
 
-            {npVariants.length === 0 && (
-              <label className="block text-xs mb-3.5 max-w-[160px]">
+            {npVariants.length === 0 && npSaleUnit !== 'MT' && (
+              <label className="block mb-3.5 max-w-[160px] text-sm font-medium">
                 <span className="text-brand-950/60">Stock{npSoldByWeight ? ' (Kg)' : ''} — producto sin variantes</span>
                 <input
                   type="number"
-                  step={npSoldByWeight ? '0.001' : '1'}
+                  step={npSoldByWeight || npSaleUnit !== 'UND' ? '0.001' : '1'}
                   value={npBasicStock}
                   onChange={(e) => setNpBasicStock(e.target.value)}
                   placeholder={npSoldByWeight ? '10.000' : '10'}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                 />
               </label>
             )}
 
-            <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">
+            <p className="font-bold uppercase text-brand-950/40 mb-2 text-xs">
               Variantes ({variantDims.dim1}{variantDims.dim2 ? ` × ${variantDims.dim2}` : ''}) — opcional
             </p>
             <div className="flex items-end gap-2 mb-3">
-              <label className="block text-xs flex-1">
+              <label className="block flex-1 text-sm font-medium">
                 <span className="text-brand-950/60">{variantDims.dim1}</span>
-                <input value={npV1} onChange={(e) => setNpV1(e.target.value)} placeholder={variantDims.dim1Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                <input value={npV1} onChange={(e) => setNpV1(e.target.value)} placeholder={variantDims.dim1Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
               </label>
               {variantDims.dim2 && (
-                <label className="block text-xs flex-1">
+                <label className="block flex-1 text-sm font-medium">
                   <span className="text-brand-950/60">{variantDims.dim2}</span>
-                  <input value={npV2} onChange={(e) => setNpV2(e.target.value)} placeholder={variantDims.dim2Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                  <input value={npV2} onChange={(e) => setNpV2(e.target.value)} placeholder={variantDims.dim2Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
                 </label>
               )}
-              <label className="block text-xs w-24 shrink-0">
-                <span className="text-brand-950/60">Stock{npSoldByWeight ? ' (Kg)' : ''}</span>
+              <label className="block w-24 shrink-0 text-sm font-medium">
+                <span className="text-brand-950/60">Stock{npSaleUnit === 'MT' ? ' (m)' : npSoldByWeight ? ' (Kg)' : ''}</span>
                 <input
                   type="number"
-                  step={npSoldByWeight ? '0.001' : '1'}
+                  step={npSoldByWeight || npSaleUnit !== 'UND' ? '0.001' : '1'}
                   value={npStock}
                   onChange={(e) => setNpStock(e.target.value)}
                   placeholder={npSoldByWeight ? '10.000' : '10'}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                 />
               </label>
               <button type="button" onClick={addVariant} className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-lg border border-brand-950/15 hover:bg-brand-950/5">
@@ -2222,7 +2300,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               </button>
             </div>
             {npVariants.length === 0 ? (
-              <p className="text-xs text-brand-950/40">Sin variantes — se usará el stock básico de arriba.</p>
+              <p className="text-brand-950/40 text-xs">Sin variantes — se usará el stock básico de arriba.</p>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {npVariants.map((v, i) => (
@@ -2244,13 +2322,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         )
                       }
                       placeholder="Descripción de esta variante (opcional)"
-                      className="mt-1.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
+                      className="mt-1.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-base"
                     />
                     {/* Precio y costo propios: para catálogos donde la variante no es una talla
                         sino otro producto en precio (ej. 60/90/150 PSI de la misma manguera).
                         Vacíos = usa los del producto, que es el caso de siempre. */}
                     <div className="flex gap-1.5 mt-1.5">
-                      <label className="block text-[11px] flex-1">
+                      <label className="block flex-1 text-sm font-medium">
                         <span className="text-brand-950/45">Precio propio</span>
                         <input
                           type="number"
@@ -2264,10 +2342,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                             )
                           }
                           placeholder={npPrice || 'del producto'}
-                          className="mt-0.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
+                          className="mt-0.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-base"
                         />
                       </label>
-                      <label className="block text-[11px] flex-1">
+                      <label className="block flex-1 text-sm font-medium">
                         <span className="text-brand-950/45">Costo propio</span>
                         <input
                           type="number"
@@ -2281,7 +2359,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                             )
                           }
                           placeholder={npCost || 'del producto'}
-                          className="mt-0.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
+                          className="mt-0.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-base"
                         />
                       </label>
                     </div>
@@ -2296,34 +2374,34 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             const showExpiry = features.expiry || npExpiryDate !== '';
             return (
               <div className="border-t border-brand-950/[0.06] pt-3.5">
-                <p className="text-sm font-bold text-brand-950 mb-2.5">
+                <p className="font-bold text-brand-950 mb-2.5 text-base">
                   Precios especiales{showExpiry ? ' y vencimiento' : ''} (opcional)
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {showWholesale && (
                     <>
-                      <label className="block text-xs">
+                      <label className="block text-sm font-medium">
                         <span className="text-brand-950/60">Precio mayorista</span>
-                        <input type="number" value={npWholesalePrice} onChange={(e) => setNpWholesalePrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                        <input type="number" value={npWholesalePrice} onChange={(e) => setNpWholesalePrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
                       </label>
-                      <label className="block text-xs">
+                      <label className="block text-sm font-medium">
                         <span className="text-brand-950/60">Desde (uds.)</span>
-                        <input type="number" value={npWholesaleMinQty} onChange={(e) => setNpWholesaleMinQty(e.target.value)} placeholder="12" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                        <input type="number" value={npWholesaleMinQty} onChange={(e) => setNpWholesaleMinQty(e.target.value)} placeholder="12" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
                       </label>
                     </>
                   )}
-                  <label className="block text-xs">
+                  <label className="block text-sm font-medium">
                     <span className="text-brand-950/60">Precio promocional</span>
-                    <input type="number" value={npPromoPrice} onChange={(e) => setNpPromoPrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                    <input type="number" value={npPromoPrice} onChange={(e) => setNpPromoPrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
                   </label>
                   {showExpiry && (
-                    <label className="block text-xs">
+                    <label className="block text-sm font-medium">
                       <span className="text-brand-950/60">Vence el</span>
-                      <input type="date" value={npExpiryDate} onChange={(e) => setNpExpiryDate(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                      <input type="date" value={npExpiryDate} onChange={(e) => setNpExpiryDate(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base" />
                     </label>
                   )}
                 </div>
-                <p className="text-[11px] text-brand-950/40 mt-1.5">
+                <p className="text-brand-950/40 mt-1.5 text-xs">
                   {showWholesale
                     ? 'Si activas el precio mayorista, se aplica solo en Venta cuando la cantidad de esa línea del carrito llega al mínimo. El precio promocional siempre gana sobre los demás.'
                     : 'El precio promocional, si lo cargas, gana sobre el precio de lista mientras esté activo.'}
@@ -2332,8 +2410,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             );
           })()}
 
+          <PriceTierFields rows={npPriceTiers} onChange={setNpPriceTiers} unit={npAreaRoll ? 'm²' : npSaleUnit === 'MT' ? 'metro' : npSaleUnit === 'KG' || npSoldByWeight ? 'kg' : 'unidad'} />
           {saveError && (
-            <p className="text-[13px] font-medium text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
+            <p className="font-medium text-red-600 bg-red-50 rounded-lg px-3 py-2 text-base">{saveError}</p>
           )}
 
           <DialogFooter>
@@ -2348,19 +2427,48 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
       </Dialog>
 
       {/* ---------- Nueva categoría ---------- */}
+      <Dialog open={!!categoryDialog} onOpenChange={(open) => !open && setCategoryDialog(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{categoryDialog === 'rename' ? 'Editar categoría' : 'Eliminar categoría'}</DialogTitle></DialogHeader>
+          {categoryDialog === 'rename' ? (
+            <label className="block text-sm font-medium">Nuevo nombre
+              <input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} maxLength={60} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
+            </label>
+          ) : (
+            <div className="space-y-3 text-sm">
+              <p>Los productos de «{category}» se moverán a otra categoría. Las ventas anteriores conservarán su historial.</p>
+              {products.some((p) => p.category === category) && (
+                <label className="block font-medium">Categoría de destino
+                  <select value={categoryDestination} onChange={(e) => setCategoryDestination(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base">
+                    <option value="">Selecciona una categoría…</option>
+                    {categories.filter((c) => c !== category).map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+          {categoryError && <p role="alert" className="text-sm text-red-600">{categoryError}</p>}
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setCategoryDialog(null)}>Cancelar</TextureButton>
+            <TextureButton variant="brand" size="default" className="!w-auto" disabled={categoryBusy || (categoryDialog === 'rename' ? !categoryName.trim() || categoryName.trim() === category : products.some((p) => p.category === category) && !categoryDestination)} onClick={saveCategoryChange}>
+              {categoryDialog === 'rename' ? 'Guardar nombre' : 'Eliminar categoría'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={newCatOpen} onOpenChange={setNewCatOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nueva categoría</DialogTitle>
           </DialogHeader>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Nombre</span>
             <input
               value={newCatName}
               onChange={(e) => setNewCatName(e.target.value)}
               placeholder="Ej: Bebidas"
               autoFocus
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             />
           </label>
           <DialogFooter>
@@ -2381,11 +2489,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
             <DialogTitle>Eliminar producto</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-brand-950">
+            <p className="text-brand-950 text-base">
               ¿Sacar <span className="font-semibold">{productToDelete?.name}</span> del inventario?
             </p>
             {/* La duda típica al borrar: "¿se me borran las ventas?". No. */}
-            <p className="rounded-xl bg-brand-950/[0.03] px-3 py-2.5 text-xs font-light text-brand-950/60">
+            <p className="rounded-xl bg-brand-950/[0.03] px-3 py-2.5 font-light text-brand-950/60 text-xs">
               Las ventas y compras que ya lo incluyen no se tocan: guardan su propio nombre y precio, así que los informes
               siguen cuadrando. Solo desaparece del catálogo y deja de poder venderse.
             </p>
@@ -2415,8 +2523,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
           <DialogHeader>
             <DialogTitle>Aumentar precios</DialogTitle>
           </DialogHeader>
-          {raiseError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{raiseError}</p>}
-          <label className="block text-sm">
+          {raiseError && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-600 text-base">{raiseError}</p>}
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Porcentaje</span>
             <input
               type="number"
@@ -2425,7 +2533,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
               value={raisePercent}
               onChange={(e) => setRaisePercent(e.target.value)}
               placeholder="Ej: 10"
-              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base"
             />
             <span className="mt-1 block text-[11px] font-light text-brand-950/50">
               Se aplica al precio de venta de los {totalSkus} productos. Un valor negativo los baja.
@@ -2568,16 +2676,16 @@ function SumarAInventarioDialog({
 
         {!producto ? (
           <>
-            <p className="text-sm text-brand-950/60 -mt-1">Elige el producto al que entra la mercancía.</p>
+            <p className="text-brand-950/60 -mt-1 text-base">Elige el producto al que entra la mercancía.</p>
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por nombre o SKU…"
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               autoFocus
             />
             <div className="max-h-64 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
-              {visibles.length === 0 && <p className="p-3 text-sm text-brand-950/40">Ningún producto con ese nombre.</p>}
+              {visibles.length === 0 && <p className="p-3 text-brand-950/40 text-base">Ningún producto con ese nombre.</p>}
               {visibles.map((p) => (
                 <button
                   key={p.id}
@@ -2597,19 +2705,19 @@ function SumarAInventarioDialog({
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-3 -mt-1">
-              <p className="text-sm font-medium text-brand-950 min-w-0 truncate">{producto.name}</p>
+              <p className="font-medium text-brand-950 min-w-0 truncate text-base">{producto.name}</p>
               <button type="button" onClick={() => setProductId('')} className="shrink-0 text-[12px] text-brand-500 hover:underline">
                 Cambiar
               </button>
             </div>
 
             {producto.variants.length > 1 && (
-              <label className="block text-sm">
+              <label className="block text-sm font-medium">
                 <span className="text-brand-950/70">{resolveVariantDims(rubro, producto.category).dim1}</span>
                 <select
                   value={variantIndex}
                   onChange={(e) => setVariantIndex(Number(e.target.value))}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                 >
                   {producto.variants.map((v, i) => (
                     <option key={i} value={i}>
@@ -2623,38 +2731,38 @@ function SumarAInventarioDialog({
             <div className="flex gap-3">
               {/* Con venta por peso los kilos ya son la cantidad: no hay unidades que contar. */}
               {!porPeso && (
-                <label className="block text-sm w-24 shrink-0">
+                <label className="block w-24 shrink-0 text-sm font-medium">
                   <span className="text-brand-950/70">Unidades</span>
                   <input
                     type="number" step="1" min="1" value={unidades} onChange={(e) => setUnidades(e.target.value)}
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                   />
                 </label>
               )}
-              <label className="block text-sm flex-1">
+              <label className="block flex-1 text-sm font-medium">
                 <span className="text-brand-950/70">{porPeso ? `${unidadPeso} que entran` : `${unidadPeso} de cada una`}</span>
                 <input
                   type="number" step="0.001" value={kg} onChange={(e) => setKg(e.target.value)}
                   placeholder="120.000" autoFocus
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                 />
               </label>
-              <label className="block text-sm flex-1">
+              <label className="block flex-1 text-sm font-medium">
                 <span className="text-brand-950/70">Costo por {unidadPeso}</span>
                 <input
                   type="number" step="0.01" value={costoKg} onChange={(e) => setCostoKg(e.target.value)}
                   placeholder="1.20"
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
                 />
               </label>
             </div>
 
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Proveedor</span>
               <input
                 value={proveedor} onChange={(e) => setProveedor(e.target.value)}
                 placeholder="Nombre del proveedor"
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-base"
               />
             </label>
 
@@ -2680,7 +2788,7 @@ function SumarAInventarioDialog({
               </div>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
           </>
         )}
 
@@ -2700,3 +2808,4 @@ function SumarAInventarioDialog({
     </Dialog>
   );
 }
+import { PriceTierFields, parsePriceTiers, type TierDraft } from './PriceTierFields';

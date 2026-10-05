@@ -37,21 +37,21 @@ export function SmsBalanceCard() {
       }`}
     >
       <div className="flex items-center gap-2.5">
-        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${bajo ? 'bg-amber-500/15' : 'bg-sky-500/10'}`}>
-          <MessageSquareText className={`h-4.5 w-4.5 ${bajo ? 'text-amber-600' : 'text-sky-600'}`} />
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${bajo ? 'bg-amber-500/15' : 'bg-brand-500/10'}`}>
+          <MessageSquareText className={`h-4.5 w-4.5 ${bajo ? 'text-amber-600' : 'text-brand-500'}`} />
         </span>
         <div>
-          <h3 className="text-sm font-semibold text-brand-950">SMS del Wallet (enviatusms)</h3>
-          <p className="text-[11.5px] font-light text-brand-950/50">
-            Prepago · manda los códigos de verificación de ingreso
+          <h3 className="text-sm font-semibold text-brand-950">Saldo de SMS</h3>
+          <p className="font-light text-brand-950/50 text-base">
+            Compartido · avisos de cobro y códigos de Wallet
           </p>
         </div>
       </div>
 
       {saldo === null ? (
-        <p className="mt-4 text-sm font-light text-brand-950/40">Consultando…</p>
+        <p className="mt-4 font-light text-brand-950/40 text-base">Consultando…</p>
       ) : !saldo.disponible ? (
-        <p className="mt-4 text-sm font-light text-brand-950/50">
+        <p className="mt-4 font-light text-brand-950/50 text-base">
           No se pudo consultar el saldo (proveedor caído o API key sin configurar).
         </p>
       ) : (
@@ -66,14 +66,14 @@ export function SmsBalanceCard() {
             </span>
           </div>
           {/* El grande es el PEOR caso entre operadoras; el detalle aclara la diferencia. */}
-          <p className="mt-1.5 text-[11.5px] font-light tabular-nums text-brand-950/45">
+          <p className="mt-1.5 font-light tabular-nums text-brand-950/45 text-base">
             {Object.entries(saldo.porOperadora ?? {})
               .map(([op, n]) => `${op[0].toUpperCase()}${op.slice(1)}: ${n}`)
               .join(' · ')}
           </p>
           {bajo && (
-            <p className="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-[12px] font-medium text-amber-800">
-              Saldo bajo: recarga en enviatusms.com antes de que los códigos del Wallet dejen de llegar.
+            <p className="mt-3 rounded-xl bg-amber-100 px-3 py-2 font-medium text-amber-800 text-xs">
+              Saldo bajo: recarga en enviatusms.com antes de que los recordatorios y códigos dejen de llegar.
             </p>
           )}
         </>

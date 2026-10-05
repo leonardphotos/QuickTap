@@ -1,30 +1,34 @@
-import { lazy, Suspense, useState } from 'react';
-import { ChefHat, Grid2x2, LogOut, Plus, Receipt } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { ROLE_LABELS } from '@/utils/roles';
-import { LiveOrdersPanel, EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
-import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
+import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
+import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
+import { EditOrderDialog,LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
+import { type LiveOrder } from '@/components/admin/LiveOrdersPanel.shared';
+import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
-import { LowStockAlert } from '@/components/admin/LowStockAlert';
-import { CHATBOTS_ENABLED } from '@/config/features';
-import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
-import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
-import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { TodayPaymentMethodsDialog } from '@/components/admin/TodayPaymentMethodsDialog';
 import { WaiterProfilePicker } from '@/components/admin/WaiterProfilePicker';
+import { CHATBOTS_ENABLED } from '@/config/features';
+import { useAuth } from '@/context/AuthContext.shared';
+import { ROLE_LABELS } from '@/utils/roles';
+import { Bike,ChefHat,Grid2x2,LogOut,Plus,Receipt } from 'lucide-react';
+import { lazy,Suspense,useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const TableOrdersPage = lazy(() => import('../TableOrdersPage'));
+const DeliveryPage = lazy(() => import('../DeliveryPage'));
 const KitchenPage = lazy(() => import('../KitchenPage'));
 
-type LandscapeTab = 'mesas' | 'cocina' | 'comandas';
+type LandscapeTab = 'mesas' | 'cocina' | 'comandas' | 'repartos';
 
 const TAB_META: Record<LandscapeTab, { title: string; subtitle: string }> = {
+  repartos: { title: 'Repartos', subtitle: 'Asignación y seguimiento de entregas' },
   mesas: { title: 'Mesas', subtitle: 'Salón — toca una mesa para ver o crear su pedido' },
   cocina: { title: 'Cocina', subtitle: 'Comandas en preparación' },
-  comandas: { title: 'Comandas', subtitle: 'Todos los pedidos en curso' },
+  comandas: { title: 'Pedidos', subtitle: 'Todos los pedidos en curso' },
 };
 
 /**
@@ -36,6 +40,7 @@ const TAB_META: Record<LandscapeTab, { title: string; subtitle: string }> = {
  */
 export default function LandscapeStaffLayout() {
   const { user, restaurant, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<LandscapeTab>('comandas');
   const [existingOrders, setExistingOrders] = useState<LiveOrder[]>([]);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
@@ -59,40 +64,42 @@ export default function LandscapeStaffLayout() {
 
   const NAV_ITEMS: { id: 'crear' | LandscapeTab; label: string; icon: typeof Grid2x2 }[] = [
     { id: 'crear', label: 'Crear pedido', icon: Plus },
-    { id: 'comandas', label: 'Comandas', icon: Receipt },
+    { id: 'comandas', label: 'Pedidos', icon: Receipt },
     { id: 'cocina', label: 'Cocina', icon: ChefHat },
     { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
+    ...(user?.role === 'CASHIER' && restaurant?.subscriptionPlan !== 'ESSENTIAL' ? [{ id: 'repartos' as const, label: 'Repartos', icon: Bike }] : []),
   ];
 
   const meta = TAB_META[tab];
 
   return (
-    <div className="grid h-screen overflow-hidden" style={{ gridTemplateColumns: '88px 1fr' }}>
+    <div className="grid h-screen supports-[height:100dvh]:h-dvh overflow-hidden" style={{ gridTemplateColumns: '88px minmax(0, 1fr)' }}>
       {/* ---------- Sidebar ---------- */}
-      <aside className="flex flex-col items-center gap-1.5 bg-brand-950 py-4">
+      <aside className="quicktap-glass-sidebar flex flex-col items-center gap-1.5 py-4">
         <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-400 text-sm font-bold text-white">
           QT
         </div>
-        {NAV_ITEMS.map((item) => {
+        <BounceNavigation className="flex w-full flex-col items-center gap-2 px-2" aria-label="Secciones del local">{NAV_ITEMS.map((item) => {
           const active = item.id === tab;
           return (
             <button
               key={item.id}
+              aria-current={active ? 'page' : undefined}
               type="button"
               onClick={() => (item.id === 'crear' ? openCreateOrder() : setTab(item.id))}
-              className={`flex w-16 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[10.5px] font-medium transition-colors ${
+              className={`flex min-h-[80px] w-full flex-col items-center justify-center gap-2 rounded-2xl px-1 py-3 text-center text-[10.5px] leading-tight font-medium transition-colors ${
                 item.id === 'crear'
                   ? 'text-emerald-400 hover:text-emerald-300'
                   : active
-                    ? 'bg-brand-500/20 text-white'
+                    ? 'bg-brand-500/25 text-white shadow-[inset_3px_0_0_#38bdf8]'
                     : 'text-white/50 hover:text-white/80'
               }`}
             >
-              <item.icon className="h-[21px] w-[21px]" />
-              {item.label}
+              <item.icon className="h-[21px] w-[21px] shrink-0" aria-hidden="true" />
+              <span className="flex min-h-7 w-full items-center justify-center">{item.label}</span>
             </button>
           );
-        })}
+        })}</BounceNavigation>
         <div className="mt-auto flex flex-col items-center gap-2">
           <span className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-semibold text-white/70">
             {ROLE_LABELS[user.role]}
@@ -109,11 +116,11 @@ export default function LandscapeStaffLayout() {
       </aside>
 
       {/* ---------- Contenido ---------- */}
-      <div className="flex min-w-0 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between border-b border-brand-950/[0.08] bg-white px-6 py-3.5">
           <div>
             <h1 className="text-[17px] font-semibold text-brand-950">{meta.title}</h1>
-            <p className="text-xs font-light text-brand-950/45">{meta.subtitle}</p>
+            <p className="font-light text-brand-950/45 text-xs">{meta.subtitle}</p>
           </div>
           <div className="flex items-center gap-2.5">
             {/* Cajero (sin acceso completo, único rol que llega acá aparte de Mesero) conserva
@@ -145,17 +152,18 @@ export default function LandscapeStaffLayout() {
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
           <Suspense fallback={<div className="p-10 text-center text-sm font-light text-brand-950/30">Cargando…</div>}>
             {tab === 'mesas' && (
               <div className="px-6 py-5">
                 <TableOrdersPage />
               </div>
             )}
+            {tab === 'repartos' && <div className="px-4 py-3"><DeliveryPage /></div>}
             {tab === 'cocina' && <KitchenPage />}
             {tab === 'comandas' && (
-              <div className="px-6 py-5">
-                <LiveOrdersPanel hideCreateButton />
+              <div className="px-4 py-3">
+                <LiveOrdersPanel hideCreateButton compactLayout />
               </div>
             )}
           </Suspense>
@@ -163,7 +171,12 @@ export default function LandscapeStaffLayout() {
       </div>
 
       <TableServiceAlert />
-      <NewOrderAlert onNavigate={() => setTab('comandas')} />
+      <NewOrderAlert
+        onNavigate={(orderId) => {
+          setTab('comandas');
+          navigate(`/admin/comandas?order=${encodeURIComponent(orderId)}`);
+        }}
+      />
       <LowStockAlert />
       {CHATBOTS_ENABLED && <HelpChatWidget />}
       {user.role === 'CASHIER' && <OrderReadyToast />}
@@ -201,3 +214,4 @@ export default function LandscapeStaffLayout() {
     </div>
   );
 }
+import { BounceNavigation } from '@/components/ui/bounce-navigation';

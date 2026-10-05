@@ -1,56 +1,17 @@
 "use client"
+import { FamilyDrawerContext,type FamilyDrawerContextValue,useFamilyDrawer,type ViewsRegistry } from './family-drawer.shared';
 
+import { Slot } from "@radix-ui/react-slot";
+import clsx from "clsx";
+import { AnimatePresence,motion } from "motion/react";
+import type { ReactNode } from "react";
 import {
-  createContext,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-import type { ComponentType, ReactNode } from "react"
-import { Slot } from "@radix-ui/react-slot"
-import clsx from "clsx"
-import { AnimatePresence, motion } from "motion/react"
-import useMeasure from "react-use-measure"
-import { Drawer } from "vaul"
-
-// ============================================================================
-// Types
-// ============================================================================
-
-type ViewComponent = ComponentType<Record<string, unknown>>
-
-interface ViewsRegistry {
-  [viewName: string]: ViewComponent
-}
-
-// ============================================================================
-// Context
-// ============================================================================
-
-interface FamilyDrawerContextValue {
-  isOpen: boolean
-  view: string
-  setView: (view: string) => void
-  opacityDuration: number
-  elementRef: ReturnType<typeof useMeasure>[0]
-  bounds: ReturnType<typeof useMeasure>[1]
-  views: ViewsRegistry | undefined
-}
-
-const FamilyDrawerContext = createContext<FamilyDrawerContextValue | undefined>(
-  undefined
-)
-
-function useFamilyDrawer() {
-  const context = useContext(FamilyDrawerContext)
-  if (!context) {
-    throw new Error(
-      "FamilyDrawer components must be used within FamilyDrawerRoot"
-    )
-  }
-  return context
-}
+useMemo,
+useRef,
+useState
+} from "react";
+import useMeasure from "react-use-measure";
+import { Drawer } from "vaul";
 
 // ============================================================================
 // Root Component
@@ -385,7 +346,7 @@ function FamilyDrawerHeader({
       <h2 className="mt-2.5 text-[22px] font-semibold text-foreground md:font-medium">
         {title}
       </h2>
-      <p className="mt-3 text-[17px] font-medium leading-[24px] text-muted-foreground md:font-normal">
+      <p className="mt-3 font-medium leading-[24px] text-muted-foreground md:font-normal text-base">
         {description}
       </p>
     </header>
@@ -526,25 +487,4 @@ function CloseIcon() {
     </svg>
   )
 }
-
-// ============================================================================
-// Exports
-// ============================================================================
-
-export {
-  FamilyDrawerRoot,
-  FamilyDrawerTrigger,
-  FamilyDrawerPortal,
-  FamilyDrawerOverlay,
-  FamilyDrawerContent,
-  FamilyDrawerAnimatedWrapper,
-  FamilyDrawerAnimatedContent,
-  FamilyDrawerClose,
-  FamilyDrawerHeader,
-  FamilyDrawerButton,
-  FamilyDrawerSecondaryButton,
-  FamilyDrawerViewContent,
-  useFamilyDrawer,
-  type ViewsRegistry,
-  type ViewComponent,
-}
+export { FamilyDrawerAnimatedContent,FamilyDrawerAnimatedWrapper,FamilyDrawerButton,FamilyDrawerClose,FamilyDrawerContent,FamilyDrawerHeader,FamilyDrawerOverlay,FamilyDrawerPortal,FamilyDrawerRoot,FamilyDrawerSecondaryButton,FamilyDrawerTrigger,FamilyDrawerViewContent };

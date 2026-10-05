@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, CSSProperties } from 'react';
-import { Copy, GripVertical, ListPlus, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
-import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { api } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
-import type { Category, Kitchen, Product } from '../../types';
-import { CURRENCY_SYMBOLS, formatBase } from '../../utils/format';
-import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard } from '@/components/ui/texture-card';
-import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
+import { MissingKitchenNotice } from '@/components/admin/MissingKitchenNotice';
 import { CategoryDialog } from '@/components/admin/CategoryDialog';
 import { ModifierCategoriesDialog } from '@/components/admin/ModifierCategoriesDialog';
+import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { TextureCard } from '@/components/ui/texture-card';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { closestCenter,DndContext,PointerSensor,useSensor,useSensors } from '@dnd-kit/core';
+import { arrayMove,SortableContext,useSortable,verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Copy,GripVertical,ListPlus,Pencil,Plus,Search,Tag,Trash2,X } from 'lucide-react';
+import type { ChangeEvent,CSSProperties } from 'react';
+import { useEffect,useMemo,useState } from 'react';
+import { api } from '../../api/client';
+import { useAuth } from '../../context/AuthContext.shared';
+import type { Category,Kitchen,Product } from '../../types';
+import { CURRENCY_SYMBOLS,formatBase } from '../../utils/format';
 
 /** Minúsculas y sin acentos, para que el buscador no dependa de cómo se tipeó. */
 function normalize(value: string | null | undefined): string {
@@ -46,6 +47,20 @@ export default function ProductsPage() {
   >(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkKitchenId, setBulkKitchenId] = useState('');
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
+
+  async function assignSelectedKitchen() {
+    if (!selected.size || !bulkKitchenId || bulkAssigning) return;
+    if (!confirm(`¿Cambiar la cocina de ${selected.size} productos? Solo afecta a pedidos futuros.`)) return;
+    setBulkAssigning(true); setBulkMessage('');
+    try {
+      const { data } = await api.post('/products/bulk-kitchen', { ids: [...selected], kitchenId: bulkKitchenId === 'none' ? null : bulkKitchenId });
+      setBulkMessage(`${data.data.count} productos actualizados.`); setSelected(new Set()); setBulkKitchenId(''); load();
+    } catch (err: any) { setBulkMessage(err.response?.data?.error ?? 'No se pudo asignar la cocina.'); }
+    finally { setBulkAssigning(false); }
+  }
   /** Platos sin receta. null = este restaurante no cobra por receta, no se marca nada. */
   const [sinReceta, setSinReceta] = useState<Set<string> | null>(null);
 
@@ -239,12 +254,12 @@ export default function ProductsPage() {
         </TextureButton>
       </div>
 
-      {importError && <p className="text-sm text-red-600">{importError}</p>}
+      {importError && <p className="text-red-600 text-base">{importError}</p>}
 
       {/* ---------- Carga inicial: TODO el catálogo en un solo Excel ---------- */}
       <div className="rounded-2xl border border-brand-500/25 bg-brand-500/[0.04] p-4">
-        <p className="text-sm font-semibold text-brand-950">Cargar todo el catálogo con un Excel</p>
-        <p className="mt-0.5 text-xs font-light text-brand-950/60">
+        <p className="font-semibold text-brand-950 text-base">Cargar todo el catálogo con un Excel</p>
+        <p className="mt-0.5 font-light text-brand-950/60 text-xs">
           Una sola plantilla con cuatro hojas: productos (con la foto pegada en la celda), insumos, modificadores y
           recetas. Llena solo lo que necesites y súbela — puedes volver a subirla corregida sin duplicar nada.
         </p>
@@ -258,7 +273,7 @@ export default function ProductsPage() {
           >
             {catalogBusy === 'plantilla' ? 'Generando…' : 'Descargar plantilla completa'}
           </TextureButton>
-          <label className="inline-flex">
+          <label className="inline-flex text-sm font-medium">
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={subirCatalogo} disabled={catalogBusy !== null} />
             <TextureButton variant="brand" size="sm" className="!w-auto" asChild>
               <span>{catalogBusy === 'subiendo' ? 'Cargando…' : 'Subir catálogo'}</span>
@@ -269,7 +284,7 @@ export default function ProductsPage() {
 
       {catalogResult && (
         <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">
-          <p className="font-medium text-brand-950">Catálogo cargado</p>
+          <p className="font-medium text-brand-950 text-base">Catálogo cargado</p>
           <ul className="mt-2 space-y-1 text-xs">
             {catalogResult.hojas.map((h) => (
               <li key={h.hoja} className="text-brand-950/70">
@@ -305,7 +320,7 @@ export default function ProductsPage() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre, categoría o SKU…"
           aria-label="Buscar productos"
-          className="w-full rounded-xl border border-brand-950/15 bg-white py-2.5 pl-10 pr-10 text-sm text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          className="w-full rounded-xl border border-brand-950/15 bg-white py-2.5 pl-10 pr-10 text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
         />
         {query && (
           <button
@@ -350,16 +365,17 @@ export default function ProductsPage() {
       )}
 
       {(query || categoryFilter) && (
-        <p className="-mt-5 text-xs font-light text-brand-950/50">
+        <p className="-mt-5 font-light text-brand-950/50 text-xs">
           {filtered.length === 0
             ? 'Ningún producto coincide.'
             : `${filtered.length} de ${products.length} producto${products.length === 1 ? '' : 's'}`}
         </p>
       )}
 
+      <MissingKitchenNotice products={products} kitchens={kitchens} onSaved={load} />
       {filtered.length > 0 && (
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-medium text-brand-950/60">
+          <label className="flex items-center gap-2 text-brand-950/60 text-sm font-medium">
             <input
               type="checkbox"
               checked={selected.size > 0 && selected.size === filtered.length}
@@ -372,22 +388,29 @@ export default function ProductsPage() {
             Seleccionar todo
           </label>
           {selected.size > 0 && (
+            <>
+            <select aria-label="Cocina para productos seleccionados" value={bulkKitchenId} onChange={e => setBulkKitchenId(e.target.value)} disabled={bulkAssigning} className="max-w-full rounded-xl border border-brand-950/15 p-2 text-base">
+              <option value="">Asignar cocina…</option><option value="none">Sin cocina específica</option>{kitchens.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+            </select>
+            <TextureButton variant="brand" size="sm" disabled={!bulkKitchenId || bulkAssigning || bulkDeleting} onClick={assignSelectedKitchen}>{bulkAssigning ? 'Aplicando…' : `Aplicar a ${selected.size}`}</TextureButton>
             <TextureButton
               variant="minimal"
               size="sm"
               className="!w-auto flex items-center gap-1.5 whitespace-nowrap !text-red-600"
-              disabled={bulkDeleting}
+              disabled={bulkDeleting || bulkAssigning}
               onClick={bulkRemove}
             >
               <Trash2 className="h-3.5 w-3.5" /> {bulkDeleting ? 'Borrando…' : `Borrar ${selected.size} seleccionado${selected.size === 1 ? '' : 's'}`}
             </TextureButton>
+            </>
           )}
         </div>
       )}
 
+      {bulkMessage && <p role="status" className="text-brand-950 text-base">{bulkMessage}</p>}
       {filtered.length === 0 ? (
         <TextureCard>
-          <p className="px-4 py-6 text-center text-brand-950/40 text-sm font-light">
+          <p className="px-4 py-6 text-center text-brand-950/40 font-light text-base">
             {query || categoryFilter ? `Sin resultados${query ? ` para "${query}"` : ''}.` : 'Sin productos aún.'}
           </p>
         </TextureCard>
@@ -517,7 +540,11 @@ function ProductRow({
   dragHandleProps?: Record<string, unknown>;
 }) {
   return (
-    <li ref={setNodeRef} style={style} className="flex items-center justify-between px-4 py-3 text-sm gap-3">
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-col items-stretch gap-2 px-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4"
+    >
       {/* El asa, selección, foto y nombre forman una sola columna. Antes el asa era un hijo
           independiente de `justify-between`, por lo que el espacio se repartía distinto en cada
           fila y daba la sensación de que los productos estaban desordenados. */}
@@ -546,8 +573,8 @@ function ProductRow({
           <div className="h-10 w-10 rounded-lg bg-brand-950/5 shrink-0" />
         )}
         <div className="min-w-0">
-          <p className="font-medium text-brand-950 truncate">{p.name}</p>
-          <p className="text-brand-950/60 font-light">
+          <p className="font-medium text-brand-950 truncate text-base">{p.name}</p>
+          <p className="text-brand-950/60 font-light text-base">
             {formatBase(p.price, currencySymbol)}
             {p.sku && <span className="text-brand-950/40"> · SKU {p.sku}</span>}
           </p>
@@ -560,11 +587,11 @@ function ProductRow({
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 border-t border-brand-950/10 pt-2 sm:w-auto sm:shrink-0 sm:border-0 sm:pt-0">
         {/* A qué cocina sale la comanda de este plato — de un vistazo, junto al estado
             de disponibilidad, para notar rápido un plato mal asignado (o sin asignar). */}
         <span
-          className={`text-xs px-2 py-1 rounded-full font-medium ${
+          className={`hidden text-xs px-2 py-1 rounded-full font-medium sm:inline-flex ${
             p.kitchen ? 'bg-brand-950/[0.06] text-brand-950/60' : 'bg-amber-100 text-amber-700'
           }`}
         >

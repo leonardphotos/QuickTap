@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import type { Category, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { Category,Product } from '@/types';
+import { useEffect,useState } from 'react';
 
 type DisplayMode = 'ALL' | 'CATEGORIES' | 'PRODUCTS';
 
@@ -76,13 +76,13 @@ export function PantallaSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Pantalla</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Qué muestra el carrusel del monitor de la Pantalla (rol Pantalla), de cara al público afuera del local.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-5">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-brand-950">Qué mostrar</p>
+          <p className="font-medium text-brand-950 text-base">Qué mostrar</p>
           <div className="grid sm:grid-cols-3 gap-2">
             {MODE_OPTIONS.map((opt) => (
               <button
@@ -92,8 +92,8 @@ export function PantallaSection() {
                   mode === opt.value ? 'border-brand-500 bg-brand-500/5' : 'border-brand-950/10 hover:border-brand-950/20'
                 }`}
               >
-                <p className="text-sm font-medium text-brand-950">{opt.label}</p>
-                <p className="text-xs text-brand-950/50 font-light mt-0.5">{opt.description}</p>
+                <p className="font-medium text-brand-950 text-base">{opt.label}</p>
+                <p className="text-brand-950/50 font-light mt-0.5 text-xs">{opt.description}</p>
               </button>
             ))}
           </div>
@@ -101,15 +101,15 @@ export function PantallaSection() {
 
         {mode === 'CATEGORIES' && (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-brand-950">Categorías a mostrar</p>
+            <p className="font-medium text-brand-950 text-base">Categorías a mostrar</p>
             {categories.length === 0 ? (
-              <p className="text-sm text-brand-950/40 font-light">Todavía no tienes categorías creadas.</p>
+              <p className="text-brand-950/40 font-light text-base">Todavía no tienes categorías creadas.</p>
             ) : (
               <div className="grid sm:grid-cols-2 gap-2">
                 {categories.map((c) => (
                   <label
                     key={c.id}
-                    className="flex items-center gap-2 rounded-lg border border-brand-950/10 px-3 py-2 text-sm cursor-pointer hover:bg-brand-950/[0.03]"
+                    className="flex items-center gap-2 rounded-lg border border-brand-950/10 px-3 py-2 cursor-pointer hover:bg-brand-950/[0.03] text-sm font-medium"
                   >
                     <input type="checkbox" checked={categoryIds.includes(c.id)} onChange={() => toggleCategory(c.id)} />
                     <span className="text-brand-950">{c.name}</span>
@@ -123,21 +123,21 @@ export function PantallaSection() {
 
         {mode === 'PRODUCTS' && (
           <div className="space-y-3">
-            <p className="text-sm font-medium text-brand-950">Productos a mostrar</p>
+            <p className="font-medium text-brand-950 text-base">Productos a mostrar</p>
             {products.length === 0 ? (
-              <p className="text-sm text-brand-950/40 font-light">Todavía no tienes productos creados.</p>
+              <p className="text-brand-950/40 font-light text-base">Todavía no tienes productos creados.</p>
             ) : (
               <div className="max-h-80 overflow-y-auto space-y-4 pr-1">
                 {categories
                   .filter((c) => productsByCategory[c.id]?.length)
                   .map((c) => (
                     <div key={c.id}>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40 mb-1.5">{c.name}</p>
+                      <p className="font-semibold uppercase tracking-wide text-brand-950/40 mb-1.5 text-xs">{c.name}</p>
                       <div className="grid sm:grid-cols-2 gap-2">
                         {productsByCategory[c.id].map((p) => (
                           <label
                             key={p.id}
-                            className="flex items-center gap-2 rounded-lg border border-brand-950/10 px-3 py-2 text-sm cursor-pointer hover:bg-brand-950/[0.03]"
+                            className="flex items-center gap-2 rounded-lg border border-brand-950/10 px-3 py-2 cursor-pointer hover:bg-brand-950/[0.03] text-sm font-medium"
                           >
                             <input type="checkbox" checked={productIds.includes(p.id)} onChange={() => toggleProduct(p.id)} />
                             <span className="text-brand-950 truncate">{p.name}</span>
@@ -153,7 +153,7 @@ export function PantallaSection() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-brand-950">Duración de cada pantalla</p>
+            <p className="font-medium text-brand-950 text-base">Duración de cada pantalla</p>
             <div className="flex gap-2">
               {INTERVAL_OPTIONS.map((sec) => (
                 <button
@@ -170,7 +170,7 @@ export function PantallaSection() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium text-brand-950">Productos por pantalla</p>
+            <p className="font-medium text-brand-950 text-base">Productos por pantalla</p>
             <div className="flex gap-2">
               {ITEMS_PER_PAGE_OPTIONS.map((n) => (
                 <button
@@ -187,8 +187,8 @@ export function PantallaSection() {
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}

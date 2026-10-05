@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChevronDown, DollarSign, Receipt, Target, TrendingUp, UtensilsCrossed, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
+import { useAuth } from '@/context/AuthContext.shared';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
 import { hasFeature } from '@/utils/subscription';
+import { ArrowDownRight,ArrowUpRight,ChevronDown,DollarSign,Receipt,Target,TrendingUp,UtensilsCrossed,Wallet } from 'lucide-react';
+import { useEffect,useLayoutEffect,useRef,useState } from 'react';
 
 type Range = 'day' | 'week' | 'month' | 'year';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año' };
@@ -118,12 +118,12 @@ export function GeneralKpisCard() {
   const hasBreakEven = !!data?.breakEven.targetBase && Number(data.breakEven.targetBase) > 0;
 
   return (
-    <div className="w-full rounded-3xl border border-brand-950/10 bg-white shadow-sm">
+    <div className="qt-kpis w-full rounded-3xl border border-brand-950/10 bg-white shadow-sm">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+        className="qt-kpis-heading flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
       >
         <span className="min-w-0">
           <span className="block text-[17px] font-bold text-brand-950">KPI</span>
@@ -151,12 +151,12 @@ export function GeneralKpisCard() {
           }`}
         >
           {data && error && (
-            <p className="px-5 pb-2 text-[11px] font-light text-amber-700">
+            <p className="px-5 pb-2 font-light text-amber-700 text-xs">
               Mostrando los últimos datos: no se pudo actualizar.
             </p>
           )}
 
-          <div className="flex flex-wrap gap-1 px-5 pb-3">
+          <div className="qt-kpis-ranges flex flex-wrap gap-1 px-5 pb-3">
             {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
               <button
                 key={r}
@@ -173,7 +173,7 @@ export function GeneralKpisCard() {
 
           {!data && error ? (
             <div className="flex flex-wrap items-center gap-2 px-5 pb-5">
-              <p className="text-sm font-light text-brand-950/50">{error}</p>
+              <p className="font-light text-brand-950/50 text-base">{error}</p>
               <button
                 type="button"
                 onClick={() => setReloadKey((k) => k + 1)}
@@ -183,12 +183,12 @@ export function GeneralKpisCard() {
               </button>
             </div>
           ) : !data ? (
-            <p className="px-5 pb-5 text-sm font-light text-brand-950/40">Calculando…</p>
+            <p className="px-5 pb-5 font-light text-brand-950/40 text-base">Calculando…</p>
           ) : (
             // Dos columnas en celular; en escritorio la tarjeta ahora vive en "Panel de
             // ventas" (ancho completo, reemplaza a "Ventas por hora"), así que se reparte en
             // tres columnas — se lee de corrido, en horizontal, como el resto de esa fila.
-            <div className="grid grid-cols-2 border-t border-brand-950/[0.07] lg:grid-cols-3">
+            <div className="qt-kpis-grid grid grid-cols-2 border-t border-brand-950/[0.07] lg:grid-cols-3">
               {/* Punto de equilibrio: el anillo dice de un vistazo cuánto se lleva del objetivo. */}
               <KpiCell
                 ring={progress}
@@ -277,7 +277,7 @@ function KpiCell({
   const valueSizeClass = value.length > 12 ? 'text-[15px]' : value.length > 9 ? 'text-[18px]' : 'text-[22px]';
 
   return (
-    <div className="flex items-center gap-3 border-b border-brand-950/[0.07] px-4 py-4 [&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+3)]:border-b-0">
+    <div className="qt-kpi-cell flex items-center gap-3 border-b border-brand-950/[0.07] px-4 py-4 [&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+3)]:border-b-0">
       {ring != null ? (
         <ProgressRing value={ring} />
       ) : (
@@ -286,7 +286,7 @@ function KpiCell({
         </span>
       )}
       <div className="min-w-0">
-        <p className="text-[13px] font-medium leading-tight text-brand-950/60">{label}</p>
+        <p className="font-medium leading-tight text-brand-950/60 text-base">{label}</p>
         <p className={`${valueSizeClass} font-extrabold leading-tight tracking-tight ${valueTone || 'text-brand-950'}`}>
           {value}
         </p>

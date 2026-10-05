@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { FloorPlanTable } from '@/types';
+import { Link } from 'react-router-dom';
 
 /**
  * "+ Nueva reserva" del panel: la que toma el propio restaurante por teléfono o en persona.
@@ -66,10 +67,11 @@ export function NewReservationDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva reserva</DialogTitle>
         </DialogHeader>
+        <p className="text-brand-950/60 text-base">La reserva quedará confirmada. Luego podrás contactar al cliente por WhatsApp.</p>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <Field label="Día">
@@ -82,10 +84,10 @@ export function NewReservationDialog({
 
           <div className="grid grid-cols-2 gap-2">
             <Field label="Nombre">
-              <input value={form.name} onChange={set('name')} placeholder="Nombre del cliente" className={INPUT} required />
+              <input value={form.name} maxLength={120} onChange={set('name')} placeholder="Nombre del cliente" className={INPUT} required />
             </Field>
             <Field label="Teléfono">
-              <input value={form.phone} onChange={set('phone')} placeholder="04141234567" className={INPUT} required />
+              <input type="tel" minLength={7} maxLength={30} value={form.phone} onChange={set('phone')} placeholder="04141234567" className={INPUT} required />
             </Field>
           </div>
 
@@ -94,19 +96,20 @@ export function NewReservationDialog({
               <input type="number" min={1} max={100} value={form.partySize} onChange={set('partySize')} className={INPUT} required />
             </Field>
             <Field label="Nota (opcional)">
-              <input value={form.note} onChange={set('note')} placeholder="cumpleaños…" className={INPUT} />
+              <input value={form.note} maxLength={300} onChange={set('note')} placeholder="cumpleaños…" className={INPUT} />
             </Field>
           </div>
 
           <div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-brand-950/40">Mesas</p>
+            <p className="mb-1 font-bold uppercase tracking-wider text-brand-950/40 text-xs">Mesas</p>
             <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
               {tables.map((t) => (
                 <button
                   key={t.id}
                   type="button"
+                  aria-pressed={tableIds.includes(t.id)}
                   onClick={() => toggleTable(t.id)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                     tableIds.includes(t.id)
                       ? 'bg-brand-500 text-white'
                       : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
@@ -117,9 +120,11 @@ export function NewReservationDialog({
                 </button>
               ))}
             </div>
+            {tables.length === 0 ? <p className="text-brand-950/60 text-base">No hay mesas para asignar. <Link to="/admin/tables" className="text-brand-600 underline">Crear mesas</Link></p>
+              : <p className="mt-2 text-brand-950/60 text-xs">Selecciona una o varias mesas. Verifica su disponibilidad para la hora elegida antes de confirmar.</p>}
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
 
           <TextureButton variant="brand" size="default" disabled={tableIds.length === 0 || busy} className="!w-auto disabled:opacity-50">
             {busy ? 'Guardando…' : 'Crear reserva'}
@@ -135,7 +140,7 @@ const INPUT =
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-xs font-medium text-brand-950/60">
+    <label className="block text-brand-950/60 text-sm font-medium">
       {label}
       {children}
     </label>

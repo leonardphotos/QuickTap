@@ -1,13 +1,13 @@
-import { Download } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import {
-  TextureCard,
-  TextureCardHeader,
-  TextureCardTitle,
-  TextureCardContent,
-  TextureCardDescription,
+TextureCard,
+TextureCardContent,
+TextureCardDescription,
+TextureCardHeader,
+TextureCardTitle,
 } from '@/components/ui/texture-card';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Download } from 'lucide-react';
 
 /** Genera un acceso directo de escritorio (.url en Windows, .webloc en Mac) que abre el
  * panel de QuickTap con un doble clic. Solo tiene sentido en computadora, por eso la

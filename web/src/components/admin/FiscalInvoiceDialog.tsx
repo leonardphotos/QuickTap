@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { AlertTriangle, Receipt } from 'lucide-react';
 import { api } from '@/api/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { formatBase } from '@/utils/format';
-import type { LiveOrder } from './LiveOrdersPanel';
+import { AlertTriangle,Receipt } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { useState } from 'react';
+import type { LiveOrder } from './LiveOrdersPanel.shared';
 
 /**
  * Confirmación previa a emitir una factura por la máquina fiscal del local.
@@ -59,10 +59,10 @@ export function FiscalInvoiceDialog({
 
         {yaEmitida ? (
           <div className="space-y-3">
-            <p className="text-sm text-brand-950/70">
+            <p className="text-brand-950/70 text-base">
               Este pedido ya tiene factura fiscal <span className="font-semibold">{order.fiscalPrinterInvoice}</span>.
             </p>
-            <p className="text-xs text-brand-950/50 font-light">
+            <p className="text-brand-950/50 font-light text-xs">
               No se puede emitir dos veces: para corregirla hay que hacer una nota de crédito.
             </p>
             <TextureButton variant="minimal" size="default" onClick={onClose}>
@@ -82,24 +82,24 @@ export function FiscalInvoiceDialog({
               </div>
             </div>
 
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">
                 Cédula o RIF <span className="text-red-500">*</span>
               </span>
               <input
                 value={rif}
                 onChange={(e) => setRif(e.target.value)}
-                placeholder="V-12345678"
+                placeholder="V-12345678 o J-407123456"
                 autoFocus
                 required
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
               <span className="mt-1 block text-[11px] font-light text-brand-950/40">
-                Va impreso en la factura. Si son solo números se asume cédula venezolana (V).
+                Acepta V, E, J, P o G con guiones, puntos o espacios. Si son solo números se asume V.
               </span>
             </label>
 
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">
                 Nombre o razón social <span className="text-red-500">*</span>
               </span>
@@ -109,19 +109,19 @@ export function FiscalInvoiceDialog({
                 placeholder="CONSUMIDOR FINAL"
                 required
                 maxLength={60}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </label>
 
             <div className="flex gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-900 leading-relaxed">
+              <p className="text-amber-900 leading-relaxed text-xs">
                 Revisa bien los datos antes de emitir. La factura fiscal queda registrada de forma
                 permanente y solo se puede corregir con una nota de crédito.
               </p>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
 
             <div className="flex gap-2">
               <TextureButton type="button" variant="minimal" size="default" className="!w-auto" onClick={onClose}>

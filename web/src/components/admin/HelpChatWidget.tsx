@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext.shared';
+import { HELP_CATEGORY_LABELS,HELP_FAQ,type HelpFaqCategory } from '@/data/help-faq';
+import { ChevronLeft,MessageCircleQuestionMark,Send,X } from 'lucide-react';
 import type { FormEvent } from 'react';
-import { ChevronLeft, MessageCircleQuestionMark, Send, X } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { HELP_FAQ, HELP_CATEGORY_LABELS, type HelpFaqCategory } from '@/data/help-faq';
+import { useEffect,useMemo,useRef,useState } from 'react';
 
 type ChatMessage = { from: 'bot' | 'user'; text: string };
 
@@ -98,8 +98,8 @@ export function HelpChatWidget() {
           >
             <div className="flex items-center justify-between border-b border-brand-950/[0.06] px-5 py-4">
               <div>
-                <p className="text-sm font-semibold text-brand-950">Ayuda de QuickTap</p>
-                <p className="text-xs font-light text-brand-950/50">Preguntas frecuentes del panel</p>
+                <p className="font-semibold text-brand-950 text-base">Ayuda de QuickTap</p>
+                <p className="font-light text-brand-950/50 text-xs">Preguntas frecuentes del panel</p>
               </div>
               <button
                 type="button"
@@ -162,7 +162,7 @@ export function HelpChatWidget() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs font-light text-brand-950/40">Ya viste todas las preguntas de este tema.</p>
+                    <p className="font-light text-brand-950/40 text-xs">Ya viste todas las preguntas de este tema.</p>
                   )}
                 </div>
               )}
@@ -174,7 +174,7 @@ export function HelpChatWidget() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Escribe tu pregunta…"
                 aria-label="Escribe tu pregunta"
-                className="flex-1 rounded-full border border-brand-950/15 bg-white px-4 py-2.5 text-sm text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                className="flex-1 rounded-full border border-brand-950/15 bg-white px-4 py-2.5 text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
               />
               <button
                 type="submit"

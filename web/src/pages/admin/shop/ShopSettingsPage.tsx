@@ -1,23 +1,25 @@
-import { useState } from 'react';
-import { ArrowLeft, Building2, ChevronDown, LogOut, ShieldCheck, Wallet, Store, MessageCircle, Crown } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
-import type { Currency } from '@/types';
-import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardContent, TextureCardHeader, TextureCardTitle } from '@/components/ui/texture-card';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/components/admin/SettingsCategory';
-import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
+import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
+import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
+import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
-import { ShopTeamSection } from './ShopTeamSection';
-import { ShopStorefrontSection } from './ShopStorefrontSection';
+import { FullWidth,SettingsCategory } from '@/components/admin/SettingsCategory';
+import { scrollToSettingsCategory } from '@/components/admin/SettingsCategory.shared';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
-import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
+import { DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { TextureButton } from '@/components/ui/texture-button';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { Currency } from '@/types';
+import { ArrowLeft,Building2,ChevronDown,Crown,LogOut,MessageCircle,ShieldCheck,Store,Wallet } from 'lucide-react';
+import { useState } from 'react';
 import type { ShopSession } from './shopSession';
-import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
-import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
+import { ShopStorefrontSection } from './ShopStorefrontSection';
+import { ShopTeamSection } from './ShopTeamSection';
 
 interface Props {
   onBack: () => void;
@@ -53,7 +55,7 @@ function CurrencySection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Moneda</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           ¿En qué moneda colocas tus precios? La conversión a Bs se calcula sola con la tasa BCV.
         </p>
       </TextureCardHeader>
@@ -61,13 +63,13 @@ function CurrencySection() {
         <select
           value={baseCurrency}
           onChange={(e) => setBaseCurrency(e.target.value as Currency)}
-          className="w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+          className="w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
         >
           <option value="USD">Dólares ($)</option>
           <option value="EUR">Euros (€)</option>
         </select>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </TextureButton>
@@ -112,14 +114,14 @@ function ShopBsSaleRateSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Doble precio (Pago Móvil / Transferencia)</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Tasa propia para cobrar en Bs por Pago Móvil o Transferencia en Venta — normalmente más alta que la de
           referencia{referencia ? ` (hoy Bs ${Number(referencia).toFixed(2)})` : ''}. El precio en $ del catálogo no
           cambia; solo el monto en Bs que se le pide a estos dos métodos. Déjalo vacío para no usar doble precio.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Tasa de venta en Bs</span>
           <input
             type="number"
@@ -128,11 +130,11 @@ function ShopBsSaleRateSection() {
             value={tasa}
             onChange={(e) => setTasa(e.target.value)}
             placeholder={referencia ? Number(referencia).toFixed(2) : '0.00'}
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
           />
         </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </TextureButton>
@@ -150,8 +152,8 @@ function ShopBsSaleRateSection() {
  * Reutiliza las mismas secciones generales del panel de restaurante (datos del
  * negocio, moneda, métodos de pago, horario) — son genéricas, no asumen nada de
  * mesas/cocina/delivery — menos las que sí son solo de restaurante (mensaje de
- * WhatsApp de comanda, PIN de comandas, impresión de tickets de cocina, zonas de
- * delivery, Modo Cartelera). "Cerrar sesión" vive acá en vez de en la barra
+ * WhatsApp de comanda, PIN de comandas, impresión de tickets de cocina y Modo Cartelera).
+ * Las tarifas por distancia y zonas sí se reutilizan en la tienda virtual. "Cerrar sesión" vive acá en vez de en la barra
  * superior.
  */
 export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Props) {
@@ -262,6 +264,9 @@ export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Pro
         <FullWidth>
           <ThemeSection />
         </FullWidth>
+        <FullWidth>
+          <DeliveryPricingSection />
+        </FullWidth>
       </SettingsCategory>
 
       <SettingsCategory
@@ -320,8 +325,8 @@ export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Pro
       <TextureCard className="mt-3">
         <TextureCardContent className="flex items-center justify-between gap-4 py-5">
           <div>
-            <p className="text-sm font-semibold text-brand-950">Cerrar sesión</p>
-            <p className="text-xs text-brand-950/50 font-light">Sales de esta cuenta en este dispositivo.</p>
+            <p className="font-semibold text-brand-950 text-base">Cerrar sesión</p>
+            <p className="text-brand-950/50 font-light text-xs">Sales de esta cuenta en este dispositivo.</p>
           </div>
           <TextureButton variant="minimal" size="default" className="!w-auto shrink-0" onClick={logout}>
             <LogOut className="h-4 w-4" /> Cerrar sesión

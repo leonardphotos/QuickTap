@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="min-h-screen flex items-center justify-center px-6 bg-white">
           <div className="text-center max-w-sm">
             <p className="text-lg font-semibold text-brand-950 mb-2">Algo salió mal</p>
-            <p className="text-sm text-brand-950/60 font-light mb-5">
+            <p className="text-brand-950/60 font-light mb-5 text-base">
               Hubo un problema al cargar esta página. Intenta recargar.
             </p>
             <button

@@ -88,20 +88,20 @@ export default function ShopWalletPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-brand-950">QuickTap Wallet</h1>
-        <p className="text-sm font-light text-brand-950/50">
+        <p className="font-light text-brand-950/50 text-base">
           Abonos que tus clientes reportaron desde su portal, y el estado de sus deudas.
         </p>
       </div>
 
-      {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-red-600 text-base">{error}</p>}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-brand-950">
           Por verificar {pendientes && pendientes.length > 0 && `(${pendientes.length})`}
         </h2>
-        {pendientes === null && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
+        {pendientes === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
         {pendientes?.length === 0 && (
-          <p className="rounded-2xl border border-brand-950/[0.06] bg-white px-4 py-6 text-center text-sm font-light text-brand-950/40">
+          <p className="rounded-2xl border border-brand-950/[0.06] bg-white px-4 py-6 text-center font-light text-brand-950/40 text-base">
             No hay abonos esperando verificación.
           </p>
         )}
@@ -110,12 +110,12 @@ export default function ShopWalletPage() {
             <div key={p.id} className="rounded-2xl border border-amber-300/50 bg-amber-50/50 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-950">{p.cliente}</p>
-                  <p className="text-xs font-light text-brand-950/50">
+                  <p className="font-semibold text-brand-950 text-base">{p.cliente}</p>
+                  <p className="font-light text-brand-950/50 text-xs">
                     {p.telefono ?? 'sin teléfono'} · {METODOS[p.metodo] ?? p.metodo}
                     {p.installmentId && ' · imputado a una cuota'}
                   </p>
-                  <p className="text-[11px] font-light text-brand-950/40">
+                  <p className="font-light text-brand-950/40 text-xs">
                     {new Date(p.reportadoEl).toLocaleString('es-VE')}
                   </p>
                 </div>
@@ -162,7 +162,7 @@ export default function ShopWalletPage() {
           Clientes con deuda {deudores && deudores.length > 0 && `(${deudores.length})`}
         </h2>
         {deudores?.length === 0 && (
-          <p className="rounded-2xl border border-brand-950/[0.06] bg-white px-4 py-6 text-center text-sm font-light text-brand-950/40">
+          <p className="rounded-2xl border border-brand-950/[0.06] bg-white px-4 py-6 text-center font-light text-brand-950/40 text-base">
             Nadie te debe. 🎉
           </p>
         )}
@@ -171,8 +171,8 @@ export default function ShopWalletPage() {
             <div key={d.telefono} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-brand-950">{d.nombre}</p>
-                  <p className="text-xs font-light text-brand-950/50">
+                  <p className="truncate font-semibold text-brand-950 text-base">{d.nombre}</p>
+                  <p className="font-light text-brand-950/50 text-xs">
                     {d.telefono} · {d.compras} compra{d.compras === 1 ? '' : 's'}
                     {d.cuotasVencidas > 0 && (
                       <span className="ml-1 font-medium text-red-600">
@@ -183,8 +183,8 @@ export default function ShopWalletPage() {
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-base font-bold tabular-nums text-brand-950">{money(d.saldo)}</p>
-                  <p className="text-[11px] font-light text-brand-950/40">de {money(d.total)}</p>
+                  <p className="font-bold tabular-nums text-brand-950 text-base">{money(d.saldo)}</p>
+                  <p className="font-light text-brand-950/40 text-xs">de {money(d.total)}</p>
                 </div>
               </div>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-brand-950/[0.07]">

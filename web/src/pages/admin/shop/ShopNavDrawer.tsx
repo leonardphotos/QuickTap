@@ -1,6 +1,6 @@
-import { AnimatePresence, motion } from 'motion/react';
-import { Lock, LogOut, X, type LucideIcon } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Lock,LogOut,X,type LucideIcon } from 'lucide-react';
+import { AnimatePresence,motion } from 'motion/react';
 import type { ShopScreen } from './ShopLayout';
 
 /** Misma curva del drawer de restaurantes: entra decidido, sin rebote. */
@@ -83,7 +83,7 @@ export function ShopNavDrawer({ open, onClose, principales, secundarios, activo,
             transition={{ duration: 0.3, ease: EASE_DRAWER }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <p className="font-semibold text-brand-950">Menú</p>
+              <p className="font-semibold text-brand-950 text-base">Menú</p>
               <button onClick={onClose} aria-label="Cerrar">
                 <X className="h-5 w-5 text-brand-950/50" />
               </button>

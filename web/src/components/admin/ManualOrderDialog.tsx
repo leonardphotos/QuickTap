@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
-import { ChefHat, Search } from 'lucide-react';
+import { SendOrderToKitchenDialog } from './SendOrderToKitchenDialog';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, modifierSelectionKey } from '@/utils/format';
-import type { CartLine, Product, TableSession } from '@/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { CartLine,Product,TableSession } from '@/types';
+import { CURRENCY_SYMBOLS,cartLineUnitPrice,formatBase,modifierSelectionKey } from '@/utils/format';
+import { ChefHat,Search } from 'lucide-react';
+import { useMemo,useState } from 'react';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
 
 interface Props {
@@ -13,12 +14,14 @@ interface Props {
   tableNumber: string;
   /** Cuenta(s) abierta(s) de la mesa. Vacío = mesa libre (se abrirá una cuenta al enviar). */
   sessions: TableSession[];
+  /** Abre directamente el flujo para crear una cuenta independiente en una mesa ocupada. */
+  initialNewAccount?: boolean;
   products: Product[];
   onClose: () => void;
   onCreated: () => void;
 }
 
-export function ManualOrderDialog({ tableId, tableNumber, sessions, products, onClose, onCreated }: Props) {
+export function ManualOrderDialog({ tableId, tableNumber, sessions, initialNewAccount = false, products, onClose, onCreated }: Props) {
   const { restaurant } = useAuth();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
@@ -26,15 +29,18 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
   const [customerIdNumber, setCustomerIdNumber] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   // Mesa con cuenta(s) abierta(s): a cuál se agrega, o 'new' para abrir una independiente.
-  const [accountChoice, setAccountChoice] = useState<string | 'new' | null>(sessions.length === 1 ? sessions[0].id : null);
+  const [accountChoice, setAccountChoice] = useState<string | 'new' | null>(
+    initialNewAccount ? 'new' : sessions.length === 1 ? sessions[0].id : null,
+  );
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<{ id: string; orderNumber: number } | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const needsNewAccount = sessions.length === 0 || accountChoice === 'new';
-  // Dos pasos: primero de quién es la cuenta (datos del cliente), después el menú. Con una
-  // sola cuenta ya abierta se entra directo al menú — ese cliente ya está identificado.
-  const [step, setStep] = useState<'cliente' | 'menu'>(sessions.length === 1 ? 'menu' : 'cliente');
+  // Solo se detiene en la selección de cuenta cuando hay varias; los datos del cliente se
+  // completan al cobrar, así se puede empezar a comandar de inmediato.
+  const [step, setStep] = useState<'cliente' | 'menu'>(sessions.length > 1 ? 'cliente' : 'menu');
 
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
 
@@ -55,14 +61,10 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
 
   const totalBase = lines.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0);
 
-  /** Paso 1 → 2: exige elegir la cuenta y, si es nueva, los datos del cliente. */
+  /** Paso 1 → 2: si hay varias cuentas, exige elegir dónde agregar la comanda. */
   function continueToMenu() {
     if (sessions.length > 1 && !accountChoice) {
       setError('Elige a cuál cuenta va el pedido, o abre una nueva.');
-      return;
-    }
-    if (needsNewAccount && (!customerName.trim() || !customerIdNumber.trim() || !customerPhone.trim())) {
-      setError('Escribe el nombre, la cédula y el teléfono del cliente para abrir la cuenta.');
       return;
     }
     setError(null);
@@ -95,42 +97,39 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
       setError('Elige a cuál cuenta agregar el pedido, o abre una nueva.');
       return;
     }
-    if (needsNewAccount) {
-      if (!customerName.trim() || !customerIdNumber.trim() || !customerPhone.trim()) {
-        setError('Escribe el nombre, la cédula y el teléfono del cliente para abrir la cuenta.');
-        return;
-      }
-    }
     setSending(true);
     setError(null);
     try {
-      await api.post('/orders/manual', {
+      const response = await api.post('/orders/manual', {
+        sendToKitchen: false,
         tableId,
         items: lines.map((l) => ({
           productId: l.product.id,
           quantity: l.quantity,
           variantId: l.variantId,
           modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+          comboSelections: l.comboSelections,
           note: l.note,
         })),
         sessionId: !needsNewAccount && accountChoice ? accountChoice : undefined,
         openNewAccount: accountChoice === 'new' ? true : undefined,
         ...(needsNewAccount
           ? {
-              customerName: customerName.trim(),
-              customerIdNumber: customerIdNumber.trim(),
-              customerPhone: customerPhone.trim(),
+              ...(customerName.trim() ? { customerName: customerName.trim() } : {}),
+              ...(customerIdNumber.trim() ? { customerIdNumber: customerIdNumber.trim() } : {}),
+              ...(customerPhone.trim() ? { customerPhone: customerPhone.trim() } : {}),
             }
           : {}),
       });
-      onCreated();
-      onClose();
+      setCreatedOrder(response.data.data);
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo enviar el pedido a cocina.');
     } finally {
       setSending(false);
     }
   }
+
+  if (createdOrder) return <SendOrderToKitchenDialog order={createdOrder} onDone={() => { onCreated(); onClose(); }} />;
 
   return (
     <>
@@ -145,7 +144,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
           <div className="space-y-4">
             {step === 'cliente' && sessions.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-brand-950/50">
+                <p className="font-medium text-brand-950/50 text-xs">
                   {sessions.length > 1 ? 'Elige a cuál cuenta agregar, o abre una nueva:' : 'Esta mesa ya tiene una cuenta abierta:'}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -176,36 +175,36 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
 
             {step === 'cliente' && needsNewAccount && (
               <div className="space-y-2">
-                <p className="text-sm font-semibold text-brand-950">Datos para abrir la cuenta</p>
+                <p className="font-semibold text-brand-950 text-base">Datos del cliente (opcionales al crear)</p>
                 <input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nombre"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  placeholder="Nombre (se solicita al cobrar)"
+                  className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
                 <input
                   value={customerIdNumber}
                   onChange={(e) => setCustomerIdNumber(e.target.value)}
                   placeholder="Cédula"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
                 <input
                   type="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   placeholder="Teléfono"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
                 />
               </div>
             )}
 
             {step === 'cliente' && (
               <>
-                {error && <p className="text-sm text-red-600">{error}</p>}
+                {error && <p className="text-red-600 text-base">{error}</p>}
                 <TextureButton variant="brand" size="default" onClick={continueToMenu}>
                   Continuar al menú
                 </TextureButton>
-                <p className="-mt-1 text-center text-xs font-light text-brand-950/45">
+                <p className="-mt-1 text-center font-light text-brand-950/45 text-xs">
                   La cuenta queda abierta: se van sumando pedidos y se cobra al final.
                 </p>
               </>
@@ -219,7 +218,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar en el menú…"
-                className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="w-full border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </div>
             <div className="flex gap-1.5 flex-wrap">
@@ -260,8 +259,8 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
                       <div className="h-24 w-full rounded-lg bg-brand-950/5" />
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
-                      <p className="text-sm text-brand-950/50">{formatBase(p.price, symbol)}</p>
+                      <p className="font-medium text-brand-950 truncate text-base">{p.name}</p>
+                      <p className="text-brand-950/50 text-base">{formatBase(p.price, symbol)}</p>
                     </div>
                     <button
                       type="button"
@@ -274,7 +273,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
                 );
               })}
               {filteredProducts.length === 0 && (
-                <p className="col-span-2 text-sm text-brand-950/40 font-light text-center py-4">
+                <p className="col-span-2 text-brand-950/40 font-light text-center py-4 text-base">
                   {products.length === 0 ? 'No hay productos disponibles.' : 'No hay productos que coincidan.'}
                 </p>
               )}
@@ -285,7 +284,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
               <span>{formatBase(totalBase, symbol)}</span>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-base">{error}</p>}
 
             <TextureButton
               variant="brand"
@@ -297,7 +296,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
               <ChefHat className="mr-1.5 h-4 w-4" />
               {sending ? 'Enviando…' : 'Enviar a cocina'}
             </TextureButton>
-            <p className="-mt-1 text-center text-xs font-light text-brand-950/45">
+            <p className="-mt-1 text-center font-light text-brand-950/45 text-xs">
               Va directo a la cocina y la cuenta queda abierta — se cobra cuando el cliente termine.
             </p>
             {sessions.length !== 1 && (

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { CartLine,ComboComponentInfo,ComboSelection,ModifierCategory,Product,SelectedModifier } from '@/types';
 import { formatBase } from '@/utils/format';
-import { effectiveModifierPrice, aplicaAlTamano, modifierAplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '@/utils/modifierLimits';
-import type { CartLine, ComboComponentInfo, ComboSelection, ModifierCategory, Product, SelectedModifier } from '@/types';
+import { aplicaAlTamano,effectiveModifierPrice,lineasConGratis,modifierAplicaAlTamano,totalGrupoConGratis } from '@/utils/modifierLimits';
+import { useEffect,useState } from 'react';
+import { claveComponente } from './ProductOptionsDialog.shared';
 
 interface Props {
   product: Product;
@@ -92,18 +93,24 @@ export function ProductOptionsDialog({
   // arreglo aplanado, y adentro modifierId -> cantidad, igual que selectedQty.
   // Combo pool: con mín/máx definidos, los componentes son la lista disponible y el cajero
   // elige cuántos de cada uno (repitiendo si quiere); sin límites, cantidades fijas de siempre.
-  const esComboPool = product.comboMinSelections != null || product.comboMaxSelections != null;
+  const fixedComboComponents = (product.comboComponents ?? []).filter((c) => c.isChoice !== true);
+  const choiceComboComponents = (product.comboComponents ?? []).filter((c) => c.isChoice === true);
+  const esComboPool = choiceComboComponents.length > 0
+    && (product.comboMinSelections != null || product.comboMaxSelections != null);
   const comboPoolMin = product.comboMinSelections ?? 1;
   const comboPoolMax = product.comboMaxSelections ?? Infinity;
   const [poolQty, setPoolQty] = useState<Record<string, number>>({});
   const poolTotal = Object.values(poolQty).reduce((a, b) => a + b, 0);
-  const comboInstances = esComboPool
-    ? (product.comboComponents ?? []).flatMap((c) =>
-        Array.from({ length: poolQty[claveComponente(c)] ?? 0 }, (_, i) => ({ comp: c, n: i + 1 })),
-      )
-    : (product.comboComponents ?? []).flatMap((c) =>
-        Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
-      );
+  const comboInstances = [
+    ...fixedComboComponents.flatMap((c) =>
+      Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
+    ),
+    ...(esComboPool
+      ? choiceComboComponents.flatMap((c) =>
+          Array.from({ length: poolQty[claveComponente(c)] ?? 0 }, (_, i) => ({ comp: c, n: i + 1 })),
+        )
+      : []),
+  ];
   // Clave estable por plato+tamaño+número (no el índice del arreglo): en pool, quitar un plato
   // desplaza los índices y el armado de un plato se le colaría a otro.
   const claveInstancia = (inst: { comp: ComboComponentInfo; n: number }) =>
@@ -287,7 +294,7 @@ export function ProductOptionsDialog({
         <div className={grande ? 'w-full space-y-5 pb-2' : 'space-y-4'}>
           {product.pricingMode === 'VARIANTS' && product.variants && product.variants.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-brand-950/70 mb-2">Elige una opción</p>
+              <p className="font-medium text-brand-950/70 mb-2 text-base">Elige una opción</p>
               {grande ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                   {product.variants.map((v) => (
@@ -323,7 +330,7 @@ export function ProductOptionsDialog({
 
           {esComboPool && (
             <ComboPoolSelector
-              componentes={product.comboComponents ?? []}
+              componentes={choiceComboComponents}
               poolQty={poolQty}
               min={comboPoolMin}
               max={comboPoolMax}
@@ -334,7 +341,7 @@ export function ProductOptionsDialog({
 
           {comboInstances.map((inst) => {
             const clave = claveInstancia(inst);
-            const repetidas = esComboPool ? (poolQty[claveComponente(inst.comp)] ?? 0) : inst.comp.quantity;
+            const repetidas = inst.comp.isChoice ? (poolQty[claveComponente(inst.comp)] ?? 0) : inst.comp.quantity;
             const nombre = inst.comp.variantName ? `${inst.comp.name} ${inst.comp.variantName}` : inst.comp.name;
             return (
               <ComboInstancePicker
@@ -392,7 +399,7 @@ export function ProductOptionsDialog({
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-brand-950/40 mt-0.5 mb-2">{categoryHint(category)}</p>
+                <p className="text-brand-950/40 mt-0.5 mb-2 text-xs">{categoryHint(category)}</p>
                 {grande ? (
                   <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                     {category.modifiers.filter((m) => modifierAplicaAlTamano(m, selectedVariant?.id)).map((m) => {
@@ -629,11 +636,6 @@ export function OpcionTile({
   );
 }
 
-/** Identidad de una fila del combo: plato+tamaño ("Noodle Bar" en 16OZ y 26OZ son filas distintas). */
-export function claveComponente(c: { componentProductId: string; variantId?: string | null }): string {
-  return `${c.componentProductId}::${c.variantId ?? ''}`;
-}
-
 export function ComboPoolSelector({
   componentes,
   poolQty,
@@ -667,7 +669,7 @@ export function ComboPoolSelector({
   return (
     <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <p className="text-sm font-bold text-brand-950">Platos del combo</p>
+        <p className="font-bold text-brand-950 text-base">Platos del combo</p>
         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-medium text-amber-700">
           {etiquetaRango}
         </span>
@@ -789,7 +791,7 @@ export function ComboInstancePicker({
 
   return (
     <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3">
-      <p className="mb-2 text-sm font-bold text-brand-950">▪ {titulo}</p>
+      <p className="mb-2 font-bold text-brand-950 text-base">▪ {titulo}</p>
       <div className="space-y-3">
         {categorias.map((cat) => {
           const total = totalDe(cat);
@@ -798,7 +800,7 @@ export function ComboInstancePicker({
           return (
             <div key={cat.id}>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[13px] font-semibold text-brand-950">{cat.name}</p>
+                <p className="font-semibold text-brand-950 text-base">{cat.name}</p>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${
                     cat.isRequired ? 'bg-amber-100 text-amber-700' : 'bg-brand-950/5 text-brand-950/40'
@@ -817,7 +819,7 @@ export function ComboInstancePicker({
                   </span>
                 )}
               </div>
-              {min > 1 && <p className="mt-0.5 text-[11px] text-brand-950/40">Elige al menos {min}</p>}
+              {min > 1 && <p className="mt-0.5 text-brand-950/40 text-xs">Elige al menos {min}</p>}
               {grande ? (
                 <div className="mt-1.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                   {cat.modifiers.map((m) => {

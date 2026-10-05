@@ -1,20 +1,13 @@
-import { useState } from 'react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { methodAccountsOf } from '@/utils/payment-accounts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { PAYMENT_LABELS } from './PaymentDialog';
-import { MethodAccountPicker } from './MethodAccountPicker';
+import { useAuth } from '@/context/AuthContext.shared';
 import type { PaymentMethod } from '@/types';
-
-export type IncomeCategory = 'TIP' | 'DEBT' | 'OTHER';
-
-export const INCOME_CATEGORY_LABELS: Record<IncomeCategory, string> = {
-  TIP: 'Propina',
-  DEBT: 'Deuda',
-  OTHER: 'Otro',
-};
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import { useState } from 'react';
+import { INCOME_CATEGORY_LABELS,type IncomeCategory } from './IncomeFormDialog.shared';
+import { MethodAccountPicker } from './MethodAccountPicker';
+import { PAYMENT_LABELS } from './PaymentDialog.shared';
 
 const INCOME_METHODS: PaymentMethod[] = ['CASH', 'CASH_USD', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
 
@@ -67,7 +60,7 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Tipo de ingreso</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Tipo de ingreso</p>
         <div className="flex flex-wrap gap-1.5">
           {(Object.keys(INCOME_CATEGORY_LABELS) as IncomeCategory[]).map((c) => (
             <button
@@ -85,7 +78,7 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
       </div>
 
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Método de pago</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Método de pago</p>
         <div className="flex flex-wrap gap-1.5">
           {INCOME_METHODS.map((m) => (
             <button
@@ -108,21 +101,21 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
 
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2">
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Monto</p>
           <input
             autoFocus
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
             placeholder="0.00"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           />
         </div>
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Moneda</p>
+          <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Moneda</p>
           <select
             value={amountCurrency}
             onChange={(e) => setAmountCurrency(e.target.value as 'BASE' | 'BS')}
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
           >
             <option value="BASE">$</option>
             <option value="BS">Bs</option>
@@ -131,16 +124,16 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
       </div>
 
       <div>
-        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descripción (opcional)</p>
+        <p className="font-medium text-brand-950/50 mb-1.5 text-xs">Descripción (opcional)</p>
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={INCOME_CATEGORY_LABELS[category]}
-          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
         {saving ? 'Guardando…' : 'Guardar ingreso'}

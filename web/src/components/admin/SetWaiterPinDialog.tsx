@@ -41,7 +41,7 @@ export function SetWaiterPinDialog({ waiter, onClose, onSaved }: Props) {
           <DialogTitle>PIN de {waiter.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-sm text-brand-950/60 font-light">
+          <p className="text-brand-950/60 font-light text-base">
             {waiter.hasLockPin
               ? 'Este mesero ya tiene un PIN configurado. Escribe uno nuevo para reemplazarlo, o quítalo abajo.'
               : 'Mientras no tenga PIN, no aparece en la cuadrícula de la tablet compartida.'}
@@ -54,7 +54,7 @@ export function SetWaiterPinDialog({ waiter, onClose, onSaved }: Props) {
             maxLength={4}
             className="w-full text-center text-2xl tracking-[0.5em] border border-brand-950/15 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <div className="flex items-center gap-3">
             <TextureButton
               variant="brand"

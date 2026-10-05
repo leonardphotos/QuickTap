@@ -1,0 +1,43 @@
+/* Sistema visual del máster. El resto de los paneles conserva su tema. */
+body.master-theme {
+  --color-brand-950: #20242c;
+  --color-background: #f6f7f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.master-ui { color-scheme: light; }
+.master-ui :where(h1,h2,h3) { letter-spacing: -.025em; }
+.master-ui h1 { font-size: clamp(1.5rem, 2.5vw, 2rem); line-height: 1.2; font-weight: 650; }
+.master-ui :where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea) {
+  border: 1px solid #e2e5ea;
+  border-radius: 12px;
+  background-color: #fafbfc;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.master-ui :where(input,select,textarea):focus-visible { outline: 3px solid #bfdbfe; outline-offset: 2px; }
+.master-ui :where(button,a):focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+.master-ui :where(table) { font-size: 13px; border-collapse: separate; border-spacing: 0; }
+.master-ui :where(th) { font-size: 11px; font-weight: 600; color: #64748b; padding: 12px; }
+.master-ui :where(td) { padding: 12px; border-bottom-color: #eef0f3; }
+.master-ui :where(tbody tr):hover { background-color: #f8fafc; }
+.master-ui :where(.bg-white.rounded-2xl,.bg-white.rounded-3xl) { box-shadow: 0 2px 8px #20242c04; }
+.master-ui :where(button) { touch-action: manipulation; }
+.master-mobile-menu[data-slot], .master-mobile-menu[role=dialog] {
+  inset: 0 auto 0 0; transform: none; translate: none; width: min(272px, 90vw); max-width: none;
+  height: 100dvh; max-height: none; padding: 0; gap: 0; border: 0; border-radius: 0;
+  overflow: hidden; animation: none;
+}
+.master-mobile-menu .master-sidebar { width: 100%; padding-top: max(20px, env(safe-area-inset-top)); padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+@media(max-width:640px) {
+  .master-ui :where(input:not([type=checkbox]):not([type=radio]),select,textarea) { font-size: 16px; }
+  .master-ui :where(button) { min-height: 36px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .master-ui *, .master-mobile-menu * { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+.master-ui :where([class*="text-brand-950/"]) { color: #64748b; }

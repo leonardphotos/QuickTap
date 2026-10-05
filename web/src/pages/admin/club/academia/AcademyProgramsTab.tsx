@@ -67,11 +67,11 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
 
   useEffect(load, [load]);
 
-  if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando…</p>;
+  if (loading) return <p className="font-light text-brand-950/40 text-base">Cargando…</p>;
 
   return (
     <div className="flex flex-col gap-3.5">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       <ClubEyebrow>Estructura de la academia</ClubEyebrow>
       <ClubPanel
@@ -225,7 +225,7 @@ function ProgramDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           <DialogTitle>Nuevo programa</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <label className="block">
+          <label className="block text-sm font-medium">
             <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Nombre *</span>
             <input value={name} onChange={(e) => setName(e.target.value)} className={INPUT} placeholder="Infantil" />
           </label>
@@ -241,7 +241,7 @@ function ProgramDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               </button>
             ))}
           </div>
-          <label className="block">
+          <label className="block text-sm font-medium">
             <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Descripción</span>
             <input
               value={description}
@@ -265,7 +265,7 @@ function ProgramDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               ))}
             </div>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
             {saving ? 'Guardando…' : 'Crear programa'}
           </TextureButton>

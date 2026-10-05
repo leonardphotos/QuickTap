@@ -31,18 +31,18 @@ export default function OfficeReportesPage({ empresa }: { empresa: Empresa }) {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Reportes</h1>
-          <p className="mt-0.5 text-[13.5px] text-brand-950/50">
+          <p className="mt-0.5 text-brand-950/50 text-base">
             {desde || hasta ? 'Del período elegido.' : 'Desde que se abrieron los libros.'}
           </p>
         </div>
         <div className="flex gap-2">
-          <label className="block text-xs">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/50">Desde</span>
-            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="mt-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm" />
+            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="mt-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base" />
           </label>
-          <label className="block text-xs">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/50">Hasta</span>
-            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="mt-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm" />
+            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="mt-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-base" />
           </label>
         </div>
       </div>
@@ -60,7 +60,7 @@ export default function OfficeReportesPage({ empresa }: { empresa: Empresa }) {
       <div className="mb-5 grid gap-4 lg:grid-cols-2">
         {/* ---------- Estado de resultados ---------- */}
         <div className="rounded-2xl border border-brand-950/[0.08] p-5">
-          <p className="mb-4 text-[15px] font-semibold">Estado de resultados</p>
+          <p className="mb-4 font-semibold text-base">Estado de resultados</p>
           <dl className="flex flex-col gap-2.5 text-[14px]">
             <div className="flex justify-between">
               <dt className="text-brand-950/60">Ingresos</dt>
@@ -85,7 +85,7 @@ export default function OfficeReportesPage({ empresa }: { empresa: Empresa }) {
 
         {/* ---------- Balance general ---------- */}
         <div className="rounded-2xl border border-brand-950/[0.08] p-5">
-          <p className="mb-4 text-[15px] font-semibold">Balance general</p>
+          <p className="mb-4 font-semibold text-base">Balance general</p>
           <dl className="flex flex-col gap-2.5 text-[14px]">
             <div className="flex justify-between">
               <dt className="text-brand-950/60">Activo</dt>
@@ -111,13 +111,13 @@ export default function OfficeReportesPage({ empresa }: { empresa: Empresa }) {
       {/* ---------- Balance de comprobación ---------- */}
       <div className="overflow-hidden rounded-2xl border border-brand-950/[0.08]">
         <div className="flex items-baseline justify-between gap-2 border-b border-brand-950/[0.06] px-4 py-3">
-          <p className="text-[15px] font-semibold">Balance de comprobación</p>
-          <p className="text-[12.5px] tabular-nums text-brand-950/45">
+          <p className="font-semibold text-base">Balance de comprobación</p>
+          <p className="tabular-nums text-brand-950/45 text-base">
             Debe {m(rep?.totales.debe ?? 0)} · Haber {m(rep?.totales.haber ?? 0)}
           </p>
         </div>
         {!rep || rep.balanceComprobacion.length === 0 ? (
-          <p className="p-6 text-sm text-brand-950/40">Sin movimientos en el período.</p>
+          <p className="p-6 text-brand-950/40 text-base">Sin movimientos en el período.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13.5px]">

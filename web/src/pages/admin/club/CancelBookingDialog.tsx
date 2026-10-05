@@ -56,7 +56,7 @@ export default function CancelBookingDialog({
           <DialogTitle>Cancelar la reserva de {playerName}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-[13px] font-medium text-brand-950/70">¿Por qué se cancela?</p>
+          <p className="font-medium text-brand-950/70 text-base">¿Por qué se cancela?</p>
           <div className="space-y-1.5">
             {[...REASONS, 'OTRO'].map((r) => (
               <button
@@ -84,11 +84,11 @@ export default function CancelBookingDialog({
             />
           )}
 
-          <p className="text-xs font-light text-brand-950/40">
+          <p className="font-light text-brand-950/40 text-xs">
             El motivo queda guardado en la reserva. La cancha se libera de inmediato y vuelve a estar disponible.
           </p>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton
             variant="brand"
             size="default"

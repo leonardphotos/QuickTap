@@ -1,11 +1,12 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 /**
  * Captura un elemento del DOM (una plantilla de recibo/comanda oculta fuera
  * de pantalla) y lo descarga como PDF de una sola página, ajustado al ancho.
  */
 export async function downloadElementAsPdf(element: HTMLElement, filename: string) {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
   const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
   const imgData = canvas.toDataURL('image/png');
 
@@ -24,6 +25,7 @@ export async function downloadElementAsPdf(element: HTMLElement, filename: strin
 
 /** Captura el mismo elemento y lo descarga como imagen JPG (botón "Descargar" de una comanda). */
 export async function downloadElementAsJpg(element: HTMLElement, filename: string) {
+  const { default: html2canvas } = await import('html2canvas');
   const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
   const link = document.createElement('a');
   link.href = canvas.toDataURL('image/jpeg', 0.92);

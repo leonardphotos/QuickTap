@@ -107,7 +107,7 @@ export default function OfficeAsientosPage({ empresa }: { empresa: Empresa }) {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Libro diario</h1>
-          <p className="mt-0.5 text-[13.5px] text-brand-950/50">Todo lo que se registró en {empresa.nombre}.</p>
+          <p className="mt-0.5 text-brand-950/50 text-base">Todo lo que se registró en {empresa.nombre}.</p>
         </div>
         {!abierto && (
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setAbierto(true)}>
@@ -119,33 +119,33 @@ export default function OfficeAsientosPage({ empresa }: { empresa: Empresa }) {
       {abierto && (
         <div className="mb-6 rounded-2xl border border-brand-950/[0.08] bg-[#FAFAF9] p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
-            <p className="text-[15px] font-semibold">Nuevo asiento</p>
+            <p className="font-semibold text-base">Nuevo asiento</p>
             <button type="button" onClick={() => setAbierto(false)} className="text-brand-950/35 hover:text-brand-950">
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <div className="mb-4 grid gap-3 sm:grid-cols-4">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/65">Fecha</span>
-              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
             </label>
-            <label className="block text-sm sm:col-span-2">
+            <label className="block sm:col-span-2 text-sm font-medium">
               <span className="text-brand-950/65">Descripción</span>
-              <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Venta de mostrador" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+              <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Venta de mostrador" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/65">Referencia</span>
-              <input value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Factura 0123" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+              <input value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Factura 0123" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-base" />
             </label>
           </div>
 
           <div className="flex flex-col gap-2">
             {lineas.map((l, i) => (
               <div key={i} className="grid items-end gap-2 sm:grid-cols-[1fr_auto_130px_1fr_auto]">
-                <label className="block text-xs">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/50">Cuenta</span>
-                  <select value={l.accountId} onChange={(e) => actualizar(i, 'accountId', e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-2 text-sm">
+                  <select value={l.accountId} onChange={(e) => actualizar(i, 'accountId', e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-2 text-base">
                     <option value="">Elegir…</option>
                     {cuentas.map((c) => (
                       <option key={c.id} value={c.id}>{c.code} · {c.name}</option>
@@ -164,13 +164,13 @@ export default function OfficeAsientosPage({ empresa }: { empresa: Empresa }) {
                     </button>
                   ))}
                 </div>
-                <label className="block text-xs">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/50">Monto</span>
-                  <input type="number" step="0.01" value={l.monto} onChange={(e) => actualizar(i, 'monto', e.target.value)} placeholder="0.00" className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-2 text-sm tabular-nums" />
+                  <input type="number" step="0.01" value={l.monto} onChange={(e) => actualizar(i, 'monto', e.target.value)} placeholder="0.00" className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-2 tabular-nums text-base" />
                 </label>
-                <label className="block text-xs">
+                <label className="block text-sm font-medium">
                   <span className="text-brand-950/50">Contacto (opcional)</span>
-                  <select value={l.contactId} onChange={(e) => actualizar(i, 'contactId', e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-2 text-sm">
+                  <select value={l.contactId} onChange={(e) => actualizar(i, 'contactId', e.target.value)} className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-2 text-base">
                     <option value="">—</option>
                     {contactos.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -203,7 +203,7 @@ export default function OfficeAsientosPage({ empresa }: { empresa: Empresa }) {
             </span>
           </div>
 
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-red-600 text-base">{error}</p>}
 
           <div className="mt-4 flex gap-2">
             <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-40" disabled={guardando || !cuadra || !descripcion.trim()} onClick={guardar}>
@@ -218,14 +218,14 @@ export default function OfficeAsientosPage({ empresa }: { empresa: Empresa }) {
 
       <div className="relative mb-3 max-w-sm">
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-950/30" />
-        <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por descripción o referencia…" className="w-full rounded-lg border border-brand-950/15 py-2 pl-9 pr-3 text-sm" />
+        <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por descripción o referencia…" className="w-full rounded-lg border border-brand-950/15 py-2 pl-9 pr-3 text-base" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-brand-950/[0.08]">
         {asientos === null ? (
-          <p className="p-6 text-sm text-brand-950/40">Cargando…</p>
+          <p className="p-6 text-brand-950/40 text-base">Cargando…</p>
         ) : asientos.length === 0 ? (
-          <p className="p-6 text-sm text-brand-950/40">Sin asientos todavía.</p>
+          <p className="p-6 text-brand-950/40 text-base">Sin asientos todavía.</p>
         ) : (
           <table className="w-full text-[13.5px]">
             <thead>

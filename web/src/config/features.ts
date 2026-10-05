@@ -19,6 +19,9 @@
  */
 export const CHATBOTS_ENABLED = false;
 
+/** Habilita la configuración de verificación de pagos para cada restaurante. */
+export const RESTAURANT_PAYMENT_VERIFICATION_ENABLED = true;
+
 /**
  * Retoque de fotos con IA (Mejorar con IA / Fondo blanco con IA). Apagado desde el 31/08/2026
  * a pedido, sin motivo técnico.

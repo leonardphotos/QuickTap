@@ -1,30 +1,30 @@
-import { useState } from 'react';
-import { PanelLeftOpen } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
-import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Store, Ticket, Users, Wallet } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { getShopRubro, isTicketRubro } from '@/data/shopRubros';
-import { TextureButton } from '@/components/ui/texture-button';
-import { DailyRatesBadge } from '@/components/DailyRatesBadge';
-import { useShopSession } from './shopSession';
-import ShopDashboardPage from './ShopDashboardPage';
-import ShopPosPage from './ShopPosPage';
-import ShopOrdersPage from './ShopOrdersPage';
-import ShopInventoryPage from './ShopInventoryPage';
-import { CrmHub } from '@/components/admin/crm/CrmHub';
-import ShopSettingsPage from './ShopSettingsPage';
-import ShopApprovalsPage from './ShopApprovalsPage';
-import ShopWalletPage from './ShopWalletPage';
-import ShopTicketsPage from './ShopTicketsPage';
-import { ShopSidebar, type ShopSidebarTab } from './ShopSidebar';
-import { PLAN_LABELS } from '@/pages/admin/nav-links';
-import ShopBillingPage from './ShopBillingPage';
-import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
-import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
-import ShopSucursalesPage from './ShopSucursalesPage';
-import ShopAdministracionPage, { type ShopAdminTab } from './ShopAdministracionPage';
-import { ShopNavDrawer } from './ShopNavDrawer';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
 import { AiReportsButton } from '@/components/admin/AiReportsButton';
+import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
+import { DailyRatesBadge } from '@/components/DailyRatesBadge';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { getShopRubro,isTicketRubro } from '@/data/shopRubros';
+import { PLAN_LABELS } from '@/pages/admin/nav-links';
+import { allowsBranches,daysRemaining,graceHoursRemaining,hasFeature,type FeatureFlag } from '@/utils/subscription';
+import { Boxes,Building2,Calculator,FileText,Home,Landmark,Lock,Menu,PanelLeftOpen,Receipt,Settings,ShieldCheck,ShoppingBag,Store,Ticket,Users,Wallet } from 'lucide-react';
+import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import ShopAdministracionPage,{ type ShopAdminTab } from './ShopAdministracionPage';
+import ShopApprovalsPage from './ShopApprovalsPage';
+import ShopBillingPage from './ShopBillingPage';
+import ShopDashboardPage from './ShopDashboardPage';
+import ShopInventoryPage from './ShopInventoryPage';
+import { ShopNavDrawer } from './ShopNavDrawer';
+import ShopOrdersPage from './ShopOrdersPage';
+import ShopPosPage from './ShopPosPage';
+import { useShopSession } from './shopSession';
+import ShopSettingsPage from './ShopSettingsPage';
+import { ShopSidebar,type ShopSidebarTab } from './ShopSidebar';
+import ShopSucursalesPage from './ShopSucursalesPage';
+import ShopTicketsPage from './ShopTicketsPage';
+import ShopWalletPage from './ShopWalletPage';
 
 // 'cotizaciones' y 'cuentas' siguen acá aunque ya no sean pantallas propias: son los accesos
 // de Inicio, y irA() los traduce a Administración parada en esa pestaña. Los demás destinos
@@ -64,7 +64,6 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   // porque es lo que más se consulta desde el mostrador y no vale hacer dos toques.
   { id: 'cuentas', label: 'Cuentas por cobrar', icon: Landmark },
   { id: 'pass', label: 'QuickTap Wallet', icon: Wallet },
-  { id: 'entradas', label: 'Entradas', icon: Ticket },
   { id: 'solicitudes', label: 'Solicitudes', icon: ShieldCheck },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
 ];
@@ -78,7 +77,7 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
     // La Tickera vende dos cosas: entradas y mercancía. Cada una tiene su pestaña, porque
     // administrarlas juntas mezclaría el cupo de un evento con el stock de una camiseta.
     ...(isTicketRubro(rubroId) ? [{ id: 'tienda' as ShopScreen, label: 'Tienda', icon: Store }] : []),
-    { id: 'clientes', label: 'Clientes', icon: Users },
+    { id: 'clientes', label: 'Clientes / CRM', icon: Users },
     { id: 'ajustes', label: 'Ajustes', icon: Settings },
   ];
 }
@@ -95,16 +94,17 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
 export default function ShopLayout() {
   const { user, restaurant, logout, switchToParent } = useAuth();
   const [searchParams] = useSearchParams();
+  const rubro = getShopRubro(restaurant?.shopRubro);
+  const isTickera = isTicketRubro(rubro?.id);
   // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=SHOP&cycle=Y, o de
   // vuelta del checkout de Ramblay): arranca directo en Facturación en vez de Venta.
   const [screen, setScreen] = useState<ShopScreen>(() => {
     // El Verificador está en la puerta de un evento: entra directo a escanear.
-    if (user?.role === 'VERIFICADOR') return 'entradas';
+    if (user?.role === 'VERIFICADOR' && isTickera) return 'entradas';
     return ['SHOP', 'ELITE_SHOP'].includes(searchParams.get('plan') ?? '') || searchParams.get('ramblay') === 'success'
       ? 'factura'
       : 'venta';
   });
-  const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
   const [adminTab, setAdminTab] = useState<ShopAdminTab>('estadisticas');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -124,13 +124,11 @@ export default function ShopLayout() {
     }
     setScreen(destino);
   }
-  // El Verificador solo tiene dos cosas que hacer: escanear en la puerta y, si el local vende
-  // ahí mismo, cobrar la entrada. Nada de inventario, caja ni clientes.
-  const esVerificador = user?.role === 'VERIFICADOR';
+  // El Verificador solo valida accesos: no puede cobrar, emitir, administrar ni ver finanzas.
+  const esVerificador = user?.role === 'VERIFICADOR' && isTickera;
   const tabs = esVerificador
     ? [
         { id: 'entradas' as ShopScreen, label: 'Entradas', icon: Ticket },
-        { id: 'venta' as ShopScreen, label: 'Venta', icon: Receipt },
       ]
     : getTabs(rubro?.id);
 
@@ -153,7 +151,7 @@ export default function ShopLayout() {
       <div className="min-h-screen flex items-center justify-center bg-[#fafafa] px-6">
         <div className="max-w-sm text-center">
           <h1 className="text-lg font-semibold text-brand-950 mb-2">No se encontró el rubro de este negocio</h1>
-          <p className="text-sm text-brand-950/50 font-light mb-6">
+          <p className="text-brand-950/50 font-light mb-6 text-base">
             Esta cuenta quedó marcada como Local Comercial pero no tiene un rubro válido asignado.
           </p>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={logout}>
@@ -166,8 +164,8 @@ export default function ShopLayout() {
 
   if (session.loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
-        <p className="text-sm text-brand-950/40 font-light">Cargando…</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#f4f7fb] px-6 text-center">
+        <p className="text-brand-950/50 font-light text-base">Preparando todo para ti</p>
       </div>
     );
   }
@@ -189,12 +187,13 @@ export default function ShopLayout() {
   const sidebarTabs: ShopSidebarTab[] = [
     ...tabs.map((t) => ({ ...t, locked: false })),
     ...moreTabs.map((t) => ({ ...t, locked: isLocked(t) })),
+    ...(isTickera ? [{ id: 'entradas' as ShopScreen, label: 'Entradas', icon: Ticket, locked: false }] : []),
   ];
   const planLabel = restaurant.subscriptionPlan
     ? (PLAN_LABELS[restaurant.subscriptionPlan] ?? restaurant.subscriptionPlan)
     : null;
   // Cocina no vende; el resto de los roles del local sí.
-  const puedeVender = user.role !== 'KITCHEN';
+  const puedeVender = user.role !== 'KITCHEN' && user.role !== 'VERIFICADOR';
 
   // 'cuentas' no es una pantalla propia sino una pestaña de Administración: para que el menú
   // resalte la fila correcta hay que traducirlo acá, si no siempre se vería activa Administración.
@@ -274,9 +273,9 @@ export default function ShopLayout() {
           </div>
 
           {/* Escritorio: pestañas dentro de la cabecera (en celular manda el menú lateral). */}
-          <nav className="hidden items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <AnimatedTabs tone="light" wrapperClassName="hidden" className="items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[...tabs.map((t) => ({ ...t, locked: false })), ...moreTabs.map((t) => ({ ...t, locked: isLocked(t) }))].map((t) => (
-              <button
+              <AnimatedTab active={screenActivo === t.id}
                 key={t.id}
                 type="button"
                 onClick={() => irA(t.id)}
@@ -286,9 +285,9 @@ export default function ShopLayout() {
               >
                 <span className={t.locked ? 'opacity-60' : ''}>{t.label}</span>
                 {t.locked && <Lock className="ml-1 inline h-3 w-3 text-brand-950/35" />}
-              </button>
+              </AnimatedTab>
             ))}
-          </nav>
+          </AnimatedTabs>
 
           <DailyRatesBadge />
         </div>
@@ -337,7 +336,7 @@ export default function ShopLayout() {
         )}
         {screen === 'clientes' && (
           <div className="flex flex-col gap-5">
-            <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Clientes</h1>
+            <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Clientes / CRM</h1>
             <CrmHub />
           </div>
         )}
@@ -356,7 +355,7 @@ export default function ShopLayout() {
         )}
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'pass' && <ShopWalletPage />}
-        {screen === 'entradas' && <ShopTicketsPage />}
+        {screen === 'entradas' && isTickera && <ShopTicketsPage />}
         {screen === 'sucursales' && !canBranches && (
           <PlanUpgradeNotice feature="Sucursales" onGoToBilling={() => setScreen('factura')} />
         )}

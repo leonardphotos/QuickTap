@@ -86,7 +86,7 @@ export function NewWaitlistDialog({
             <input value={form.note} onChange={set('note')} placeholder="silla de bebé…" className={INPUT} />
           </Field>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
 
           <TextureButton variant="brand" size="default" disabled={busy} className="!w-auto disabled:opacity-50">
             {busy ? 'Guardando…' : 'Anotar'}
@@ -102,7 +102,7 @@ const INPUT =
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-xs font-medium text-brand-950/60">
+    <label className="block text-brand-950/60 text-sm font-medium">
       {label}
       {children}
     </label>

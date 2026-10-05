@@ -1,0 +1,51 @@
+.qt-kitchen { min-width: 0; }
+.qt-kitchen-station { padding: 18px; border: 1px solid #dce3ec; border-radius: 24px; background: #edf1f6; }
+.qt-kitchen-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 24px; align-items: start; }
+.qt-kitchen-ticket { min-width: 0; background: #fff; border: 1px solid #e0e5eb; border-radius: 18px; }
+.qt-kitchen-paper { padding: 20px; overflow-wrap: anywhere; }
+.qt-kitchen-print-heading { text-align: center; border-bottom: 1px dashed #a5adb7; padding-bottom: 12px; }
+.qt-kitchen-print-heading p { font-weight: 700; }
+.qt-kitchen-print-heading span, .qt-kitchen-print-time { font-size: 11px; color: #526071; }
+.qt-kitchen-items { border-top: 1px dashed #a5adb7; padding-top: 12px; }
+.qt-kitchen-items li { padding: 7px 0; line-height: 1.6; }
+.qt-kitchen-items li + li { border-top: 1px dotted #d9dde2; }
+.qt-kitchen-print-end { border-top: 1px dashed #a5adb7; padding-top: 12px; text-align: center; font-size: 10px; letter-spacing: .1em; color: #66717e; }
+.qt-kitchen-actions { border: 0; border-top: 1px solid #e6e9ee; padding: 14px; min-width: 0; font-family: inherit; }
+.qt-kitchen-actions button { min-height: 44px; }
+.qt-kitchen-actions:disabled { opacity: .6; }
+.qt-kitchen-arrival { position: sticky; top: 12px; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 20px; border-radius: 18px; background: #061f46; color: white; box-shadow: 0 8px 25px #061f4626; border-left: 6px solid #05a5f5; }
+.qt-kitchen-arrival > div { flex: 1; min-width: 180px; }
+.qt-kitchen-arrival::before { content: ''; flex-shrink: 0; width: 10px; height: 10px; background: #79d9ff; border-radius: 50%; animation: kitchen-arrival-pulse 1.8s ease-in-out infinite; }
+.qt-kitchen-arrival { isolation: isolate; }
+.qt-kitchen-arrival::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: #05a5f5; opacity: .05; pointer-events: none; animation: kitchen-bar-pulse 1.8s ease-in-out infinite; }
+.qt-kitchen-arrival button { min-height: 44px; border: 1px solid #ffffff50; padding: 8px 14px; border-radius: 12px; font-size: 13px; }
+.qt-kitchen-ticket-new .qt-kitchen-print-slot { overflow: hidden; padding-bottom: 10px; margin-bottom: -10px; border-top: 4px solid #3e4b5a; }
+.qt-kitchen-ticket-new .qt-kitchen-paper { animation: kitchen-ticket-print 600ms cubic-bezier(.23,1,.32,1) both; }
+@keyframes kitchen-ticket-print { from { transform: translateY(-100%); opacity: .5; } to { transform: translateY(0); opacity: 1; } }
+@keyframes kitchen-arrival-pulse { 50% { opacity: .35; } }
+@keyframes kitchen-bar-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  .qt-kitchen-ticket-new .qt-kitchen-paper, .qt-kitchen-arrival::before, .qt-kitchen-arrival::after { animation: none; }
+}
+/* El papel es decorativo: las acciones mantienen tipografía y colores del panel. */
+@media (min-width: 1024px) {
+  .qt-kitchen-station { padding: 24px; background: linear-gradient(120deg, #e5eaf0, #f1f3f6); box-shadow: inset 0 1px 3px #061f4608; }
+  .qt-kitchen-ticket { border: 0; border-radius: 0; background: transparent; }
+  .qt-kitchen-paper {
+    position: relative; isolation: isolate; padding: 25px 23px 30px;
+    font-family: 'Courier New', Courier, monospace; color: #272725;
+    background: linear-gradient(90deg, #ebe9e2 0%, #fffef8 2%, #faf9f3 48%, #fffef9 95%, #efede6 100%);
+    border-top: 1px solid #dedbd2;
+    box-shadow: 0 2px 2px #25231f15, 2px 8px 12px #25231f12, 0 20px 28px -18px #25231f55;
+  }
+  .qt-kitchen-paper::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: -1; opacity: .32; background-image: repeating-linear-gradient(0deg, transparent 0 2px, #afa89213 2px 3px), radial-gradient(#9b927822 .55px, transparent .75px); background-size: auto, 4px 4px; }
+  .qt-kitchen-paper::after { content: ''; position: absolute; left: 0; right: 0; bottom: -8px; height: 9px; background: linear-gradient(135deg, #fbfaf4 25%, transparent 25%) -8px 0, linear-gradient(225deg, #fbfaf4 25%, transparent 25%) -8px 0; background-size: 16px 18px; filter: drop-shadow(0 2px 1px #25231f12); pointer-events: none; }
+  .qt-kitchen-print-heading { text-transform: uppercase; letter-spacing: .08em; border-bottom: 2px dashed #8c8b81; }
+  .qt-kitchen-print-heading p { font-size: 18px; }
+  .qt-kitchen-items { font-size: 15px; }
+  .qt-kitchen-items li { font-weight: 600; }
+  .qt-kitchen-items li > span { color: #4e4e47; }
+  .qt-kitchen-items li > span:first-child { font-weight: 800; color: #20201c; }
+  .qt-kitchen-items li > span.block { color: #272725; font-weight: 700; background: #eae7db; padding: 4px 7px; margin-top: 5px; }
+  .qt-kitchen-actions { margin-top: 20px; background: #ffffffa6; border: 1px solid #dce3eb; border-radius: 15px; }
+}

@@ -49,12 +49,12 @@ export default function MaintenanceDialog({ date, courts, onClose, onSaved }: Pr
 
         <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Cancha</label>
+            <label className="mb-1 block text-brand-950/60 text-sm font-medium">Cancha</label>
             <select
               value={courtId}
               onChange={(e) => setCourtId(e.target.value)}
               required
-              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
             >
               {courts.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -66,36 +66,36 @@ export default function MaintenanceDialog({ date, courts, onClose, onSaved }: Pr
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Desde</label>
+              <label className="mb-1 block text-brand-950/60 text-sm font-medium">Desde</label>
               <input
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 required
-                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Hasta</label>
+              <label className="mb-1 block text-brand-950/60 text-sm font-medium">Hasta</label>
               <input
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 required
-                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+                className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Motivo</label>
+            <label className="mb-1 block text-brand-950/60 text-sm font-medium">Motivo</label>
             <input
               list="club-motivos"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               required
               maxLength={200}
-              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 outline-none focus:border-brand-400 text-base"
             />
             <datalist id="club-motivos">
               {MOTIVOS.map((m) => (
@@ -104,7 +104,7 @@ export default function MaintenanceDialog({ date, courts, onClose, onSaved }: Pr
             </datalist>
           </div>
 
-          {error && <p className="text-[13px] font-medium text-rose-600">{error}</p>}
+          {error && <p className="font-medium text-rose-600 text-base">{error}</p>}
 
           <TextureButton type="submit" disabled={saving || !courtId} className="w-full">
             {saving ? 'Bloqueando…' : 'Bloquear'}

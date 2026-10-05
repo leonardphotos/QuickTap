@@ -43,6 +43,7 @@ const TextureCard = React.forwardRef<
         className
       )}
       {...props}
+      data-slot="texture-card"
     >
       <div className="border dark:border-neutral-900/80 border-black/10 rounded-[calc(var(--radius)-1px)]">
         <div className="border dark:border-neutral-950 border-white/50 rounded-[calc(var(--radius)-2px)]">

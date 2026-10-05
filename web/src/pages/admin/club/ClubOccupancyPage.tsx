@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
 import { formatBase } from '@/utils/format';
-import { card } from './clubStyle';
+import { useCallback,useEffect,useState } from 'react';
 import { ClubDateRangeFilter } from './ClubDateRangeFilter';
+import { card } from './clubStyle';
 
 interface DayStat {
   date: string;
@@ -84,8 +84,8 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
 
   useEffect(load, [load]);
 
-  if (loading && !data) return <p className="text-sm font-light text-brand-950/40">Cargando ocupación…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (loading && !data) return <p className="font-light text-brand-950/40 text-base">Cargando ocupación…</p>;
+  if (error) return <p className="text-red-600 text-base">{error}</p>;
   if (!data) return null;
 
   const maxPercent = Math.max(1, ...data.byDay.map((d) => d.occupancyPercent));
@@ -117,7 +117,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
 
       {noCapacity ? (
         <div className={`${card} p-5`}>
-          <p className="py-6 text-center text-sm font-light text-brand-950/50">
+          <p className="py-6 text-center font-light text-brand-950/50 text-base">
             Todavía no tienes horarios cargados, así que no hay capacidad contra la cual medir la ocupación.
             Cárgalos en Ajustes → Canchas y horarios.
           </p>
@@ -134,14 +134,14 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
               las clases y daba la cancha por libre. */}
           {data.totals.bookedMinutes > 0 && (
             <div className={`${card} p-5`}>
-              <p className="text-sm font-bold text-brand-950">Academia vs renta libre</p>
-              <p className="mt-0.5 text-xs font-light text-brand-950/50">
+              <p className="font-bold text-brand-950 text-base">Academia vs renta libre</p>
+              <p className="mt-0.5 font-light text-brand-950/50 text-xs">
                 Qué deja más cada hora de cancha ocupada.
               </p>
 
               <div className="mt-3 flex h-2.5 overflow-hidden rounded-full">
                 <div className="h-full bg-brand-500" style={{ width: `${data.academyVsRental.rental.sharePercent}%` }} />
-                <div className="h-full bg-sky-500" style={{ width: `${data.academyVsRental.academy.sharePercent}%` }} />
+                <div className="h-full bg-brand-500" style={{ width: `${data.academyVsRental.academy.sharePercent}%` }} />
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-3">
@@ -155,7 +155,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
               </div>
 
               {data.academyVsRental.rental.revenuePerHourBase && data.academyVsRental.academy.revenuePerHourBase && (
-                <p className="mt-3 rounded-xl bg-brand-950/[0.03] p-3 text-xs font-light text-brand-950/60">
+                <p className="mt-3 rounded-xl bg-brand-950/[0.03] p-3 font-light text-brand-950/60 text-xs">
                   {Number(data.academyVsRental.academy.revenuePerHourBase) >
                   Number(data.academyVsRental.rental.revenuePerHourBase)
                     ? 'La academia deja más por hora de cancha que la renta libre.'
@@ -166,8 +166,8 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
           )}
 
           <div className={`${card} p-5`}>
-            <p className="text-sm font-bold text-brand-950">Ocupación por día</p>
-            <p className="mt-0.5 text-xs font-light text-brand-950/50">
+            <p className="font-bold text-brand-950 text-base">Ocupación por día</p>
+            <p className="mt-0.5 font-light text-brand-950/50 text-xs">
               Qué porcentaje de las horas disponibles se vendió cada día.
             </p>
 
@@ -206,8 +206,8 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
           </div>
 
           <div className={`${card} p-5`}>
-            <p className="text-sm font-bold text-brand-950">Por cancha</p>
-            <p className="mt-0.5 text-xs font-light text-brand-950/50">
+            <p className="font-bold text-brand-950 text-base">Por cancha</p>
+            <p className="mt-0.5 font-light text-brand-950/50 text-xs">
               Cuál se está quedando vacía en el mismo período.
             </p>
             <ul className="mt-3 space-y-2.5">
@@ -225,7 +225,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
                         style={{ width: `${Math.min(100, c.occupancyPercent)}%` }}
                       />
                     </div>
-                    <p className="mt-0.5 text-[11px] font-light text-brand-950/40">
+                    <p className="mt-0.5 font-light text-brand-950/40 text-xs">
                       {hours(c.bookedMinutes)} vendidas de {hours(c.availableMinutes)}
                     </p>
                   </li>
@@ -251,15 +251,15 @@ function SplitCard({
 }) {
   return (
     <div className="rounded-2xl bg-brand-950/[0.03] p-3.5">
-      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-brand-950">
+      <p className="flex items-center gap-1.5 font-semibold text-brand-950 text-base">
         <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
         {label}
       </p>
       <p className="mt-1.5 text-[19px] font-bold leading-none tracking-tight text-brand-950">
         {stat.revenuePerHourBase ? formatBase(stat.revenuePerHourBase, symbol) : '—'}
       </p>
-      <p className="text-[11px] font-light text-brand-950/40">por hora de cancha</p>
-      <p className="mt-1.5 text-[12px] font-light text-brand-950/50">
+      <p className="font-light text-brand-950/40 text-xs">por hora de cancha</p>
+      <p className="mt-1.5 font-light text-brand-950/50 text-xs">
         {stat.hours} h · {formatBase(stat.revenueBase, symbol)}
       </p>
     </div>
@@ -270,8 +270,8 @@ function Metric({ label, value, sub }: { label: string; value: string; sub: stri
   return (
     <div className={`${card} p-4`}>
       <p className="text-[22px] font-bold leading-tight tracking-tight text-brand-950">{value}</p>
-      <p className="text-[13px] font-semibold text-brand-950/70">{label}</p>
-      <p className="text-[11px] font-light text-brand-950/40">{sub}</p>
+      <p className="font-semibold text-brand-950/70 text-base">{label}</p>
+      <p className="font-light text-brand-950/40 text-xs">{sub}</p>
     </div>
   );
 }

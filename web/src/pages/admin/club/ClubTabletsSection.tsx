@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, RotateCcw, Tablet, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardContent, TextureCardHeader, TextureCardTitle } from '@/components/ui/texture-card';
-import { clubApi, type ClubCourt } from './clubApi';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import { Plus,RotateCcw,Tablet,Trash2 } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
+import { clubApi,type ClubCourt } from './clubApi';
 
 function Toggle({
   checked,
@@ -18,10 +18,10 @@ function Toggle({
   description: string;
 }) {
   return (
-    <label className="flex items-start justify-between gap-4 py-3 cursor-pointer">
+    <label className="flex items-start justify-between gap-4 py-3 cursor-pointer text-sm font-medium">
       <div>
-        <p className="text-sm font-medium text-brand-950">{label}</p>
-        <p className="text-xs text-brand-950/50 font-light mt-0.5">{description}</p>
+        <p className="font-medium text-brand-950 text-base">{label}</p>
+        <p className="text-brand-950/50 font-light mt-0.5 text-xs">{description}</p>
       </div>
       <button
         type="button"
@@ -166,7 +166,7 @@ export function ClubTabletsSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Tablets de las canchas</TextureCardTitle>
-        <p className="text-sm font-light text-brand-950/60">
+        <p className="font-light text-brand-950/60 text-base">
           Una cuenta por tablet, atada a una cancha. Inicia sesión con ella una sola vez y déjala montada: solo muestra
           el botón <span className="font-medium text-brand-950/80">Acceder</span>, y el jugador entra escaneando el QR
           de su reserva — que tiene que ser de esa misma cancha.
@@ -191,21 +191,21 @@ export function ClubTabletsSection() {
 
         <div className="flex items-start gap-2.5 rounded-2xl bg-brand-950/[0.04] px-4 py-3">
           <Tablet className="mt-0.5 h-4 w-4 shrink-0 text-brand-950/45" />
-          <p className="text-[13px] font-light text-brand-950/60">
+          <p className="font-light text-brand-950/60 text-base">
             La pantalla funciona solo en <span className="font-medium text-brand-950/80">horizontal</span>. Si la
             tablet está vertical, avisa que hay que girarla. Bloquea la rotación en horizontal para que no se mueva.
           </p>
         </div>
 
         {courts.length === 0 && (
-          <p className="rounded-2xl bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-900">
+          <p className="rounded-2xl bg-amber-50 px-4 py-3 font-medium text-amber-900 text-base">
             Primero crea al menos una cancha acá arriba: cada tablet va montada en una.
           </p>
         )}
 
-        {tablets === null && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
+        {tablets === null && <p className="font-light text-brand-950/40 text-base">Cargando…</p>}
         {tablets?.length === 0 && (
-          <p className="text-sm font-light text-brand-950/45">Todavía no creaste ninguna tablet.</p>
+          <p className="font-light text-brand-950/45 text-base">Todavía no creaste ninguna tablet.</p>
         )}
 
         {tablets && tablets.length > 0 && (
@@ -215,14 +215,14 @@ export function ClubTabletsSection() {
                 <div className="flex items-center gap-3">
                   <Tablet className="h-4 w-4 shrink-0 text-brand-950/35" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-brand-950">{t.name}</p>
-                    <p className="truncate text-xs font-light text-brand-950/45">{t.email}</p>
+                    <p className="truncate font-semibold text-brand-950 text-base">{t.name}</p>
+                    <p className="truncate font-light text-brand-950/45 text-xs">{t.email}</p>
                   </div>
                   <select
                     value={t.clubCourtId ?? ''}
                     onChange={(e) => reassign(t, e.target.value)}
                     disabled={busy}
-                    className="shrink-0 rounded-lg border border-brand-950/10 px-2 py-1.5 text-xs text-brand-950 outline-none focus:border-brand-400"
+                    className="shrink-0 rounded-lg border border-brand-950/10 px-2 py-1.5 text-brand-950 outline-none focus:border-brand-400 text-base"
                     aria-label={`Cancha de ${t.name}`}
                   >
                     <option value="" disabled>
@@ -262,7 +262,7 @@ export function ClubTabletsSection() {
                     navegadores de tablet, y el botón parecía no hacer nada. */}
                 {confirmingId === t.id && (
                   <div className="mt-2.5 rounded-lg bg-red-50 p-3">
-                    <p className="text-[13px] font-medium text-red-900">
+                    <p className="font-medium text-red-900 text-base">
                       ¿Eliminar "{t.name}"? Se cerrará su sesión en la tablet.
                     </p>
                     <div className="mt-2 flex gap-2">
@@ -289,7 +289,7 @@ export function ClubTabletsSection() {
 
         {open && (
           <div className="space-y-3 rounded-2xl border border-brand-950/[0.07] bg-white p-4">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Cancha donde va montada</span>
               <select
                 value={courtId}
@@ -304,7 +304,7 @@ export function ClubTabletsSection() {
                 ))}
               </select>
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Nombre de la tablet</span>
               <input
                 value={name}
@@ -313,7 +313,7 @@ export function ClubTabletsSection() {
                 className={inputClass}
               />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Correo de acceso</span>
               <input
                 value={email}
@@ -324,7 +324,7 @@ export function ClubTabletsSection() {
                 className={inputClass}
               />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Contraseña</span>
               <input
                 value={password}
@@ -351,8 +351,8 @@ export function ClubTabletsSection() {
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         {!open && (
           <TextureButton

@@ -15,22 +15,22 @@ export function ClubDateRangeFilter({
   const active = Boolean(from || to);
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <label className="flex items-center gap-1 text-xs text-brand-950/50">
+      <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
         Desde
         <input
           type="date"
           value={from}
           onChange={(e) => onFrom(e.target.value)}
-          className="rounded-full border-none bg-brand-950/[0.06] px-2.5 py-1 text-xs font-medium text-brand-950/70"
+          className="rounded-full border-none bg-brand-950/[0.06] px-2.5 py-1 font-medium text-brand-950/70 text-base"
         />
       </label>
-      <label className="flex items-center gap-1 text-xs text-brand-950/50">
+      <label className="flex items-center gap-1 text-brand-950/50 text-sm font-medium">
         Hasta
         <input
           type="date"
           value={to}
           onChange={(e) => onTo(e.target.value)}
-          className="rounded-full border-none bg-brand-950/[0.06] px-2.5 py-1 text-xs font-medium text-brand-950/70"
+          className="rounded-full border-none bg-brand-950/[0.06] px-2.5 py-1 font-medium text-brand-950/70 text-base"
         />
       </label>
       {active && (

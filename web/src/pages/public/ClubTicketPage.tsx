@@ -108,14 +108,14 @@ export default function ClubTicketPage() {
   if (error) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#0d1b2a] px-6">
-        <p className="text-center font-light text-club-text/60">No encontramos esta reserva.</p>
+        <p className="text-center font-light text-club-text/60 text-base">No encontramos esta reserva.</p>
       </div>
     );
   }
   if (!ticket) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#0d1b2a] px-6">
-        <p className="font-light text-club-text/50">Cargando…</p>
+        <p className="font-light text-club-text/50 text-base">Cargando…</p>
       </div>
     );
   }
@@ -139,26 +139,26 @@ export default function ClubTicketPage() {
               className="mx-auto mb-3 h-14 w-14 rounded-2xl object-cover ring-1 ring-white/30"
             />
           )}
-          <p className="text-[17px] font-bold">{ticket.restaurant.name}</p>
+          <p className="font-bold text-base">{ticket.restaurant.name}</p>
         </div>
 
         <div className="mt-5 overflow-hidden rounded-3xl border border-white/25 bg-white/15 backdrop-blur-xl">
           <div className="border-b border-dashed border-white/25 p-6 text-center">
             {cancelled ? (
-              <p className="rounded-2xl bg-rose-500/25 py-3 text-[14px] font-bold">Reserva cancelada</p>
+              <p className="rounded-2xl bg-rose-500/25 py-3 font-bold text-base">Reserva cancelada</p>
             ) : (
               <>
                 <div className="inline-block rounded-3xl bg-white p-4 shadow-xl">
                   <QRCodeSVG value={ticket.accessToken} size={168} fgColor="#001B43" />
                 </div>
-                <p className="mt-3 text-[12px] font-light text-club-text/65">
+                <p className="mt-3 font-light text-club-text/65 text-xs">
                   Muestra este código en recepción al llegar.
                 </p>
               </>
             )}
 
             {ticket.checkedInAt && (
-              <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] font-bold text-emerald-300">
+              <p className="mt-3 flex items-center justify-center gap-1.5 font-bold text-emerald-300 text-base">
                 <CheckCircle2 className="h-4 w-4" />
                 Ya registraste tu entrada
               </p>
@@ -174,7 +174,7 @@ export default function ClubTicketPage() {
 
             {ticket.requestedExtras && ticket.requestedExtras.length > 0 && (
               <div className="border-t border-white/15 pt-3">
-                <p className="text-[13px] font-medium text-club-text/55">Listo al llegar</p>
+                <p className="font-medium text-club-text/55 text-base">Listo al llegar</p>
                 <ul className="mt-1 space-y-0.5">
                   {ticket.requestedExtras.map((e) => (
                     <li key={e.id} className="text-[14px] font-semibold">
@@ -182,7 +182,7 @@ export default function ClubTicketPage() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1 text-[11px] font-light text-club-text/45">Se paga en el club.</p>
+                <p className="mt-1 font-light text-club-text/45 text-xs">Se paga en el club.</p>
               </div>
             )}
 
@@ -191,7 +191,7 @@ export default function ClubTicketPage() {
                 <span className="text-[13px] font-medium text-club-text/55">Cancha</span>
                 <span className="text-[19px] font-bold">${ticket.totalBase}</span>
               </div>
-              <p className="text-right text-[12px] font-light text-club-text/45">
+              <p className="text-right font-light text-club-text/45 text-xs">
                 Bs {Number(ticket.totalBs).toLocaleString('es-VE', { maximumFractionDigits: 2 })}
               </p>
             </div>
@@ -209,7 +209,7 @@ export default function ClubTicketPage() {
           </button>
         )}
 
-        <p className="mt-4 text-center text-[12px] font-light text-club-text/45">
+        <p className="mt-4 text-center font-light text-club-text/45 text-xs">
           Guarda este enlace: es tu entrada a la cancha.
         </p>
       </div>
@@ -301,11 +301,11 @@ function DownloadableTicket({
           <div style={{ border }} className="inline-block rounded-3xl bg-white p-4">
             <div ref={qrBoxRef} style={{ width: 168, height: 168 }} />
           </div>
-          <p style={{ color: '#71717a' }} className="mt-3 text-[12px]">
+          <p style={{ color: '#71717a' }} className="mt-3 text-xs">
             Muestra este código en recepción al llegar.
           </p>
           {ticket.checkedInAt && (
-            <p style={{ color: '#059669' }} className="mt-3 flex items-center justify-center gap-1.5 text-[13px] font-bold">
+            <p style={{ color: '#059669' }} className="mt-3 flex items-center justify-center gap-1.5 font-bold text-base">
               <CheckCircle2 className="h-4 w-4" />
               Ya registraste tu entrada
             </p>
@@ -321,7 +321,7 @@ function DownloadableTicket({
 
           {ticket.requestedExtras && ticket.requestedExtras.length > 0 && (
             <div style={{ borderTop: border }} className="pt-3">
-              <p style={{ color: '#71717a' }} className="text-[13px] font-medium">
+              <p style={{ color: '#71717a' }} className="font-medium text-base">
                 Listo al llegar
               </p>
               <ul className="mt-1 space-y-0.5">
@@ -331,7 +331,7 @@ function DownloadableTicket({
                   </li>
                 ))}
               </ul>
-              <p style={{ color: '#a1a1aa' }} className="mt-1 text-[11px]">
+              <p style={{ color: '#a1a1aa' }} className="mt-1 text-xs">
                 Se paga en el club.
               </p>
             </div>
@@ -344,7 +344,7 @@ function DownloadableTicket({
               </span>
               <span className="text-[19px] font-bold">${ticket.totalBase}</span>
             </div>
-            <p style={{ color: '#a1a1aa' }} className="text-right text-[12px]">
+            <p style={{ color: '#a1a1aa' }} className="text-right text-xs">
               Bs {Number(ticket.totalBs).toLocaleString('es-VE', { maximumFractionDigits: 2 })}
             </p>
           </div>

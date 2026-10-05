@@ -92,7 +92,7 @@ export default function OfficeImportarPage({ empresa, onCargado }: { empresa: Em
     <div className="p-5 sm:p-7">
       <div className="mb-5">
         <h1 className="text-[22px] font-semibold tracking-tight">Cargar desde Excel</h1>
-        <p className="mt-0.5 text-[13.5px] text-brand-950/50">
+        <p className="mt-0.5 text-brand-950/50 text-base">
           Un solo archivo con las tres hojas de {empresa.nombre}. Se revisa entero antes de guardar: si una fila
           está mal, no entra nada.
         </p>
@@ -101,9 +101,9 @@ export default function OfficeImportarPage({ empresa, onCargado }: { empresa: Em
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Paso 1 */}
         <section className="rounded-2xl border border-brand-950/10 bg-white p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-950/40">Paso 1</p>
+          <p className="font-semibold uppercase tracking-wider text-brand-950/40 text-xs">Paso 1</p>
           <h2 className="mt-1 text-[15px] font-semibold">Baja la plantilla</h2>
-          <p className="mt-1 text-[13px] font-light leading-relaxed text-brand-950/60">
+          <p className="mt-1 font-light leading-relaxed text-brand-950/60 text-base">
             Viene con las columnas listas y ya llena con lo que la empresa tiene cargado, así que también sirve de
             respaldo: la bajas, la editas y la vuelves a subir.
           </p>
@@ -114,9 +114,9 @@ export default function OfficeImportarPage({ empresa, onCargado }: { empresa: Em
 
         {/* Paso 2 */}
         <section className="rounded-2xl border border-brand-950/10 bg-white p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-950/40">Paso 2</p>
+          <p className="font-semibold uppercase tracking-wider text-brand-950/40 text-xs">Paso 2</p>
           <h2 className="mt-1 text-[15px] font-semibold">Súbela llena</h2>
-          <p className="mt-1 text-[13px] font-light leading-relaxed text-brand-950/60">
+          <p className="mt-1 font-light leading-relaxed text-brand-950/60 text-base">
             Archivo .xlsx, hasta 5 MB. Los asientos se agregan a los que ya existen: borra de la hoja los que ya
             estén cargados para no duplicarlos.
           </p>
@@ -139,17 +139,17 @@ export default function OfficeImportarPage({ empresa, onCargado }: { empresa: Em
           >
             <Upload className="h-4 w-4" /> {subiendo ? 'Cargando…' : 'Elegir archivo'}
           </TextureButton>
-          {archivo && <p className="mt-2 text-[12px] text-brand-950/45">{archivo}</p>}
+          {archivo && <p className="mt-2 text-brand-950/45 text-xs">{archivo}</p>}
         </section>
       </div>
 
       {error && (
-        <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>
+        <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-base">{error}</p>
       )}
 
       {entro && (
         <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <p className="flex items-center gap-2 text-[15px] font-semibold text-emerald-800">
+          <p className="flex items-center gap-2 font-semibold text-emerald-800 text-base">
             <CheckCircle2 className="h-5 w-5" /> Cargado
           </p>
           <ul className="mt-2 space-y-0.5 text-[13px] text-emerald-900/80">
@@ -162,10 +162,10 @@ export default function OfficeImportarPage({ empresa, onCargado }: { empresa: Em
 
       {huboErrores && (
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <p className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
+          <p className="flex items-center gap-2 font-semibold text-amber-900 text-base">
             <AlertTriangle className="h-5 w-5" /> No se cargó nada
           </p>
-          <p className="mt-1 text-[13px] text-amber-900/75">
+          <p className="mt-1 text-amber-900/75 text-base">
             Corrige estas {resultado.errors.length === 1 ? 'línea' : `${resultado.errors.length} líneas`} en el archivo
             y vuelve a subirlo.
           </p>
@@ -198,15 +198,15 @@ export default function OfficeImportarPage({ empresa, onCargado }: { empresa: Em
         <div className="mt-3 space-y-3">
           {HOJAS.map((h) => (
             <div key={h.nombre} className="rounded-xl bg-brand-950/[0.03] px-4 py-3">
-              <p className="text-[13.5px] font-semibold">
+              <p className="font-semibold text-base">
                 {h.nombre} <span className="font-light text-brand-950/50">— {h.que}</span>
               </p>
-              <p className="mt-1 font-mono text-[11.5px] leading-relaxed text-brand-950/55">{h.campos}</p>
-              <p className="mt-1 text-[12.5px] font-light text-brand-950/60">{h.nota}</p>
+              <p className="mt-1 font-mono leading-relaxed text-brand-950/55 text-base">{h.campos}</p>
+              <p className="mt-1 font-light text-brand-950/60 text-base">{h.nota}</p>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[12.5px] font-light text-brand-950/50">
+        <p className="mt-3 font-light text-brand-950/50 text-base">
           Puedes subir un archivo con solo una de las hojas llena — por ejemplo, únicamente asientos sobre un plan de
           cuentas que ya cargaste.
         </p>

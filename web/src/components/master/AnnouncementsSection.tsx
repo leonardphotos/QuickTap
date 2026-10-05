@@ -105,19 +105,19 @@ export function AnnouncementsSection() {
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
       <div>
-        <p className="text-sm font-medium text-brand-950 flex items-center gap-2">
+        <p className="font-medium text-brand-950 flex items-center gap-2 text-base">
           <Megaphone className="h-4 w-4 text-emerald-600" /> Anuncios de actualizaciones
         </p>
-        <p className="text-xs text-brand-950/50 font-light mt-0.5">
+        <p className="text-brand-950/50 font-light mt-0.5 text-xs">
           Cada cambio que se hace en el producto queda acá como borrador — revisa el texto, elige a
           quién va, y mándalo cuando quieras. El envío es uno a la vez para no parecer spam, así que
           no hace falta supervisarlo.
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
-      {items.length === 0 && <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay avisos todavía.</p>}
+      {items.length === 0 && <p className="text-brand-950/40 font-light text-center py-4 text-base">No hay avisos todavía.</p>}
 
       <div className="space-y-4">
         {items.map((a) => {
@@ -159,7 +159,7 @@ export function AnnouncementsSection() {
                       [a.id]: { ...draft, targetBusinessType: e.target.value === 'ALL' ? null : (e.target.value as BusinessType) },
                     }))
                   }
-                  className="text-xs border border-brand-950/15 rounded-lg px-2 py-1.5 bg-white disabled:bg-brand-950/[0.03] disabled:text-brand-950/50"
+                  className="border border-brand-950/15 rounded-lg px-2 py-1.5 bg-white disabled:bg-brand-950/[0.03] disabled:text-brand-950/50 text-base"
                 >
                   {(['ALL', 'RESTAURANT', 'SHOP'] as const).map((v) => (
                     <option key={v} value={v}>

@@ -1,30 +1,44 @@
-import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
-import { useAuth } from '@/context/AuthContext';
-import {
-  CalendarClock,
-  Landmark,
-  Plus,
-  ShieldAlert,
-  X,
-  DollarSign,
-  TrendingUp,
-  Percent,
-  Receipt as ReceiptIcon,
-  Ticket,
-  CalendarRange,
-  PackageX,
-  Wallet,
-  Clock,
-  Pencil,
-  Trash2,
-  type LucideIcon,
-} from 'lucide-react';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TextureButton } from '@/components/ui/texture-button';
-import { CATEGORY_LABELS, ExpenseFormDialog, type ExpenseCategory } from '@/components/admin/ExpenseFormDialog';
+import { receiptNumber } from './receiptNumber';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
+import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
+import { CATEGORY_LABELS,type ExpenseCategory } from '@/components/admin/ExpenseFormDialog.shared';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import type { AuthRestaurant } from '@/context/AuthContext.shared';
+import { useAuth } from '@/context/AuthContext.shared';
+import {
+CalendarClock,
+CalendarRange,
+Clock,
+DollarSign,
+Landmark,
+PackageX,
+Pencil,
+Percent,
+Plus,
+Receipt as ReceiptIcon,
+ShieldAlert,
+Ticket,
+Trash2,
+TrendingUp,
+Wallet,
+X,
+type LucideIcon,
+} from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { shopMoneyFormatters } from './shopFormat';
+import {
+daysUntilExpiry,
+isExpiringSoon,
+isLast30Days,
+isToday,
+productStatus,
+productStock,
+saleProfit,
+type Sale,
+type ShopSession,
+} from './shopSession';
 
 /** Gasto del local tal como lo devuelve GET /movements (solo los campos que se pintan acá). */
 interface ShopExpense {
@@ -43,18 +57,6 @@ interface ShopExpense {
   spentByName: string | null;
   paymentMethod: string | null;
 }
-import { shopMoneyFormatters } from './shopFormat';
-import {
-  daysUntilExpiry,
-  isExpiringSoon,
-  isLast30Days,
-  isToday,
-  productStatus,
-  productStock,
-  saleProfit,
-  type Sale,
-  type ShopSession,
-} from './shopSession';
 
 interface Props {
   session: ShopSession;
@@ -96,9 +98,9 @@ function Metric({
       <span className={`h-9 w-9 rounded-xl flex items-center justify-center ${METRIC_COLORS[color]}`}>
         <Icon className="h-4.5 w-4.5" />
       </span>
-      <p className="text-[13px] font-medium text-brand-950/45 mt-3">{label}</p>
+      <p className="font-medium text-brand-950/45 mt-3 text-base">{label}</p>
       <p className="text-[21px] font-bold text-brand-950 tracking-tight mt-0.5 truncate">{value}</p>
-      {sub && <p className="text-[11px] font-medium text-brand-950/35 mt-0.5">{sub}</p>}
+      {sub && <p className="font-medium text-brand-950/35 mt-0.5 text-xs">{sub}</p>}
     </div>
   );
 }
@@ -255,7 +257,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-[20px] font-bold text-brand-950 tracking-tight">{greeting()}, {userName.split(' ')[0]}</h1>
-        <p className="text-[13px] text-brand-950/45 mt-0.5">
+        <p className="text-brand-950/45 mt-0.5 text-base">
           {new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
@@ -322,7 +324,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
             <h3 className="text-[15px] font-bold text-brand-950 mb-3.5">Productos más vendidos hoy</h3>
             {topProducts.length === 0 ? (
-              <p className="text-sm text-brand-950/40 text-center py-6">Sin ventas todavía hoy.</p>
+              <p className="text-brand-950/40 text-center py-6 text-base">Sin ventas todavía hoy.</p>
             ) : (
               <div className="flex flex-col">
                 {topProducts.map(([name, qty], i) => (
@@ -338,7 +340,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           {byProvider.length > 0 && (
             <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
               <h3 className="text-[15px] font-bold text-brand-950">Por profesional (30 días)</h3>
-              <p className="text-xs text-brand-950/45 mb-3.5">Lo que factura cada uno y cuánto le toca de comisión.</p>
+              <p className="text-brand-950/45 mb-3.5 text-xs">Lo que factura cada uno y cuánto le toca de comisión.</p>
               <div className="flex flex-col">
                 {byProvider.map((b) => (
                   <div key={b.name} className="py-2.5 border-b border-brand-950/[0.05] last:border-b-0">
@@ -363,7 +365,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
             <h3 className="text-[15px] font-bold text-brand-950 mb-3.5">Alertas de stock</h3>
             {alertProducts.length === 0 ? (
-              <p className="text-sm text-brand-950/40 text-center py-6">Todo el stock está en orden.</p>
+              <p className="text-brand-950/40 text-center py-6 text-base">Todo el stock está en orden.</p>
             ) : (
               <div className="flex flex-col">
                 {alertProducts.map((p) => {
@@ -387,7 +389,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
               <CalendarClock className="h-4 w-4 text-amber-500" /> Próximos a vencer
             </h3>
             {expiringProducts.length === 0 ? (
-              <p className="text-sm text-brand-950/40 text-center py-6">Sin productos por vencer en los próximos 30 días.</p>
+              <p className="text-brand-950/40 text-center py-6 text-base">Sin productos por vencer en los próximos 30 días.</p>
             ) : (
               <div className="flex flex-col">
                 {expiringProducts.map((p) => {
@@ -416,7 +418,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
               value={salesSearch}
               onChange={(e) => setSalesSearch(e.target.value)}
               placeholder="Buscar por referencia…"
-              className="text-sm border border-brand-950/15 rounded-full px-3.5 py-1.5 w-48"
+              className="border border-brand-950/15 rounded-full px-3.5 py-1.5 w-48 text-base"
             />
             <TextureButton
               variant="secondary"
@@ -437,7 +439,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           </div>
         </div>
         {recentSales.length === 0 ? (
-          <p className="text-sm text-brand-950/40 text-center py-6">
+          <p className="text-brand-950/40 text-center py-6 text-base">
             {salesSearchLower ? 'Ninguna venta coincide con esa referencia.' : 'Sin ventas todavía.'}
           </p>
         ) : (
@@ -454,7 +456,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                     {s.items.map((it) => `${it.qty}x ${it.name}`).join(', ')}
                     {s.customerName ? ` · ${s.customerName}` : ''}
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {s.time.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })} ·{' '}
                     {s.time.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
                     {s.paymentMethod ? ` · ${s.paymentMethod}` : ''}
@@ -485,7 +487,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
             </TextureButton>
           </div>
           {expenses.length === 0 ? (
-            <p className="text-sm text-brand-950/40 text-center py-6">Sin gastos registrados.</p>
+            <p className="text-brand-950/40 text-center py-6 text-base">Sin gastos registrados.</p>
           ) : (
             <div className="flex flex-col">
               {expenses.slice(0, 10).map((m) => (
@@ -494,11 +496,11 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                   className="flex items-center justify-between gap-3 py-2.5 border-b border-brand-950/[0.05] last:border-b-0"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950 truncate">
+                    <p className="font-medium text-brand-950 truncate text-base">
                       {m.description}
                       {m.category ? <span className="text-brand-950/50"> · {CATEGORY_LABELS[m.category]}</span> : ''}
                     </p>
-                    <p className="text-xs text-brand-950/40 truncate">
+                    <p className="text-brand-950/40 truncate text-xs">
                       {new Date(m.expenseDate ?? m.createdAt).toLocaleDateString('es-VE', {
                         day: '2-digit',
                         month: 'short',
@@ -548,16 +550,16 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
       <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
         <h3 className="text-[15px] font-bold text-brand-950 mb-3.5">Compras a proveedores recientes</h3>
         {recentPurchases.length === 0 ? (
-          <p className="text-sm text-brand-950/40 text-center py-6">Sin compras registradas.</p>
+          <p className="text-brand-950/40 text-center py-6 text-base">Sin compras registradas.</p>
         ) : (
           <div className="flex flex-col">
             {recentPurchases.map((pu) => (
               <div key={pu.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-brand-950/[0.05] last:border-b-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-brand-950 truncate">
+                  <p className="font-medium text-brand-950 truncate text-base">
                     {pu.qty}x {pu.productName}{pu.v1 ? ` (${pu.v1}${pu.v2 ? ' · ' + pu.v2 : ''})` : ''}
                   </p>
-                  <p className="text-xs text-brand-950/40">
+                  <p className="text-brand-950/40 text-xs">
                     {pu.supplier} · {pu.time.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })}
                   </p>
                 </div>
@@ -595,37 +597,37 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-brand-950/50 text-xs">Fecha</p>
-                  <p className="font-medium text-brand-950">
+                  <p className="font-medium text-brand-950 text-base">
                     {selectedSale.time.toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })} ·{' '}
                     {selectedSale.time.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
                   </p>
                 </div>
                 <div>
                   <p className="text-brand-950/50 text-xs">Método de pago</p>
-                  <p className="font-medium text-brand-950">{selectedSale.paymentMethod ?? '—'}</p>
+                  <p className="font-medium text-brand-950 text-base">{selectedSale.paymentMethod ?? '—'}</p>
                 </div>
                 {selectedSale.soldByUserName && (
                   <div>
                     <p className="text-brand-950/50 text-xs">Vendedor</p>
-                    <p className="font-medium text-brand-950">{selectedSale.soldByUserName}</p>
+                    <p className="font-medium text-brand-950 text-base">{selectedSale.soldByUserName}</p>
                   </div>
                 )}
                 {selectedSale.customerName && (
                   <div>
                     <p className="text-brand-950/50 text-xs">Cliente</p>
-                    <p className="font-medium text-brand-950">{selectedSale.customerName}</p>
+                    <p className="font-medium text-brand-950 text-base">{selectedSale.customerName}</p>
                   </div>
                 )}
                 {selectedSale.customerPhone && (
                   <div>
                     <p className="text-brand-950/50 text-xs">Teléfono</p>
-                    <p className="font-medium text-brand-950">{selectedSale.customerPhone}</p>
+                    <p className="font-medium text-brand-950 text-base">{selectedSale.customerPhone}</p>
                   </div>
                 )}
                 {selectedSale.creditTerms && (
                   <div>
                     <p className="text-brand-950/50 text-xs">Fiado</p>
-                    <p className="font-medium text-brand-950">
+                    <p className="font-medium text-brand-950 text-base">
                       {selectedSale.creditTerms === 'FULL' ? 'Pago completo pendiente' : `Abonó ${money(selectedSale.amountPaidNow ?? 0)}`}
                     </p>
                   </div>
@@ -635,13 +637,13 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
               {selectedSale.paymentMeta?.reference && (
                 <div>
                   <p className="text-brand-950/50 text-xs">Número de referencia</p>
-                  <p className="font-semibold text-brand-950">{selectedSale.paymentMeta.reference}</p>
+                  <p className="font-semibold text-brand-950 text-base">{selectedSale.paymentMeta.reference}</p>
                 </div>
               )}
 
               {selectedSale.paymentMeta?.proofImageUrl ? (
                 <div>
-                  <p className="text-brand-950/50 text-xs mb-1.5">Comprobante de pago</p>
+                  <p className="text-brand-950/50 mb-1.5 text-xs">Comprobante de pago</p>
                   <img
                     src={selectedSale.paymentMeta.proofImageUrl}
                     alt="Comprobante de pago"
@@ -650,10 +652,12 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                 </div>
               ) : (
                 selectedSale.paymentMeta?.hasProof && (
-                  <p className="text-[12px] text-brand-950/40">Se adjuntó un comprobante, pero no quedó guardada la imagen.</p>
+                  <p className="text-brand-950/40 text-xs">Se adjuntó un comprobante, pero no quedó guardada la imagen.</p>
                 )
               )}
 
+              <p className="font-semibold text-brand-950 text-base">Recibo #{receiptNumber(selectedSale)}</p>
+              {!selectedSale.returned && selectedSale.receiptNumber && <ShopSalePrintActions key={selectedSale.id} saleId={selectedSale.id} customerName={selectedSale.customerName} />}
               <div className="flex flex-wrap gap-2">
                 {!selectedSale.returned && (
                   <TextureButton
@@ -703,13 +707,13 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           <DialogHeader>
             <DialogTitle>Eliminar registro de venta</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-brand-950">
+          <p className="text-brand-950 text-base">
             ¿Borrar por completo esta venta de{' '}
             <span className="font-semibold">{saleToDelete ? saleAmount(saleToDelete) : ''}</span>
             {saleToDelete?.customerName ? ` a ${saleToDelete.customerName}` : ''}? Desaparece de todo reporte e
             historial{!saleToDelete?.returned ? ' y el stock vuelve a como estaba antes' : ''}. No se puede deshacer.
           </p>
-          {deleteSaleError && <p className="text-sm text-red-600">{deleteSaleError}</p>}
+          {deleteSaleError && <p className="text-red-600 text-base">{deleteSaleError}</p>}
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSaleToDelete(null)}>
               Cancelar
@@ -760,7 +764,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           <DialogHeader>
             <DialogTitle>Eliminar gasto</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-brand-950">
+          <p className="text-brand-950 text-base">
             ¿Borrar <span className="font-semibold">{expenseToDelete?.description}</span> por{' '}
             {expenseToDelete ? money(Number(expenseToDelete.amountBase)) : ''}? Deja de contar en los totales del período.
           </p>
@@ -798,16 +802,16 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           </DialogHeader>
           <div className="space-y-5">
             <div>
-              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">Hoy</p>
+              <p className="font-bold uppercase text-brand-950/40 mb-2 text-xs">Hoy</p>
               {incomeByMethodToday.length === 0 ? (
-                <p className="text-sm text-brand-950/40 text-center py-4">Sin ventas todavía hoy.</p>
+                <p className="text-brand-950/40 text-center py-4 text-base">Sin ventas todavía hoy.</p>
               ) : (
                 <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
                   {incomeByMethodToday.map((row) => (
                     <div key={row.method} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
                       <div>
-                        <p className="font-medium text-brand-950">{row.method}</p>
-                        <p className="text-[11px] text-brand-950/40">{row.count} venta{row.count !== 1 ? 's' : ''}</p>
+                        <p className="font-medium text-brand-950 text-base">{row.method}</p>
+                        <p className="text-brand-950/40 text-xs">{row.count} venta{row.count !== 1 ? 's' : ''}</p>
                       </div>
                       <span className="font-bold text-brand-500">
                         {BS_PAYMENT_METHODS.has(row.method) ? moneyBs(row.total) ?? money(row.total) : money(row.total)}
@@ -818,16 +822,16 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
               )}
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">Últimos 30 días</p>
+              <p className="font-bold uppercase text-brand-950/40 mb-2 text-xs">Últimos 30 días</p>
               {incomeByMethodMonth.length === 0 ? (
-                <p className="text-sm text-brand-950/40 text-center py-4">Sin ventas en este período.</p>
+                <p className="text-brand-950/40 text-center py-4 text-base">Sin ventas en este período.</p>
               ) : (
                 <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
                   {incomeByMethodMonth.map((row) => (
                     <div key={row.method} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
                       <div>
-                        <p className="font-medium text-brand-950">{row.method}</p>
-                        <p className="text-[11px] text-brand-950/40">{row.count} venta{row.count !== 1 ? 's' : ''}</p>
+                        <p className="font-medium text-brand-950 text-base">{row.method}</p>
+                        <p className="text-brand-950/40 text-xs">{row.count} venta{row.count !== 1 ? 's' : ''}</p>
                       </div>
                       <span className="font-bold text-brand-950">
                         {BS_PAYMENT_METHODS.has(row.method) ? moneyBs(row.total) ?? money(row.total) : money(row.total)}
@@ -843,3 +847,4 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
     </div>
   );
 }
+import { ShopSalePrintActions } from './ShopSalePrintActions';

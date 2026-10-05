@@ -99,34 +99,34 @@ export function QuickTapRevenueDialog({ onClose, onChanged }: { onClose: () => v
             <DialogTitle>Ingresos de QuickTap</DialogTitle>
             <MoneyVisibilityToggle />
           </div>
-          <p className="text-sm text-brand-950/50 font-light">
+          <p className="text-brand-950/50 font-light text-base">
             Inscripciones y mensualidades aprobadas · total <MaskedAmount value={`$${total.toFixed(2)}`} />
           </p>
         </DialogHeader>
 
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {rows === null && !error && <p className="text-sm text-brand-950/40">Cargando…</p>}
-          {rows?.length === 0 && <p className="text-sm text-brand-950/40 font-light">Sin ingresos aprobados todavía.</p>}
+          {rows === null && !error && <p className="text-brand-950/40 text-base">Cargando…</p>}
+          {rows?.length === 0 && <p className="text-brand-950/40 font-light text-base">Sin ingresos aprobados todavía.</p>}
 
           {rows?.map((row) => (
             <div key={row.id} className="rounded-xl border border-brand-950/10 p-3">
               {editingId === row.id ? (
                 <div className="space-y-2">
                   <div className="flex gap-2">
-                    <label className="flex-1 text-xs">
+                    <label className="flex-1 text-sm font-medium">
                       <span className="text-brand-950/50">Monto (USD)</span>
                       <input
                         value={editPrice}
                         onChange={(e) => setEditPrice(e.target.value.replace(/[^0-9.]/g, ''))}
-                        className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5"
+                        className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                       />
                     </label>
-                    <label className="flex-1 text-xs">
+                    <label className="flex-1 text-sm font-medium">
                       <span className="text-brand-950/50">N.° referencia</span>
                       <input
                         value={editReference}
                         onChange={(e) => setEditReference(e.target.value)}
-                        className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5"
+                        className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                       />
                     </label>
                   </div>
@@ -148,13 +148,13 @@ export function QuickTapRevenueDialog({ onClose, onChanged }: { onClose: () => v
               ) : (
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950">
+                    <p className="font-medium text-brand-950 text-base">
                       <MaskedAmount value={`$${row.priceUsd}`} /> · {KIND_LABELS[row.kind]} · {row.plan}
                     </p>
-                    <p className="text-xs text-brand-950/60 font-light truncate">
+                    <p className="text-brand-950/60 font-light truncate text-xs">
                       {row.restaurant?.name ?? row.restaurantName ?? row.contactName}
                     </p>
-                    <p className="text-xs text-brand-950/40 font-light">
+                    <p className="text-brand-950/40 font-light text-xs">
                       Ref: {row.paymentReference} · {new Date(row.createdAt).toLocaleDateString('es-VE')}
                     </p>
                   </div>
@@ -182,7 +182,7 @@ export function QuickTapRevenueDialog({ onClose, onChanged }: { onClose: () => v
           ))}
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
       </DialogContent>
     </Dialog>
   );

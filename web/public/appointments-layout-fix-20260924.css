@@ -1,0 +1,7 @@
+/* Fix vertical centering of the Citas workspace, including browsers with a cached app bundle. */
+.appointments-app > .apt-main {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}

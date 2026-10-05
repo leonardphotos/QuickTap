@@ -46,25 +46,25 @@ export function TodayOrdersList() {
   if (!orders) return null;
 
   return (
-    <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-[15px] font-semibold text-brand-950">Pedidos de hoy</h3>
+    <div className="rounded-[26px] border border-brand-950/[0.06] bg-white/85 p-6 shadow-[0_16px_36px_-30px_rgba(0,27,67,0.32)] backdrop-blur-xl">
+      <div className="mb-5 flex items-center justify-between gap-2">
+        <h3 className="text-[16px] font-bold tracking-[-0.02em] text-brand-950">Pedidos de hoy</h3>
         <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> En vivo
         </span>
       </div>
       {orders.length === 0 ? (
-        <p className="text-sm text-brand-950/40 font-light">Sin pedidos todavía hoy.</p>
+        <p className="text-brand-950/40 font-light text-base">Sin pedidos todavía hoy.</p>
       ) : (
-        <div className="divide-y divide-brand-950/[0.06] max-h-[420px] overflow-y-auto">
+        <div className="max-h-[470px] divide-y divide-brand-950/[0.06] overflow-y-auto pr-1">
           {orders.map((o) => (
             <div key={o.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-brand-950">
+                <p className="font-medium text-brand-950 text-base">
                   {o.table ? o.table : CHANNEL_LABEL[o.channel]}
                   {o.customerName && <span className="text-brand-950/50 font-normal"> · {o.customerName}</span>}
                 </p>
-                <p className="text-xs text-brand-950/40 font-light">
+                <p className="text-brand-950/40 font-light text-xs">
                   #{o.orderNumber} ·{' '}
                   {new Date(o.createdAt).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
                 </p>

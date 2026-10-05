@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Check, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import { AlertTriangle,Check,X } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 type Status = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
 
@@ -82,25 +82,25 @@ export default function ShopApprovalsPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-brand-950">Solicitudes</h1>
-        <p className="text-sm text-brand-950/60 font-light mt-1">
+        <p className="text-brand-950/60 font-light mt-1 text-base">
           {esDueno
             ? 'Cambios que tu administrador quiere hacer y que decidiste revisar antes. Mientras esperan, el cambio no ocurre.'
             : 'Cambios que pediste y esperan el visto bueno del dueño. Mientras esperan, el cambio no ocurre.'}
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-base">{error}</p>}
 
       {esDueno && (
         <div className="rounded-2xl border border-brand-950/10 bg-white p-4">
-          <p className="font-semibold text-brand-950">Qué quieres revisar</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1 mb-3">
+          <p className="font-semibold text-brand-950 text-base">Qué quieres revisar</p>
+          <p className="text-brand-950/60 font-light mt-1 mb-3 text-base">
             Marca lo que tu administrador no deba hacer sin avisarte. Lo que dejes sin marcar lo puede hacer de una.
             Esto no te limita a ti.
           </p>
           <div className="space-y-2">
             {catalogo.map((c) => (
-              <label key={c.value} className="flex items-center gap-2.5 text-sm text-brand-950/80">
+              <label key={c.value} className="flex items-center gap-2.5 text-brand-950/80 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={actions.includes(c.value)}
@@ -116,17 +116,17 @@ export default function ShopApprovalsPage() {
       )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white p-4">
-        <p className="font-semibold text-brand-950 mb-3">
+        <p className="font-semibold text-brand-950 mb-3 text-base">
           Esperando {pendientes.length > 0 && <span className="text-amber-600">({pendientes.length})</span>}
         </p>
         {pendientes.length === 0 ? (
-          <p className="text-sm text-brand-950/40 font-light">Nada esperando.</p>
+          <p className="text-brand-950/40 font-light text-base">Nada esperando.</p>
         ) : (
           <ul className="space-y-2">
             {pendientes.map((i) => (
               <li key={i.id} className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
-                <p className="text-sm font-medium text-brand-950">{i.summary}</p>
-                <p className="text-[11px] text-brand-950/45 mt-0.5">
+                <p className="font-medium text-brand-950 text-base">{i.summary}</p>
+                <p className="text-brand-950/45 mt-0.5 text-xs">
                   {i.requestedByUserName} · {new Date(i.createdAt).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </p>
                 {esDueno && (
@@ -147,7 +147,7 @@ export default function ShopApprovalsPage() {
 
       {resueltas.length > 0 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white p-4">
-          <p className="font-semibold text-brand-950 mb-3">Historial</p>
+          <p className="font-semibold text-brand-950 mb-3 text-base">Historial</p>
           <ul className="space-y-2">
             {resueltas.map((i) => (
               <li key={i.id} className="flex items-start justify-between gap-3 text-sm">

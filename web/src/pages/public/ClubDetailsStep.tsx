@@ -153,7 +153,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
     return (
       <div className="flex flex-1 flex-col">
         <h1 className="text-[26px] font-bold tracking-tight">Verifica tu número</h1>
-        <p className="mt-2 text-[14px] font-light text-club-text/70">
+        <p className="mt-2 font-light text-club-text/70 text-base">
           {club?.isDemo
             ? 'Modo demostración: escribe cualquier código de 4 dígitos para confirmar tu reserva.'
             : (codeMessage ?? `Te enviamos un código de ${codeLength} dígitos por WhatsApp al ${playerPhone.trim()}.`)}
@@ -163,7 +163,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
           <CodeBoxes value={code} onChange={setCode} length={codeLength} disabled={saving} />
 
           {error && (
-            <p className="mt-5 rounded-2xl bg-rose-500/25 p-3 text-[13px] font-medium text-club-text">{error}</p>
+            <p className="mt-5 rounded-2xl bg-rose-500/25 p-3 font-medium text-club-text text-base">{error}</p>
           )}
 
           <div className="mt-auto pt-6">
@@ -197,16 +197,16 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
       <h1 className="text-[26px] font-bold tracking-tight">Tus datos</h1>
 
       <div className="mt-4 rounded-2xl border border-white/25 bg-white/15 p-4 backdrop-blur-xl">
-        <p className="text-[15px] font-bold">
+        <p className="font-bold text-base">
           {picked.courtName} · {picked.slot.startTime} a {picked.slot.endTime}
         </p>
-        <p className="text-[13px] font-light capitalize text-club-text/65">{humanDate(picked.date)}</p>
-        <p className="mt-1.5 text-[17px] font-bold">
+        <p className="font-light capitalize text-club-text/65 text-base">{humanDate(picked.date)}</p>
+        <p className="mt-1.5 font-bold text-base">
           {symbol}
           {picked.slot.priceBase}
         </p>
         {extras.length > 0 && (
-          <p className="mt-2 border-t border-white/15 pt-2 text-[12px] font-light text-club-text/60">
+          <p className="mt-2 border-t border-white/15 pt-2 font-light text-club-text/60 text-xs">
             Para tener listo: {extras.map((e) => `${e.quantity}× ${e.name}`).join(', ')} · {symbol}
             {extrasTotal.toFixed(2)}
           </p>
@@ -226,12 +226,12 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
           />
           <Field label="Cédula" value={playerIdNumber} onChange={setPlayerIdNumber} placeholder="V-12345678" />
 
-          <label className="block">
+          <label className="block text-sm font-medium">
             <span className="mb-1.5 block text-[13px] font-medium text-club-text/70">¿Cuántos van a jugar?</span>
             <select
               value={playerCount}
               onChange={(e) => setPlayerCount(Number(e.target.value))}
-              className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-[15px] text-club-text outline-none backdrop-blur-xl focus:border-white/60"
+              className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-club-text outline-none backdrop-blur-xl focus:border-white/60 text-base"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n} className="text-brand-950">
@@ -243,7 +243,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
 
           {showAmericanoQuestion && (
             <div className="rounded-2xl border border-white/25 bg-white/10 p-3.5">
-              <p className="text-[13px] font-medium text-club-text/85">¿Jugarás un americano?</p>
+              <p className="font-medium text-club-text/85 text-base">¿Jugarás un americano?</p>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
@@ -269,7 +269,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
 
               {americano === true && (
                 <div className="mt-3 space-y-2">
-                  <p className="text-[12px] font-light text-club-text/60">
+                  <p className="font-light text-club-text/60 text-xs">
                     Nombres de los {playerCount} jugadores, para tenerlos ya cargados en la cancha:
                   </p>
                   {tournamentNames.map((name, i) => (
@@ -280,7 +280,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
                         setTournamentNames((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
                       }
                       placeholder={`Jugador ${i + 1}`}
-                      className="w-full rounded-xl border border-white/25 bg-white/15 px-3 py-2 text-[14px] text-club-text placeholder:text-club-text/40 outline-none focus:border-white/60"
+                      className="w-full rounded-xl border border-white/25 bg-white/15 px-3 py-2 text-club-text placeholder:text-club-text/40 outline-none focus:border-white/60 text-base"
                     />
                   ))}
                 </div>
@@ -290,7 +290,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
         </div>
 
         {error && (
-          <p className="mt-4 rounded-2xl bg-rose-500/25 p-3 text-[13px] font-medium text-club-text">{error}</p>
+          <p className="mt-4 rounded-2xl bg-rose-500/25 p-3 font-medium text-club-text text-base">{error}</p>
         )}
 
         <div className="mt-auto pt-6">
@@ -301,7 +301,7 @@ export default function ClubDetailsStep({ slug, club, picked, extras, symbol, on
           >
             {saving ? 'Reservando…' : 'Confirmar reserva'}
           </button>
-          <p className="mt-3 text-center text-[11px] font-light text-club-text/50">
+          <p className="mt-3 text-center font-light text-club-text/50 text-xs">
             Pagas en el club al llegar.
           </p>
         </div>
@@ -382,13 +382,13 @@ function Field({
   // Omit del onChange nativo: aquí se recibe el valor ya extraído, no el evento.
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   return (
-    <label className="block">
+    <label className="block text-sm font-medium">
       <span className="mb-1.5 block text-[13px] font-medium text-club-text/70">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required
-        className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-[15px] text-club-text placeholder:text-club-text/40 outline-none backdrop-blur-xl focus:border-white/60"
+        className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-club-text placeholder:text-club-text/40 outline-none backdrop-blur-xl focus:border-white/60 text-base"
         {...rest}
       />
     </label>

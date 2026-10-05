@@ -71,11 +71,11 @@ export default function ForgotPasswordPage() {
         }
       >
         <form onSubmit={sendCode} className="space-y-4">
-          <p className="text-sm text-brand-950/60 font-light -mt-2 mb-2">
+          <p className="text-brand-950/60 font-light -mt-2 mb-2 text-base">
             Escribe el correo de tu cuenta y te enviamos un código para restablecer la contraseña.
           </p>
           <Field label="Email" type="email" value={email} onChange={setEmail} />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-red-600 text-base">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
             {loading ? 'Enviando…' : 'Enviar código'}
           </TextureButton>
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
       >
-        <p className="text-sm text-brand-950/60 font-light -mt-2 mb-2">
+        <p className="text-brand-950/60 font-light -mt-2 mb-2 text-base">
           Enviamos un código de 6 dígitos a <span className="font-medium text-brand-950">{email}</span>. Vence en 15 minutos.
         </p>
         <div className="block text-sm">
@@ -109,7 +109,7 @@ export default function ForgotPasswordPage() {
             <OtpInput value={code} onChange={(v) => setCode(v.slice(0, 6))} autoFocus />
           </div>
         </div>
-        <label className="block text-sm">
+        <label className="block text-sm font-medium">
           <span className="text-brand-950/70">Nueva contraseña</span>
           <PasswordInput
             value={newPassword}
@@ -118,7 +118,7 @@ export default function ForgotPasswordPage() {
             className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
         </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton
           variant="brand"
           size="default"

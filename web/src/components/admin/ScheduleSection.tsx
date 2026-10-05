@@ -26,7 +26,7 @@ function emptyDay(dayOfWeek: number): ScheduleDay {
   return { dayOfWeek, isClosed: false, openTime: '09:00', closeTime: '22:00' };
 }
 
-/** Ajustes → Horario: apertura/cierre por día de la semana. Bloquea pedidos (público y staff) fuera de horario. */
+/** Ajustes → Horario: referencia operativa del local. No bloquea pedidos ni comandas. */
 export function ScheduleSection() {
   const [days, setDays] = useState<ScheduleDay[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -64,13 +64,13 @@ export function ScheduleSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Horario</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
-          Fuera de este horario nadie puede pedir — ni el cliente desde el menú, ni el staff desde el panel.
+        <p className="text-brand-950/60 font-light text-base">
+          Referencia operativa del local. Los pedidos y las comandas siguen disponibles a cualquier hora.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-1 divide-y divide-brand-950/[0.06]">
         {days === null ? (
-          <p className="text-sm text-brand-950/40 font-light py-3">Cargando…</p>
+          <p className="text-brand-950/40 font-light py-3 text-base">Cargando…</p>
         ) : (
           DAY_ORDER.map((dayOfWeek) => {
             const day = days.find((d) => d.dayOfWeek === dayOfWeek) ?? emptyDay(dayOfWeek);
@@ -79,7 +79,7 @@ export function ScheduleSection() {
                 <div className="flex items-center gap-3 min-w-[7rem]">
                   <span className="text-sm font-medium text-brand-950">{DAY_LABELS[dayOfWeek]}</span>
                 </div>
-                <label className="flex items-center gap-1.5 text-xs text-brand-950/60">
+                <label className="flex items-center gap-1.5 text-brand-950/60 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={day.isClosed}
@@ -93,14 +93,14 @@ export function ScheduleSection() {
                       type="time"
                       value={day.openTime ?? '09:00'}
                       onChange={(e) => updateDay(dayOfWeek, { openTime: e.target.value })}
-                      className="text-sm border border-brand-950/15 rounded-lg px-2 py-1.5"
+                      className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                     />
                     <span className="text-brand-950/40 text-xs">a</span>
                     <input
                       type="time"
                       value={day.closeTime ?? '22:00'}
                       onChange={(e) => updateDay(dayOfWeek, { closeTime: e.target.value })}
-                      className="text-sm border border-brand-950/15 rounded-lg px-2 py-1.5"
+                      className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-base"
                     />
                   </div>
                 )}
@@ -109,8 +109,8 @@ export function ScheduleSection() {
           })
         )}
 
-        {error && <p className="text-sm text-red-600 pt-2">{error}</p>}
-        {message && <p className="text-sm text-brand-500 pt-2">{message}</p>}
+        {error && <p className="text-red-600 pt-2 text-base">{error}</p>}
+        {message && <p className="text-brand-500 pt-2 text-base">{message}</p>}
 
         <div className="pt-4">
           <TextureButton

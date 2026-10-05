@@ -1,25 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import { Crosshair, Maximize2, Minimize2, Plus, X } from 'lucide-react';
-import 'leaflet/dist/leaflet.css';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import type { DeliveryZone } from '@/types';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { reverseGeocode } from '@/components/AddressAutocomplete.shared';
 import { TextureButton } from '@/components/ui/texture-button';
-import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
-import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
+import { TextureCard,TextureCardContent,TextureCardHeader,TextureCardTitle } from '@/components/ui/texture-card';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { DeliveryZone } from '@/types';
+import { quickTapTileDefinition } from '@/utils/map-tiles';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Crosshair,Maximize2,Minimize2,Plus,X } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
 import { ImportZonesDialog } from './ImportZonesDialog';
 
 // Los íconos por defecto de Leaflet se rompen con bundlers (rutas relativas al CSS).
 // No usamos marcador de ícono personalizado, así que no hace falta arreglarlo aquí.
 
-type PricingMode = 'DISABLED' | 'DISTANCE' | 'ZONE';
+type PricingMode = 'DISABLED' | 'DISTANCE' | 'DISTANCE_TIERS' | 'ZONE';
 
 const MODE_OPTIONS: { value: PricingMode; label: string; description: string }[] = [
   { value: 'DISABLED', label: 'Desactivado', description: 'No se cobra envío.' },
-  { value: 'DISTANCE', label: 'Por distancia', description: 'Tarifa base + precio por Km desde tu local.' },
-  { value: 'ZONE', label: 'Por zona', description: 'Precio fijo según la zona del mapa donde caiga el cliente.' },
+  { value: 'DISTANCE', label: 'Por distancia', description: 'Tarifa base + precio por km recorrido por carretera desde tu local.' },
+  { value: 'DISTANCE_TIERS', label: 'Por tramos', description: 'Precio fijo por tramo de kilómetros. Fuera del último tramo, consultar la tarifa.' },
+  { value: 'ZONE', label: 'Por zona', description: 'Precio fijo en tus zonas; fuera de ellas, tarifa por carretera calculada con tus puntos de referencia.' },
 ];
+
+const EXAMPLE_RATES = [{ upToKm: 3, price: 2 }, { upToKm: 5, price: 3 }, { upToKm: 9, price: 4 }, { upToKm: 12, price: 5 }, { upToKm: 15, price: 6 }];
 
 const DEFAULT_CENTER: [number, number] = [10.4806, -66.9036]; // Caracas, si no hay ubicación aún.
 
@@ -32,6 +37,7 @@ export function DeliveryPricingSection() {
   const [originAddress, setOriginAddress] = useState('');
   const [baseFee, setBaseFee] = useState(restaurant?.deliveryBaseFee ?? '0');
   const [pricePerKm, setPricePerKm] = useState(restaurant?.deliveryPricePerKm ?? '0');
+  const [rates, setRates] = useState(() => (restaurant?.deliveryDistanceRates?.length ? restaurant.deliveryDistanceRates : EXAMPLE_RATES).map(rate => ({ upToKm: String(rate.upToKm), price: String(rate.price) })));
   const [autoOpen, setAutoOpen] = useState(!!restaurant?.deliveryAutoOpenOnPaid);
   const [autoAssign, setAutoAssign] = useState(!!restaurant?.deliveryAutoAssignOnPaid);
   const [autoAssignOnAccept, setAutoAssignOnAccept] = useState(!!restaurant?.deliveryAutoAssignOnAccept);
@@ -117,13 +123,18 @@ export function DeliveryPricingSection() {
     setMessage(null);
     try {
       const origin = await resolveTypedAddress();
-      if (origin == null && originAddress.trim() && mode === 'DISTANCE') {
+      if (origin == null && originAddress.trim() && (mode === 'DISTANCE' || mode === 'DISTANCE_TIERS')) {
         setError('No se pudo ubicar esa dirección. Elige una sugerencia de la lista o usa "Usar mi ubicación actual".');
         setSaving(false);
         return;
       }
+      if (mode === 'DISTANCE_TIERS') {
+        if (!origin) throw new Error('Selecciona la ubicación del local para calcular los kilómetros por carretera.');
+        if (!rates.length || rates.some((rate, i) => !rate.upToKm.trim() || !rate.price.trim() || !Number.isFinite(Number(rate.upToKm)) || !Number.isFinite(Number(rate.price)) || Number(rate.upToKm) <= (i ? Number(rates[i - 1].upToKm) : 0) || Number(rate.upToKm) > 60 || Number(rate.price) < 0)) throw new Error('Completa los tramos con distancias crecientes de hasta 60 km y precios válidos.');
+      }
       await api.patch('/restaurant', {
         deliveryPricingMode: mode,
+        ...(mode === 'DISTANCE_TIERS' ? { deliveryDistanceRates: rates.map(rate => ({ upToKm: Number(rate.upToKm), price: Number(rate.price) })) } : {}),
         deliveryOriginLat: origin?.lat ?? undefined,
         deliveryOriginLng: origin?.lng ?? undefined,
         deliveryBaseFee: Number(baseFee) || 0,
@@ -135,7 +146,7 @@ export function DeliveryPricingSection() {
       await refresh();
       setMessage('Configuración de delivery guardada.');
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo guardar.');
+      setError(err.response?.data?.error ?? err.message ?? 'No se pudo guardar.');
     } finally {
       setSaving(false);
     }
@@ -145,12 +156,12 @@ export function DeliveryPricingSection() {
     <TextureCard>
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Precio de Delivery</TextureCardTitle>
-        <p className="text-sm text-brand-950/60 font-light">
-          Cobra el envío automáticamente: por distancia desde tu local, o con un precio fijo por zona.
+        <p className="text-brand-950/60 font-light text-base">
+          Cobra el envío automáticamente: por kilómetro, por tramos de distancia o con un precio fijo por zona.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-5">
-        <div className="grid sm:grid-cols-3 gap-2">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-2">
           {MODE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -159,14 +170,14 @@ export function DeliveryPricingSection() {
                 mode === opt.value ? 'border-brand-500 bg-brand-500/5' : 'border-brand-950/10 hover:border-brand-950/20'
               }`}
             >
-              <p className="text-sm font-medium text-brand-950">{opt.label}</p>
-              <p className="text-xs text-brand-950/50 font-light mt-0.5">{opt.description}</p>
+              <p className="font-medium text-brand-950 text-base">{opt.label}</p>
+              <p className="text-brand-950/50 font-light mt-0.5 text-xs">{opt.description}</p>
             </button>
           ))}
         </div>
 
         <div className="space-y-2 max-w-md">
-          <p className="text-sm font-medium text-brand-950">Ubicación de tu local</p>
+          <p className="font-medium text-brand-950 text-base">Ubicación de tu local</p>
           <AddressAutocomplete
             value={originAddress}
             onChange={setOriginAddress}
@@ -198,29 +209,49 @@ export function DeliveryPricingSection() {
           </div>
         </div>
 
+        {mode === 'DISTANCE_TIERS' && (
+          <section className="max-w-2xl rounded-2xl border border-brand-950/10 bg-white p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold text-brand-950">Por tramos</h3>
+              <button type="button" onClick={() => setRates(EXAMPLE_RATES.map(rate => ({ upToKm: String(rate.upToKm), price: String(rate.price) })))} className="min-h-10 text-sm font-medium text-brand-500">Usar tarifas de ejemplo</button>
+            </div>
+            <p className="text-brand-950/60 text-base">Distancia por carretera desde tu local. Cada precio cubre todo el tramo, sin sumar un cargo por kilómetro. Precios en {restaurant?.baseCurrency ?? 'USD'}.</p>
+            <div className="grid grid-cols-[1fr_1fr_1fr_2.5rem] gap-2 text-xs font-semibold text-brand-950/60"><span>Desde</span><span>Hasta (km)</span><span>Precio</span><span /></div>
+            {rates.map((rate, index) => <div key={index} className="grid grid-cols-[1fr_1fr_1fr_2.5rem] items-center gap-2">
+              <span className="text-sm text-brand-950/70">{index === 0 ? '0 km' : `Más de ${rates[index - 1].upToKm || '…'} km`}</span>
+              <input aria-label={`Hasta kilómetros tramo ${index + 1}`} type="number" min="0.01" max="60" step="0.01" value={rate.upToKm} onChange={event => setRates(current => current.map((row, i) => i === index ? { ...row, upToKm: event.target.value } : row))} className="min-h-11 min-w-0 rounded-xl border border-brand-950/15 px-3 text-base" />
+              <input aria-label={`Precio tramo ${index + 1}`} type="number" min="0" max="100000" step="0.01" value={rate.price} onChange={event => setRates(current => current.map((row, i) => i === index ? { ...row, price: event.target.value } : row))} className="min-h-11 min-w-0 rounded-xl border border-brand-950/15 px-3 text-base" />
+              <button type="button" aria-label={`Quitar tramo ${index + 1}`} disabled={rates.length === 1} onClick={() => setRates(current => current.filter((_, i) => i !== index))} className="flex min-h-11 items-center justify-center rounded-xl text-red-600 disabled:opacity-30"><X size={18} /></button>
+            </div>)}
+            <button type="button" disabled={rates.length >= 20} onClick={() => setRates(current => [...current, { upToKm: '', price: '' }])} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-brand-500 disabled:opacity-40"><Plus size={16} /> Agregar tramo</button>
+            <p className="rounded-xl bg-amber-50 p-3 text-amber-900 text-base">Más de {rates[rates.length - 1]?.upToKm || '…'} km: <strong>tarifa por confirmar</strong>. Consulta el costo antes de aceptar el envío y colócalo manualmente en el pedido.</p>
+            <p className="text-brand-950/50 text-xs">Los tramos se unen sin huecos: 3 km usa el primer precio; cualquier distancia mayor de 3 km pasa al siguiente.</p>
+          </section>
+        )}
+
         {mode === 'DISTANCE' && (
           <div className="grid sm:grid-cols-2 gap-3 max-w-md">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Tarifa base</span>
               <input
                 value={baseFee}
                 onChange={(e) => setBaseFee(e.target.value.replace(/[^0-9.]/g, ''))}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               <span className="text-brand-950/70">Precio por Km</span>
               <input
                 value={pricePerKm}
                 onChange={(e) => setPricePerKm(e.target.value.replace(/[^0-9.]/g, ''))}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
               />
             </label>
           </div>
         )}
 
         <div className="space-y-2 pt-1 border-t border-brand-950/[0.06]">
-          <p className="text-sm font-medium text-brand-950 pt-3">Al aceptar un pedido de delivery</p>
+          <p className="font-medium text-brand-950 pt-3 text-base">Al aceptar un pedido de delivery</p>
           <DeliveryPaidToggle
             checked={autoAssignOnAccept}
             onChange={setAutoAssignOnAccept}
@@ -228,7 +259,7 @@ export function DeliveryPricingSection() {
             description="Apenas se acepta el pedido (antes de cobrarlo), elige repartidor por turnos y abre su WhatsApp con la comanda, sin preguntar."
           />
           {autoAssignOnAccept && activeCourierCount === 0 && (
-            <p className="text-xs font-light text-amber-700">
+            <p className="font-light text-amber-700 text-xs">
               Necesitas al menos un repartidor activo en Ajustes → Equipo de Delivery. Si no hay ninguno, el pedido
               se acepta igual y queda sin despachar.
             </p>
@@ -236,7 +267,7 @@ export function DeliveryPricingSection() {
         </div>
 
         <div className="space-y-2 pt-1 border-t border-brand-950/[0.06]">
-          <p className="text-sm font-medium text-brand-950 pt-3">Al terminar de cobrar un pedido de delivery</p>
+          <p className="font-medium text-brand-950 pt-3 text-base">Al terminar de cobrar un pedido de delivery</p>
           <DeliveryPaidToggle
             checked={autoOpen}
             onChange={(v) => {
@@ -256,15 +287,15 @@ export function DeliveryPricingSection() {
             description="No pregunta: elige repartidor por turnos (el que lleve más tiempo sin recibir un pedido) y abre su WhatsApp con la comanda."
           />
           {autoAssign && activeCourierCount === 0 && (
-            <p className="text-xs font-light text-amber-700">
+            <p className="font-light text-amber-700 text-xs">
               Necesitas al menos un repartidor activo en Ajustes → Equipo de Delivery. Si no hay ninguno, el cobro se
               completa igual y el pedido queda sin despachar.
             </p>
           )}
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
+        {message && <p className="text-brand-500 text-base">{message}</p>}
 
         <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}
@@ -295,8 +326,8 @@ function DeliveryPaidToggle({
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-brand-950/10 bg-brand-50/40 px-4 py-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-brand-950">{title}</p>
-        <p className="mt-0.5 text-xs font-light text-brand-950/50">{description}</p>
+        <p className="font-medium text-brand-950 text-base">{title}</p>
+        <p className="mt-0.5 font-light text-brand-950/50 text-xs">{description}</p>
       </div>
       <button
         type="button"
@@ -309,7 +340,7 @@ function DeliveryPaidToggle({
         }`}
       >
         <span
-          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${checked ? 'left-6' : 'left-1'}`}
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-200 ease-out-strong motion-reduce:transition-none ${checked ? 'left-6' : 'left-1'}`}
         />
       </button>
     </div>
@@ -377,10 +408,8 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     const center: [number, number] = originLat != null && originLng != null ? [originLat, originLng] : DEFAULT_CENTER;
     const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(center, 13);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19,
-    }).addTo(map);
+    const [tileUrl, tileOptions] = quickTapTileDefinition();
+    L.tileLayer(tileUrl, tileOptions).addTo(map);
 
     zonesLayerRef.current = L.layerGroup().addTo(map);
     drawLayerRef.current = L.layerGroup().addTo(map);
@@ -576,7 +605,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
 
   const zoneList = (
     <div className="divide-y divide-brand-950/[0.06]">
-      {zones.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin zonas dibujadas todavía.</p>}
+      {zones.length === 0 && <p className="text-brand-950/40 font-light py-2 text-base">Sin zonas dibujadas todavía.</p>}
       {zones.map((z) => (
         <button
           key={z.id}
@@ -666,7 +695,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
             className={`pointer-events-auto absolute top-3 left-3 w-56 max-h-[45%] overflow-y-auto rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur ${floatingListClass}`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Zonas de envío</p>
+              <p className="font-semibold uppercase tracking-wide text-brand-950/50 text-xs">Zonas de envío</p>
               {!drawing && !pendingSave && (
                 <button
                   type="button"
@@ -685,7 +714,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
           {selectedZone && !drawing && !pendingSave && (
             <div className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(24rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="truncate text-sm font-semibold text-brand-950">{selectedZone.name}</p>
+                <p className="truncate font-semibold text-brand-950 text-base">{selectedZone.name}</p>
                 <button
                   type="button"
                   onClick={() => setSelectedZoneId(null)}
@@ -701,7 +730,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
                   value={editingPrice}
                   onChange={(e) => setEditingPrice(e.target.value.replace(/[^0-9.]/g, ''))}
                   inputMode="decimal"
-                  className="w-24 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  className="w-24 rounded-lg border border-brand-950/15 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                 />
                 <TextureButton
                   variant="brand"
@@ -726,20 +755,20 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
           {/* Nombre + precio de la zona recién dibujada. */}
           {pendingSave && (
             <div className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(26rem,calc(100%-1.5rem))] -translate-x-1/2 space-y-2 rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur">
-              <p className="text-sm text-brand-950">Nombre y precio de la zona que acabas de dibujar:</p>
+              <p className="text-brand-950 text-base">Nombre y precio de la zona que acabas de dibujar:</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <input
                   value={zoneName}
                   onChange={(e) => setZoneName(e.target.value)}
                   placeholder="Ej: Zona Norte"
-                  className="rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  className="rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                 />
                 <input
                   value={zonePrice}
                   onChange={(e) => setZonePrice(e.target.value.replace(/[^0-9.]/g, ''))}
                   placeholder="Precio de envío"
                   inputMode="decimal"
-                  className="rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  className="rounded-lg border border-brand-950/15 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
                 />
               </div>
               <div className="flex gap-2">
@@ -765,7 +794,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
       {!fullscreen && (
         <div className="lg:hidden">
           <div className="mb-1 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Zonas de envío</p>
+            <p className="font-semibold uppercase tracking-wide text-brand-950/50 text-xs">Zonas de envío</p>
             {!drawing && !pendingSave && (
               <TextureButton variant="brand" size="sm" className="!w-auto !h-auto !py-1 !px-2.5 text-xs" onClick={startDrawing}>
                 + Añadir zona

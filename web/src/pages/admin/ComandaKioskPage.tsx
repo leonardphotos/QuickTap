@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, ShoppingCart, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { TextureButton } from '@/components/ui/texture-button';
 import { ProductOptionsDialog } from '@/components/admin/ProductOptionsDialog';
-import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatModifierLabel, modifierSelectionKey, publicPriceLabel } from '@/utils/format';
-import type { CartLine, FloorPlan, PaymentMethod, Product } from '@/types';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { CartLine,FloorPlan,PaymentMethod,Product } from '@/types';
+import { CURRENCY_SYMBOLS,cartLineUnitPrice,formatModifierLabel,modifierSelectionKey,publicPriceLabel } from '@/utils/format';
+import { ArrowLeft,Check,ShoppingCart,Store,UtensilsCrossed } from 'lucide-react';
+import { useEffect,useMemo,useState } from 'react';
 
 type Channel = 'DINE_IN' | 'PICKUP';
 
@@ -193,9 +193,9 @@ export default function ComandaKioskPage() {
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 mb-6">
           <Check className="h-10 w-10 text-emerald-600" />
         </div>
-        <p className="text-sm text-brand-950/50 font-light mb-1">Tu número de pedido</p>
+        <p className="text-brand-950/50 font-light mb-1 text-base">Tu número de pedido</p>
         <p className="text-7xl font-bold text-brand-950 mb-6">#{orderNumber}</p>
-        <p className="text-brand-950/60 font-light mb-10">Pasa a caja a cancelar con este número para que tu pedido comience a prepararse.</p>
+        <p className="text-brand-950/60 font-light mb-10 text-base">Pasa a caja a cancelar con este número para que tu pedido comience a prepararse.</p>
         <TextureButton variant="brand" size="default" className="!w-auto px-10 !h-14 !text-base" onClick={resetAll}>
           Nuevo pedido
         </TextureButton>
@@ -208,7 +208,7 @@ export default function ComandaKioskPage() {
       <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-8">
         <div>
           <h1 className="text-2xl font-semibold text-brand-950">{restaurant?.name}</h1>
-          <p className="text-brand-950/50 font-light mt-1">¿Cómo deseas tu pedido?</p>
+          <p className="text-brand-950/50 font-light mt-1 text-base">¿Cómo deseas tu pedido?</p>
         </div>
         <div className="grid grid-cols-2 gap-6 w-full max-w-lg">
           <button
@@ -241,11 +241,11 @@ export default function ComandaKioskPage() {
           <ArrowLeft className="h-4 w-4" /> Volver
         </button>
         <h1 className="text-2xl font-semibold text-brand-950 mb-1 text-center">Elige tu mesa</h1>
-        <p className="text-brand-950/50 font-light mb-8 text-center">Toca una mesa libre para sentarte ahí</p>
+        <p className="text-brand-950/50 font-light mb-8 text-center text-base">Toca una mesa libre para sentarte ahí</p>
         {floorPlan === null ? (
-          <p className="text-brand-950/40 font-light text-center py-16">Cargando mesas…</p>
+          <p className="text-brand-950/40 font-light text-center py-16 text-base">Cargando mesas…</p>
         ) : freeTables.length === 0 ? (
-          <p className="text-brand-950/40 font-light text-center py-16">No hay mesas libres en este momento.</p>
+          <p className="text-brand-950/40 font-light text-center py-16 text-base">No hay mesas libres en este momento.</p>
         ) : (
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 max-w-3xl mx-auto w-full">
             {freeTables.map((t) => (
@@ -322,8 +322,8 @@ export default function ComandaKioskPage() {
                   🍽️
                 </div>
               )}
-              <p className="text-sm font-semibold text-brand-950 truncate">{p.name}</p>
-              <p className="text-sm text-brand-500 font-semibold">
+              <p className="font-semibold text-brand-950 truncate text-base">{p.name}</p>
+              <p className="text-brand-500 font-semibold text-base">
                 <PriceTag amountBase={Number(p.price)} restaurant={restaurant} />
               </p>
             </button>
@@ -350,18 +350,18 @@ export default function ComandaKioskPage() {
         </button>
         <h2 className="text-lg font-semibold text-brand-950 mb-3">Tu pedido</h2>
         {lines.length === 0 ? (
-          <p className="text-brand-950/50 font-light py-10 text-center">Tu carrito está vacío.</p>
+          <p className="text-brand-950/50 font-light py-10 text-center text-base">Tu carrito está vacío.</p>
         ) : (
           <ul className="flex-1 space-y-2 overflow-y-auto">
             {lines.map((l, i) => (
               <li key={i} className="flex items-start justify-between border-b border-brand-950/10 pb-2">
                 <div>
-                  <p className="font-medium text-brand-950">
+                  <p className="font-medium text-brand-950 text-base">
                     {l.quantity}x {l.product.name}
                     {l.variantName && <span className="text-brand-950/50"> ({l.variantName})</span>}
                   </p>
                   {l.selectedModifiers.length > 0 && (
-                    <p className="text-xs text-brand-950/50">{l.selectedModifiers.map(formatModifierLabel).join(', ')}</p>
+                    <p className="text-brand-950/50 text-xs">{l.selectedModifiers.map(formatModifierLabel).join(', ')}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -400,7 +400,7 @@ export default function ComandaKioskPage() {
         <ArrowLeft className="h-4 w-4" /> Volver al carrito
       </button>
       <h2 className="text-lg font-semibold text-brand-950 mb-1">¿Cómo vas a pagar?</h2>
-      <p className="text-sm text-brand-950/50 font-light mb-4">
+      <p className="text-brand-950/50 font-light mb-4 text-base">
         Total: <PriceTag amountBase={totalBase} restaurant={restaurant} />
       </p>
       <div className="grid grid-cols-2 gap-3">
@@ -416,7 +416,7 @@ export default function ComandaKioskPage() {
           </button>
         ))}
       </div>
-      {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
+      {error && <p className="text-red-600 mt-4 text-base">{error}</p>}
       <TextureButton
         variant="brand"
         size="default"

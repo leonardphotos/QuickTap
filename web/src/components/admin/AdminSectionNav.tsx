@@ -1,4 +1,6 @@
 import { Lock, type LucideIcon } from 'lucide-react';
+import { AnimatedTabs, AnimatedTab } from '@/components/ui/animated-tabs';
+import { BounceNavigation } from '@/components/ui/bounce-navigation';
 
 export interface AdminSectionNavItem {
   id: string;
@@ -27,7 +29,7 @@ interface AdminSectionNavProps {
 export function AdminSectionNav({ items, activeId, onChange }: AdminSectionNavProps) {
   return (
     <>
-      <nav className="hidden lg:flex lg:flex-col lg:w-56 lg:shrink-0 gap-1">
+      <BounceNavigation className="hidden lg:flex lg:flex-col lg:w-56 lg:shrink-0 gap-1">
         {items.map((item) => {
           const active = item.id === activeId;
           return (
@@ -35,6 +37,7 @@ export function AdminSectionNav({ items, activeId, onChange }: AdminSectionNavPr
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
+              data-sidebar-active={active}
               className={`flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors ${
                 active ? 'bg-brand-500/10 text-brand-600' : 'text-brand-950/60 hover:bg-brand-950/[0.05] hover:text-brand-950'
               }`}
@@ -48,14 +51,14 @@ export function AdminSectionNav({ items, activeId, onChange }: AdminSectionNavPr
             </button>
           );
         })}
-      </nav>
+      </BounceNavigation>
 
       <div className="lg:hidden -mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+        <AnimatedTabs tone="light" label="Secciones de administración">
           {items.map((item) => {
             const active = item.id === activeId;
             return (
-              <button
+              <AnimatedTab active={active}
                 key={item.id}
                 type="button"
                 onClick={() => onChange(item.id)}
@@ -68,10 +71,10 @@ export function AdminSectionNav({ items, activeId, onChange }: AdminSectionNavPr
                 {!!item.badge && (
                   <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.badge}</span>
                 )}
-              </button>
+              </AnimatedTab>
             );
           })}
-        </div>
+        </AnimatedTabs>
       </div>
     </>
   );
