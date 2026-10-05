@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { restaurant } from './data';
 
-type NavItem = { label: string; icon: typeof ChefHat; badge?: number; alert?: boolean; active?: boolean };
+type NavItem = { label: string; icon: typeof ChefHat; badge?: number; alert?: boolean };
 
 // Propuesta: agrupar las ~12 secciones en tres bloques con intención (operar el turno,
 // mantener el catálogo, mirar el negocio) en vez de una sola lista larga.
@@ -23,7 +23,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   {
     title: 'Turno',
     items: [
-      { label: 'Resumen', icon: LayoutDashboard, active: true },
+      { label: 'Resumen', icon: LayoutDashboard },
       { label: 'Comandas', icon: ClipboardList, badge: 6 },
       { label: 'Cocina', icon: ChefHat, badge: 2 },
       { label: 'Órdenes de Mesa', icon: Grid2x2 },
@@ -48,7 +48,9 @@ const groups: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-export function ProposalSidebar() {
+/** `active` es el label del ítem actual (p. ej. "Resumen" o "Ajustes", que se marca abajo en
+ * la tarjeta de usuario) — así la misma barra sirve para cada propuesta de pantalla. */
+export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[248px] lg:flex-col bg-gradient-to-b from-brand-950 to-brand-900 px-3.5 py-5">
       <div className="mb-6 flex items-center gap-3 px-2">
@@ -73,29 +75,32 @@ export function ProposalSidebar() {
           <div key={group.title}>
             <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/35">{group.title}</p>
             <ul className="flex flex-col gap-0.5">
-              {group.items.map((item) => (
-                <li key={item.label}>
-                  <a
-                    href="#"
-                    aria-current={item.active ? 'page' : undefined}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium transition-colors ${
-                      item.active ? 'bg-brand-500/20 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
-                    }`}
-                  >
-                    <item.icon className={`h-[17px] w-[17px] shrink-0 ${item.active ? 'text-sky-300' : 'opacity-80'}`} />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.badge !== undefined && (
-                      <span
-                        className={`min-w-5 rounded-full px-1.5 py-px text-center text-[10.5px] font-semibold tabular-nums ${
-                          item.alert ? 'bg-red-500 text-white' : 'bg-white/10 text-white/80'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </a>
-                </li>
-              ))}
+              {group.items.map((item) => {
+                const isActive = item.label === active;
+                return (
+                  <li key={item.label}>
+                    <a
+                      href="#"
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium transition-colors ${
+                        isActive ? 'bg-brand-500/20 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+                      }`}
+                    >
+                      <item.icon className={`h-[17px] w-[17px] shrink-0 ${isActive ? 'text-sky-300' : 'opacity-80'}`} />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.badge !== undefined && (
+                        <span
+                          className={`min-w-5 rounded-full px-1.5 py-px text-center text-[10.5px] font-semibold tabular-nums ${
+                            item.alert ? 'bg-red-500 text-white' : 'bg-white/10 text-white/80'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}
@@ -109,7 +114,14 @@ export function ProposalSidebar() {
           <p className="truncate text-sm font-semibold text-white">{restaurant.user}</p>
           <p className="truncate text-[11px] text-white/45">{restaurant.role}</p>
         </div>
-        <a href="#" aria-label="Ajustes" className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white">
+        <a
+          href="/propuesta/ajustes"
+          aria-label="Ajustes"
+          aria-current={active === 'Ajustes' ? 'page' : undefined}
+          className={`rounded-lg p-1.5 transition-colors hover:bg-white/10 hover:text-white ${
+            active === 'Ajustes' ? 'bg-white/10 text-white' : 'text-white/50'
+          }`}
+        >
           <Settings className="h-4 w-4" />
         </a>
       </div>
