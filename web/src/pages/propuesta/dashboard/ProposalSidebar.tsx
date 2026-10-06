@@ -37,7 +37,7 @@ const NAV: NavItem[] = [
   { label: 'Reservas', icon: CalendarDays, badge: 2, alert: true },
   { label: 'Administración', icon: CircleDollarSign },
   { label: 'Menú interno', icon: UtensilsCrossed },
-  { label: 'Inventario', icon: Boxes, badge: 3, alert: true },
+  { label: 'Inventario', icon: Boxes, badge: 3, alert: true, href: '/propuesta/inventario/nuevo' },
   { label: 'Sucursales', icon: Building2 },
   { label: 'Asistente', icon: Sparkles },
   { label: 'Ajustes', icon: Settings, href: '/propuesta/ajustes' },

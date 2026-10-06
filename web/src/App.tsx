@@ -37,6 +37,7 @@ const SettingsProposalPage = lazy(() => import('./pages/propuesta/ajustes/Settin
 const CreateOrderProposalPage = lazy(() => import('./pages/propuesta/pedido/CreateOrderProposalPage'));
 const OrdersProposalPage = lazy(() => import('./pages/propuesta/pedidos/OrdersProposalPage'));
 const PaymentProposalPage = lazy(() => import('./pages/propuesta/pago/PaymentProposalPage'));
+const NewInventoryItemProposalPage = lazy(() => import('./pages/propuesta/inventario/NewInventoryItemProposalPage'));
 const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
 const VerticalPage = lazy(() => import('./pages/seo/VerticalPage'));
 const ComparativaPage = lazy(() => import('./pages/seo/ComparativaPage'));
@@ -169,6 +170,7 @@ export default function App() {
             <Route path="/propuesta/pedido" element={<CreateOrderProposalPage />} />
             <Route path="/propuesta/pedidos" element={<OrdersProposalPage />} />
             <Route path="/propuesta/pago" element={<PaymentProposalPage />} />
+            <Route path="/propuesta/inventario/nuevo" element={<NewInventoryItemProposalPage />} />
 
             {/* QuickTap Wallet (quicktap.club/wallet) */}
             <Route path="/wallet" element={<WalletLoginPage />} />
