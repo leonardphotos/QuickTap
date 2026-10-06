@@ -39,7 +39,7 @@ export function MetricCard({ icon: Icon, title, rows, value, valueTone, caption,
     >
       <div className="flex items-center gap-2 mb-3">
         {Icon && <Icon className={`h-4 w-4 ${highlighted ? 'text-amber-600' : 'text-brand-950/40'}`} />}
-        <p className={`text-[0.8rem] font-medium uppercase tracking-wide ${highlighted ? 'text-amber-700' : 'text-brand-950/50'}`}>{title}</p>
+        <p className={`text-xs font-medium uppercase tracking-wide ${highlighted ? 'text-amber-700' : 'text-brand-950/50'}`}>{title}</p>
       </div>
 
       {rows && (
@@ -47,13 +47,13 @@ export function MetricCard({ icon: Icon, title, rows, value, valueTone, caption,
           {rows.map((r) => (
             <div key={r.label} className="flex items-center justify-between gap-2">
               <span
-                className={`text-[0.8rem] font-semibold uppercase tracking-wide ${
+                className={`text-[11px] font-semibold uppercase tracking-wide ${
                   r.tone === 'success' ? 'text-emerald-600' : r.tone === 'danger' ? 'text-red-600' : 'text-brand-950/40'
                 }`}
               >
                 {r.label}
               </span>
-              <span className="text-[1rem] font-semibold text-brand-950">{r.amount}</span>
+              <span className="text-sm font-semibold text-brand-950">{r.amount}</span>
             </div>
           ))}
         </div>
@@ -62,19 +62,19 @@ export function MetricCard({ icon: Icon, title, rows, value, valueTone, caption,
       {value && (
         <div>
           <p
-            className={`text-[1.95rem] font-semibold leading-tight ${
+            className={`text-2xl font-semibold ${
               valueTone === 'success' ? 'text-emerald-600' : valueTone === 'danger' ? 'text-red-600' : highlighted ? 'text-amber-700' : 'text-brand-950'
             }`}
           >
             {value}
           </p>
-          {caption && <p className={`text-[0.8rem] font-light mt-1 ${highlighted ? 'text-amber-700/70' : 'text-brand-950/40'}`}>{caption}</p>}
+          {caption && <p className={`text-xs font-light mt-0.5 ${highlighted ? 'text-amber-700/70' : 'text-brand-950/40'}`}>{caption}</p>}
         </div>
       )}
 
       {(trend || action) && (
-        <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-brand-950/[0.06]">
-          {trend && <p className="text-brand-950/40 font-light text-[0.8rem]">{trend}</p>}
+        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-brand-950/[0.06]">
+          {trend && <p className="text-brand-950/40 font-light text-xs">{trend}</p>}
           {action && (
             <span
               role="button"
@@ -89,7 +89,7 @@ export function MetricCard({ icon: Icon, title, rows, value, valueTone, caption,
                   action.onClick();
                 }
               }}
-              className="text-[0.8rem] font-medium text-brand-500 hover:text-brand-600 cursor-pointer"
+              className="text-xs font-medium text-brand-500 hover:text-brand-600 cursor-pointer"
             >
               {action.label}
             </span>

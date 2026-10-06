@@ -64,8 +64,8 @@ export default function ShopAdministracionPage({ restaurant, session, onGoToBill
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-[2.44rem] font-semibold tracking-tight text-brand-950 leading-tight">Administración</h1>
-        <p className="mt-1.5 font-light text-brand-950/60 text-[1rem]">
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
+        <p className="mt-1 font-light text-brand-950/60 text-base">
           Ventas, gastos, compras y contabilidad de {restaurant.name}.
         </p>
       </div>

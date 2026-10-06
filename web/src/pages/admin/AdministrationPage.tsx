@@ -85,8 +85,8 @@ export default function AdministrationPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[2.44rem] font-semibold tracking-tight text-brand-950 leading-tight">Administración</h1>
-          <p className="text-brand-950/60 font-light mt-1.5 text-[1rem]">Ventas, pedidos, propinas y productos de tu restaurante.</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
+          <p className="text-brand-950/60 font-light mt-1 text-base">Ventas, pedidos, propinas y productos de tu restaurante.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <CashSessionPanel />

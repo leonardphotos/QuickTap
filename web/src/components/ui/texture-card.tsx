@@ -82,7 +82,7 @@ const TextureCardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "text-[1.4rem] font-semibold leading-tight text-neutral-900 dark:text-neutral-100 pl-2",
+      "text-lg font-semibold leading-tight text-neutral-900 dark:text-neutral-100 pl-2",
       className
     )}
     {...props}
@@ -97,7 +97,7 @@ const TextureCardDescription = React.forwardRef<
   <p
     ref={ref}
     className={cn(
-      "text-[0.8rem] text-neutral-600 dark:text-neutral-400 pl-2 leading-normal",
+      "text-sm text-neutral-600 dark:text-neutral-400 pl-2",
       className
     )}
     {...props}

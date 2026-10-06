@@ -225,7 +225,7 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-[2.44rem] font-semibold tracking-tight text-brand-950 leading-tight">Productos</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Productos</h1>
 
       <div className="flex flex-wrap gap-2">
         <TextureButton

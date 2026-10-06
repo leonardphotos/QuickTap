@@ -136,9 +136,9 @@ export default function InventoryPage() {
     <div className="space-y-5 min-w-0">
       <header className="flex flex-wrap items-center justify-between gap-5 rounded-[28px] border border-brand-950/10 bg-white p-5 sm:p-7">
         <div className="max-w-2xl">
-          <p className="mb-2 font-semibold uppercase tracking-widest text-brand-600 text-[0.8rem]">Cada insumo bajo control</p>
-          <h1 className="text-[2.44rem] font-semibold tracking-tight text-brand-950 leading-tight">Inventario</h1>
-          <p className="text-brand-950/60 mt-2 leading-relaxed text-[1rem]">
+          <p className="mb-2 font-semibold uppercase tracking-widest text-brand-600 text-xs">Cada insumo bajo control</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-brand-950">Inventario</h1>
+          <p className="text-brand-950/60 mt-2 leading-relaxed text-base">
             {canRecipes
               ? 'Organiza tus insumos, preparaciones y productos. Revisa existencias y anticipa lo que necesitas reponer.'
               : 'Organiza tus insumos y productos, revisa existencias y mantén al día el stock de tu local.'}
