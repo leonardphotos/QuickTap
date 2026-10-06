@@ -14,6 +14,7 @@ interface EditOrderTicketProps {
   onAdjustPending: (productId: string, delta: number) => void;
   onToggleVoid: (key: string) => void;
   onSendPending: () => void;
+  onCharge?: () => void;
   onClose?: () => void;
 }
 
@@ -29,7 +30,7 @@ export function computeEditTotals(sent: SentLine[], pending: TicketLine[], chann
   return { subtotal: sentSubtotal + pendingSubtotal, delivery, total, paidAmount, due: total - paidAmount, pendingCount };
 }
 
-export function EditOrderTicket({ order, channel, sent, pending, paid, onAdjustPending, onToggleVoid, onSendPending, onClose }: EditOrderTicketProps) {
+export function EditOrderTicket({ order, channel, sent, pending, paid, onAdjustPending, onToggleVoid, onSendPending, onCharge, onClose }: EditOrderTicketProps) {
   const { subtotal, delivery, total, paidAmount, due, pendingCount } = computeEditTotals(sent, pending, channel, paid);
   const locked = paid === 'full';
 
@@ -166,6 +167,7 @@ export function EditOrderTicket({ order, channel, sent, pending, paid, onAdjustP
               </button>
               <button
                 type="button"
+                onClick={onCharge}
                 disabled={due <= 0}
                 className="flex min-h-12 items-center justify-center rounded-xl bg-brand-500 text-sm font-semibold text-white shadow-[0_8px_20px_-8px_rgba(5,165,245,0.45)] transition-[filter] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
               >

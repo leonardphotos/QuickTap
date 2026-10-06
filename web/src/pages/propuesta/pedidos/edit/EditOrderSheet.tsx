@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronUp } from 'lucide-react';
 import { formatUsd } from '../../dashboard/format';
-import type { Channel, MenuProduct } from '../../pedido/data';
+import { DELIVERY_FEE, type Channel, type MenuProduct } from '../../pedido/data';
+import { PaymentSheet } from '../../pago/PaymentSheet';
+import { toPaymentLines } from '../../pago/lines';
 import { MenuCatalog } from '../../pedido/MenuCatalog';
 import type { TicketLine } from '../../pedido/OrderTicket';
 import { statusMeta, type ProposalOrder } from '../data';
@@ -31,10 +33,13 @@ export function EditOrderSheet({ order, onClose }: EditOrderSheetProps) {
   const [pending, setPending] = useState<TicketLine[]>([]);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [charging, setCharging] = useState(false);
+  const closeCharge = useCallback(() => setCharging(false), []);
   const paid = PAID_BY_ORDER[order.id] ?? 0;
   const locked = paid === 'full';
 
   useEffect(() => {
+    if (charging) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -43,7 +48,7 @@ export function EditOrderSheet({ order, onClose }: EditOrderSheetProps) {
       document.body.style.overflow = previous;
       window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, charging]);
 
   const sentQty = (id: string) => sent.filter((l) => l.productId === id && !l.voided).reduce((s, l) => s + l.quantity, 0);
   const quantityFor = (id: string) => sentQty(id) + (pending.find((l) => l.productId === id)?.quantity ?? 0);
@@ -70,7 +75,8 @@ export function EditOrderSheet({ order, onClose }: EditOrderSheetProps) {
   const toggleVoid = (key: string) => setSent((prev) => prev.map((l) => (l.key === key ? { ...l, voided: !l.voided } : l)));
 
   const { due, total, pendingCount } = computeEditTotals(sent, pending, channel, paid);
-  const ticketProps = { order, channel, sent, pending, paid, onAdjustPending: adjustPending, onToggleVoid: toggleVoid, onSendPending: sendPending };
+  const ticketProps = { order, channel, sent, pending, paid, onAdjustPending: adjustPending, onToggleVoid: toggleVoid, onSendPending: sendPending, onCharge: () => { setSummaryOpen(false); setCharging(true); } };
+  const paymentLines = toPaymentLines([...sent, ...pending.map((l) => ({ key: `pending-${l.productId}`, ...l }))]);
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="edit-order-title" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background">
@@ -137,6 +143,17 @@ export function EditOrderSheet({ order, onClose }: EditOrderSheetProps) {
             <EditOrderTicket {...ticketProps} onClose={() => setSummaryOpen(false)} />
           </div>
         </div>
+      )}
+
+      {charging && (
+        <PaymentSheet
+          order={order}
+          lines={paymentLines}
+          delivery={channel === 'DELIVERY' ? DELIVERY_FEE : 0}
+          alreadyPaid={typeof paid === 'number' ? paid : 0}
+          onClose={closeCharge}
+          onFinish={onClose}
+        />
       )}
 
       {notice && (
