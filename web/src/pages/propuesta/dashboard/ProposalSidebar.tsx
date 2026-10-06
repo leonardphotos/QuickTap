@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Menu,
   PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   QrCode,
   Settings,
@@ -46,7 +47,8 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside
+    <>
+      <aside
       data-collapsed={collapsed ? 'true' : 'false'}
       className={`proposal-sidebar hidden overflow-y-auto border-r border-border bg-card px-4 py-6 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:flex-col ${collapsed ? 'is-collapsed lg:w-[76px] lg:px-3' : 'lg:w-[264px]'}`}
     >
@@ -132,5 +134,17 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
         </div>
       </div>
     </aside>
+
+      {collapsed && (
+        <button
+          type="button"
+          aria-label="Mostrar menú lateral"
+          onClick={() => setCollapsed(false)}
+          className="fixed left-3 top-5 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-brand-500 shadow-lg transition-colors hover:bg-muted lg:flex"
+        >
+          <PanelLeftOpen className="h-[18px] w-[18px]" />
+        </button>
+      )}
+    </>
   );
 }
