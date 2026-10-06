@@ -27,17 +27,16 @@
   --font-display: 'Instrument Serif', Georgia, serif;
 
   /* Paleta de marca QuickTap, de más oscuro a más claro. */
-  --color-brand-950: #001b43;
-  --color-brand-900: #022873;
-  --color-brand-800: #03258c;
-  /* Azul de la marca: el MISMO azul del icono del logo (logo/icono.png). Cambiarlo
-   * aquí recolorea todos los botones y acentos azules de la plataforma. */
-  --color-brand-500: #009aff;
+  --color-brand-950: #061f46;
+  --color-brand-900: #07366b;
+  --color-brand-800: #084b8a;
+  /* Azul de acción de la paleta unificada QuickTap. */
+  --color-brand-500: #05a5f5;
   /* Hover/estados un paso más oscuros que el azul de marca. */
-  --color-brand-600: #008ae6;
-  --color-brand-400: #33adff;
+  --color-brand-600: #05a5f5;
+  --color-brand-400: #05a5f5;
   /* Alias del azul del logo usado por las páginas SEO (mismo valor que brand-500). */
-  --color-brand-logo: #009aff;
+  --color-brand-logo: #05a5f5;
 
   /* Color de fuente del enlace público del Club (reservas + ticket QR) — ver
      Ajustes → Marca del enlace. Blanco por defecto (fondo con degradado de
@@ -46,23 +45,23 @@
   --color-club-text: #ffffff;
 
   /* Tokens semánticos de shadcn/Cult UI, mapeados a la paleta de marca. */
-  --color-background: #ffffff;
+  --color-background: #f5f7fb;
   --color-foreground: var(--color-brand-950);
   --color-card: #ffffff;
   --color-card-foreground: var(--color-brand-950);
   --color-popover: #ffffff;
   --color-popover-foreground: var(--color-brand-950);
   --color-primary: var(--color-brand-500);
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #eef3fc;
+  --color-primary-foreground: #061f46;
+  --color-secondary: #e8f6ff;
   --color-secondary-foreground: var(--color-brand-950);
-  --color-muted: #f1f4f9;
-  --color-muted-foreground: #5b6785;
-  --color-accent: #e6f2fe;
+  --color-muted: #f5f7fb;
+  --color-muted-foreground: #64748b;
+  --color-accent: #e8f6ff;
   --color-accent-foreground: var(--color-brand-900);
   --color-destructive: #ef4444;
-  --color-border: #e3e7f0;
-  --color-input: #e3e7f0;
+  --color-border: #e2e8f0;
+  --color-input: #e2e8f0;
   --color-ring: var(--color-brand-500);
   --radius: 0.75rem;
   --radius-sm: calc(var(--radius) - 4px);
@@ -82,12 +81,15 @@
      responde rápido, el usuario decide despacio). El transform-origin lo
      define cada primitivo (centro en modales, el trigger en popovers). */
   --animate-scale-in: scale-in 200ms var(--ease-out-strong);
-  --animate-scale-out: scale-out 150ms ease-in;
+  --animate-scale-out: scale-out 140ms var(--ease-out-strong);
   --animate-overlay-in: overlay-in 200ms ease-out;
-  --animate-overlay-out: overlay-out 150ms ease-in;
+  --animate-overlay-out: overlay-out 140ms var(--ease-out-strong);
+  /* Aviso de inventario: un cambio de estado calmado, sin zoom ni rebote. */
+  --animate-inventory-alert-in: inventory-alert-in 220ms var(--ease-out-strong) both;
+  --animate-inventory-alert-out: inventory-alert-out 160ms var(--ease-out-strong) both;
   /* Hoja que sube desde abajo (EditOrderDialog en celular). */
   --animate-sheet-in: sheet-in 260ms var(--ease-out-strong);
-  --animate-sheet-out: sheet-out 200ms ease-in;
+  --animate-sheet-out: sheet-out 180ms var(--ease-out-strong);
   /* Carrusel del menú en la Pantalla (rol SCREEN, ver ScreenPage.tsx) — animación CSS pura
      (no una librería JS) a propósito: el contenido tiene que quedar SIEMPRE visible al
      terminar, sin depender de que ningún estado de React dispare la transición. */
@@ -100,9 +102,9 @@
   --animate-check-pop: check-pop 420ms var(--ease-out-strong) 1320ms both;
   --animate-check-draw: check-draw 420ms ease-out 1500ms both;
   --animate-rise: rise 380ms var(--ease-out-strong) both;
-  /* Apertura del wizard "Crear pedido" (pantalla completa): entra con un pequeño rebote
-     en vez de aparecer de golpe. */
-  --animate-window-pop: window-pop 360ms var(--ease-out-strong) both;
+  /* Apertura del wizard "Crear pedido": rápida y directa; no rebota porque es una acción
+     frecuente durante el turno y el movimiento no debe retrasar al personal. */
+  --animate-window-pop: window-pop 220ms var(--ease-out-strong) both;
 }
 
 @keyframes menu-slide-in {
@@ -117,17 +119,24 @@
 }
 
 @keyframes window-pop {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(18px) scale(0.97);
+    transform: translateY(10px) scale(0.985);
   }
-  55% {
-    opacity: 1;
-    transform: translateY(-4px) scale(1.01);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes master-drawer-in {
+  from {
+    opacity: 0.7;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -151,6 +160,16 @@
     opacity: 0;
     scale: 0.95;
   }
+}
+
+@keyframes inventory-alert-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes inventory-alert-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @keyframes overlay-in {
@@ -195,15 +214,65 @@
 
 :root {
   color-scheme: light;
-  /* Reduce el tamaño base de todo el texto (rem) en toda la app. */
-  font-size: 87.5%;
+  /* Base de 16px para cálculo consistente de la escala modular */
+  font-size: 100%;
+
+  /* --- Escala Tipográfica Modular (Ratio 1.25, base 16px / 1rem) --- */
+  --type-small: 0.8rem;    /* 12.8px - Textos secundarios o legales */
+  --type-body: 1rem;       /* 16px   - Texto principal */
+  --type-h3: 1.4rem;       /* 22.4px - Subtítulos de secciones */
+  --type-h2: 1.95rem;      /* 31.2px - Títulos de bloques principales */
+  --type-h1: 2.44rem;      /* 39px   - Título principal de la página */
+
+  /* Espaciado modular proporcional */
+  --space-xs: 0.25rem;     /* 4px */
+  --space-sm: 0.5rem;      /* 8px */
+  --space-md: 0.75rem;     /* 12px */
+  --space-base: 1rem;      /* 16px */
+  --space-lg: 1.5rem;      /* 24px */
+  --space-xl: 2rem;        /* 32px */
+}
+
+/* Reglas semánticas por defecto para armonía tipográfica y espaciado proporcional */
+h1, .type-h1 {
+  font-size: var(--type-h1);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  color: var(--color-brand-950);
+}
+
+h2, .type-h2 {
+  font-size: var(--type-h2);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--color-brand-950);
+}
+
+h3, .type-h3 {
+  font-size: var(--type-h3);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  color: var(--color-brand-950);
+}
+
+body, p, .type-body {
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+small, .type-small {
+  font-size: var(--type-small);
+  line-height: 1.4;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   font-weight: 300;
-  background-color: #f8f7fb;
+  background-color: #f5f7fb;
   color: var(--color-brand-950);
 }
 
@@ -507,7 +576,7 @@ body {
  */
 @media (max-width: 640px) {
   select {
-    font-size: 15px;
+    font-size: 16px;
   }
 }
 
@@ -648,4 +717,256 @@ body {
   /* Los azules profundos de la marca son letra oscura; sobre negro no se ven. */
   --color-brand-900: #b9d9ff;
   --color-brand-800: #a5cfff;
+}
+@keyframes shop-sheet-in {
+  from { transform: translateY(28px) scale(.985); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes shop-sheet-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.shop-sheet-panel {
+  animation: shop-sheet-in .34s cubic-bezier(.2,.8,.2,1) both;
+  transform-origin: bottom center;
+}
+
+.shop-sheet-scrim { animation: shop-sheet-scrim-in .2s ease-out both; }
+
+/* El perfil del motorizado ocupa la cabecera del mapa. Los controles de zoom
+   van abajo y se elevan sobre la barra de acciones, para que nunca se tapen. */
+.courier-map .leaflet-bottom.leaflet-right .leaflet-control-zoom {
+  margin-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-sheet-panel,
+  .shop-sheet-scrim { animation-duration: .01ms; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .shop-sheet-panel { background: white; backdrop-filter: none; }
+}
+
+/* Asistente de voz: el dashboard desaparece y el agente queda como único foco. */
+@keyframes business-voice-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes business-voice-orb-in {
+  from { opacity: 0; transform: scale(.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes business-voice-breathe {
+  0%, 100% { transform: scale(.96); opacity: .72; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes business-voice-listen {
+  0%, 100% { transform: scale(.98); }
+  45% { transform: scale(1.035); }
+}
+
+@keyframes business-voice-speak {
+  0% { transform: scale(.94); }
+  35% { transform: scale(1.08); }
+  70% { transform: scale(.99); }
+  100% { transform: scale(1.04); }
+}
+
+@keyframes business-voice-halo {
+  0%, 100% { opacity: .22; transform: scale(.9); }
+  50% { opacity: .55; transform: scale(1.16); }
+}
+
+.business-voice-overlay {
+  animation: business-voice-overlay-in .18s ease-out both;
+}
+
+.business-voice-orb {
+  position: relative;
+  isolation: isolate;
+  width: clamp(10.5rem, 42vw, 13rem);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  animation: business-voice-orb-in .38s cubic-bezier(.2,.8,.2,1) both;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform, opacity;
+}
+
+.business-voice-orb__halo,
+.business-voice-orb__core {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.business-voice-orb__halo {
+  inset: -22%;
+  z-index: -1;
+  background: radial-gradient(circle, rgba(36, 162, 255, .42) 0%, rgba(41, 98, 255, .18) 42%, transparent 72%);
+  filter: blur(16px);
+  opacity: .32;
+}
+
+.business-voice-orb__core {
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,255,255,.92) 0%, rgba(147,220,255,.78) 8%, transparent 29%),
+    radial-gradient(circle at 67% 72%, rgba(64,73,255,.94) 0%, transparent 47%),
+    linear-gradient(145deg, #05a5f5 0%, #05a5f5 43%, #4a35ed 100%);
+  box-shadow:
+    inset -18px -22px 42px rgba(13, 20, 102, .28),
+    inset 14px 13px 34px rgba(255, 255, 255, .16),
+    0 22px 70px rgba(0, 126, 255, .22);
+}
+
+.business-voice-orb--connecting .business-voice-orb__core {
+  animation: business-voice-breathe 1.35s ease-in-out infinite;
+}
+
+.business-voice-orb--listening .business-voice-orb__core {
+  animation: business-voice-listen 2.1s ease-in-out infinite;
+}
+
+.business-voice-orb--speaking .business-voice-orb__core {
+  animation: business-voice-speak .85s ease-in-out infinite alternate;
+}
+
+.business-voice-orb--connecting .business-voice-orb__halo,
+.business-voice-orb--listening .business-voice-orb__halo,
+.business-voice-orb--speaking .business-voice-orb__halo {
+  animation: business-voice-halo 1.8s ease-in-out infinite;
+}
+
+.business-voice-orb--speaking .business-voice-orb__halo {
+  animation-duration: .9s;
+}
+
+.business-voice-orb--idle:not(:disabled) {
+  cursor: pointer;
+}
+
+.business-voice-orb--idle:not(:disabled):active {
+  transform: scale(.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .business-voice-overlay,
+  .business-voice-orb,
+  .business-voice-orb__halo,
+  .business-voice-orb__core {
+    animation: none !important;
+  }
+
+  .business-voice-orb--speaking .business-voice-orb__halo {
+    opacity: .5;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .business-voice-overlay { background: #020611; }
+}
+@keyframes master-ops-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes master-ops-slide-in {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+/* Loader cinético de QuickTap: solo transforma y cambia opacidad para mantenerse en el
+   compositor incluso en teléfonos modestos. */
+@keyframes qt-gravity-bounce {
+  0% { transform: translateY(0); animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1); }
+  50% { transform: translateY(-40px); animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes qt-rubber-morph {
+  0% { transform: scale(1.4, 0.6); }
+  5% { transform: scale(0.9, 1.1); }
+  15%, 50% { transform: scale(1); }
+  85% { transform: scale(0.9, 1.1); }
+  100% { transform: scale(1.4, 0.6); }
+}
+
+@keyframes qt-shadow-breathe {
+  0%, 100% { transform: scale(1.4); opacity: 0.6; }
+  50% { transform: scale(0.5); opacity: 0.1; }
+}
+
+@keyframes qt-ripple-expand {
+  0% { transform: scale(0.5); opacity: 0; border-width: 4px; }
+  5% { opacity: 0.8; }
+  30%, 100% { transform: scale(1.5); opacity: 0; border-width: 0; }
+}
+
+.qt-kinetic-dot {
+  animation: qt-gravity-bounce 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+
+.qt-kinetic-morph {
+  animation: qt-rubber-morph 1.4s linear infinite;
+  will-change: transform;
+}
+
+.qt-kinetic-ripple { animation: qt-ripple-expand 1.4s linear infinite; }
+.qt-kinetic-shadow { animation: qt-shadow-breathe 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .qt-kinetic-dot,
+  .qt-kinetic-morph,
+  .qt-kinetic-ripple,
+  .qt-kinetic-shadow {
+    animation: none !important;
+    transform: none;
+  }
+
+  .qt-kinetic-ripple { display: none; }
+  .qt-kinetic-shadow { opacity: 0.25; }
+}
+/* Cristal azul: base opaca de respaldo para navegadores sin backdrop-filter. */
+.quicktap-glass-sidebar {
+  background: #061f46;
+  border-right: 1px solid rgb(255 255 255 / .22);
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / .07), 10px 0 36px -22px rgb(5 29 64 / .45);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .quicktap-glass-sidebar {
+    background: #061f46;
+    -webkit-backdrop-filter: blur(22px) saturate(155%);
+    backdrop-filter: blur(22px) saturate(155%);
+  }
+}
+.quicktap-glass-sidebar nav a,
+.quicktap-glass-sidebar nav button { color: rgb(255 255 255 / .82); }
+.quicktap-glass-sidebar nav [aria-current="page"] {
+  color: white;
+  background: rgb(0 159 255 / .24);
+  box-shadow: inset 0 0 0 1px rgb(125 211 252 / .22);
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .quicktap-glass-sidebar { background: #061f46; -webkit-backdrop-filter: none; backdrop-filter: none; border-right-color: #7dd3fc; }
+}
+/* El menú de restaurante mantiene el mismo azul en todas las rutas. */
+.quicktap-glass-sidebar.quicktap-restaurant-sidebar {
+  background: #061f46;
+  border-right-color: #061f460d;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.quicktap-restaurant-sidebar nav a[aria-current="page"] {
+  background: var(--color-brand-500);
+  color: #061f46;
+  box-shadow: none;
 }

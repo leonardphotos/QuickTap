@@ -785,7 +785,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-brand-950">
+        <h1 className="text-[2.44rem] font-semibold tracking-tight text-brand-950 leading-tight">
           {modo === 'tienda'
             ? 'Tienda'
             : isTicketShop
