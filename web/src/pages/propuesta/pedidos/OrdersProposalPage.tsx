@@ -1,12 +1,15 @@
 import { Bell, ChevronDown, ClipboardList, Filter, MoreHorizontal, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ProposalSidebar } from '../dashboard/ProposalSidebar';
-import { orderStats, orderTabs, proposalOrders, statusMeta, tabStatus, type OrderTab } from './data';
+import { orderStats, orderTabs, proposalOrders, statusMeta, tabStatus, type OrderTab, type ProposalOrder } from './data';
+import { EditOrderSheet } from './edit/EditOrderSheet';
 import './orders-proposal.css';
 
 export default function OrdersProposalPage() {
   const [tab, setTab] = useState<OrderTab>('Todos');
   const [query, setQuery] = useState('');
+  const [editing, setEditing] = useState<ProposalOrder | null>(null);
+  const closeEditor = useCallback(() => setEditing(null), []);
   const filtered = useMemo(() => proposalOrders.filter((order) => {
     const matchesTab = tab === 'Todos' || order.status === tabStatus[tab];
     const haystack = `${order.id} ${order.customer} ${order.table}`.toLowerCase();
@@ -21,9 +24,10 @@ export default function OrdersProposalPage() {
         <div className="orders-stat-grid">{orderStats.map((stat) => <article className={`orders-stat orders-stat--${stat.tone}`} key={stat.label}><span>{stat.label}</span><strong>{stat.value}</strong><small>{stat.detail}</small></article>)}</div>
         <section className="orders-board"><div className="orders-board-head"><div><h2>Pedidos en curso</h2><p>Actualizado hace unos segundos</p></div><button className="orders-filter"><SlidersHorizontal size={16}/> Filtros <span>2</span></button></div>
           <div className="orders-controls"><div className="orders-search"><Search size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por cliente, mesa o pedido" /></div><div className="orders-tabs">{orderTabs.map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}{item === 'Todos' && <em>18</em>}</button>)}</div></div>
-          <div className="orders-list">{filtered.map((order) => <article className="order-row" key={order.id}><div className="order-avatar">{order.initials}</div><div className="order-main-info"><div className="order-title"><strong>{order.id}</strong><span className={`order-status order-status--${statusMeta[order.status].tone}`}>{statusMeta[order.status].label}</span></div><h3>{order.customer}</h3><p>{order.table} <b>·</b> {order.channel} <b>·</b> {order.time}</p></div><div className="order-items">{order.items.map((item) => <span key={item}>{item}</span>)}</div><div className="order-total"><small>Total</small><strong>{order.total}</strong></div><button className="order-more" aria-label={`Más opciones ${order.id}`}><MoreHorizontal size={18}/></button></article>)}{filtered.length === 0 && <div className="orders-empty"><ClipboardList size={30}/><strong>No encontramos pedidos</strong><span>Prueba con otro término de búsqueda.</span></div>}</div>
+          <div className="orders-list">{filtered.map((order) => <article className="order-row cursor-pointer" key={order.id} role="button" tabIndex={0} aria-label={`Abrir pedido ${order.id} de ${order.customer}`} onClick={() => setEditing(order)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setEditing(order); } }}><div className="order-avatar">{order.initials}</div><div className="order-main-info"><div className="order-title"><strong>{order.id}</strong><span className={`order-status order-status--${statusMeta[order.status].tone}`}>{statusMeta[order.status].label}</span></div><h3>{order.customer}</h3><p>{order.table} <b>·</b> {order.channel} <b>·</b> {order.time}</p></div><div className="order-items">{order.items.map((item) => <span key={item}>{item}</span>)}</div><div className="order-total"><small>Total</small><strong>{order.total}</strong></div><button className="order-more" aria-label={`Más opciones ${order.id}`} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><MoreHorizontal size={18}/></button></article>)}{filtered.length === 0 && <div className="orders-empty"><ClipboardList size={30}/><strong>No encontramos pedidos</strong><span>Prueba con otro término de búsqueda.</span></div>}</div>
         </section>
       </div>
     </main>
+    {editing && <EditOrderSheet key={editing.id} order={editing} onClose={closeEditor} />}
   </div>;
 }
