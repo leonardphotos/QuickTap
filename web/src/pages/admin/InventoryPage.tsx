@@ -1,19 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
-import { AlertTriangle, FileSpreadsheet, Plus, Printer, Search, Trash2, Upload, X } from 'lucide-react';
+import { InventoryRecipeWorkspace } from '@/components/admin/recipe/InventoryRecipeWorkspace';
+import { IngredientUsageDialog } from '@/components/admin/IngredientUsageDialog';
 import { api } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
-import { hasFeature } from '@/utils/subscription';
-import { CURRENCY_SYMBOLS } from '@/utils/format';
-import type { Product } from '@/types';
-import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { AddStockDialog } from '@/components/admin/AddStockDialog';
 import { InventoryAlertsTab } from '@/components/admin/InventoryAlertsTab';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { WasteSection } from '@/components/admin/waste/WasteSection';
-import { EXPIRY_CLASS, expiryLabel, expiryStatus } from '@/utils/expiry';
-import { UNIT_LABELS, SUB_UNITS } from '@/utils/inventoryUnits';
+import { ChefRecipeAccessCard } from '@/components/admin/ChefRecipeAccessCard';
+import { Dialog,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { useAuth } from '@/context/AuthContext.shared';
+import type { Product } from '@/types';
+import { EXPIRY_CLASS,expiryLabel,expiryStatus } from '@/utils/expiry';
+import { CURRENCY_SYMBOLS,formatBase } from '@/utils/format';
+import { formatBaseQuantity,SUB_UNITS,UNIT_LABELS } from '@/utils/inventoryUnits';
+import { hasFeature } from '@/utils/subscription';
+import { AlertTriangle,Box,Boxes,Calendar,ChefHat,ChevronDown,DollarSign,FileSpreadsheet,Layers,Package,Plus,Printer,Scale,Search,Sparkles,Trash2,Upload,X } from 'lucide-react';
+import type { ChangeEvent,FormEvent } from 'react';
+import { useEffect,useRef,useState } from 'react';
 
 interface InventoryCategory {
   id: string;
@@ -43,6 +46,8 @@ export interface InventoryItem {
   // Disponible en el picker curado de "Toppings" al crear un modificador (ver
   // ModifierCategoriesDialog.tsx) — sigue siendo un insumo normal en todo lo demás.
   isTopping?: boolean;
+  /** Producto terminado o sabor administrado dentro de Stock de productos. */
+  isProductStock?: boolean;
 }
 
 const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
@@ -84,6 +89,7 @@ const emptyForm = {
   yieldPercent: '100',
   correctionPercent: '0',
   isTopping: false,
+  isProductStock: false,
 };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
@@ -93,32 +99,26 @@ export default function InventoryPage() {
   // Casa Matriz y Transferencias son de Plan Sucursales — solo aparecen desde la sede
   // principal (una sucursal no puede activar Casa Matriz ni ver la pestaña).
   const isMain = !restaurant?.parentRestaurantId;
-  const showCasaMatriz = isMain && !!restaurant?.casaMatrizEnabled;
-  const TABS = [
-    { id: 'insumos', label: 'Insumos (normal)' },
-    ...(canRecipes ? [{ id: 'preparaciones', label: 'Preparaciones' }] : []),
-    ...(canRecipes ? [{ id: 'toppings', label: 'Toppings' }] : []),
-    { id: 'stock', label: 'Stock de productos' },
-    { id: 'merma', label: 'Merma' },
-    { id: 'alertas', label: 'Alertas' },
-    ...(showCasaMatriz ? [{ id: 'casa-matriz', label: 'Casa Matriz' }] : []),
-    { id: 'transferencias', label: 'Transferencia de insumos' },
-  ] as const;
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('insumos');
+  const limitedOperations = restaurant?.subscriptionPlan === 'OPERATIONS';
+  const showCasaMatriz = !limitedOperations && isMain && !!restaurant?.casaMatrizEnabled;
+  const [tab, setTab] = useState<string>('insumos');
   const [items, setItems] = useState<InventoryItem[] | null>(null);
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [casaMatrizItems, setCasaMatrizItems] = useState<InventoryItem[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [stockFilter, setStockFilter] = useState('all');
+  const [linkItem, setLinkItem] = useState<InventoryItem | null>(null);
 
   function loadItems() {
-    api.get('/inventory', { params: { locationScope: 'LOCAL' } }).then((res) => setItems(res.data.data));
+    api.get('/inventory', { params: { locationScope: 'LOCAL' } }).then((res) => setItems(res.data.data)).catch(() => setLoadError('No se pudo cargar el inventario del local. Intenta nuevamente.'));
   }
 
   function loadCasaMatrizItems() {
-    api.get('/inventory', { params: { locationScope: 'CASA_MATRIZ' } }).then((res) => setCasaMatrizItems(res.data.data));
+    api.get('/inventory', { params: { locationScope: 'CASA_MATRIZ' } }).then((res) => setCasaMatrizItems(res.data.data)).catch(() => setLoadError('No se pudo cargar el inventario de Casa Matriz. Intenta nuevamente.'));
   }
 
   function loadCategories() {
-    api.get('/inventory/categories').then((res) => setCategories(res.data.data));
+    api.get('/inventory/categories').then((res) => setCategories(res.data.data)).catch(() => setLoadError('No se pudieron cargar las categorías. Intenta nuevamente.'));
   }
 
   useEffect(loadItems, []);
@@ -128,77 +128,97 @@ export default function InventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCasaMatriz]);
 
-  return (
-    <div className="space-y-8 max-w-3xl">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Inventario</h1>
-        <p className="text-sm text-brand-950/60 font-light mt-1">
-          {canRecipes
-            ? 'Insumos con stock directo, o por receta: vinculados a un producto del menú para descontar el stock solo al vender.'
-            : 'Insumos con stock directo. Para descontar automáticamente al vender según receta, actualiza al plan Premium.'}
-        </p>
-      </div>
+  const showingCasaMatriz = tab === 'casa-matriz';
+  const valuationItems = showingCasaMatriz ? casaMatrizItems : items;
+  const showValuation = tab === 'insumos' || tab === 'stock' || showingCasaMatriz;
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
-                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+  return (
+    <div className="space-y-5 min-w-0">
+      <header className="flex flex-wrap items-center justify-between gap-5 rounded-[28px] border border-brand-950/10 bg-white p-5 sm:p-7">
+        <div className="max-w-2xl">
+        <p className="mb-2 font-semibold uppercase tracking-widest text-brand-600 text-xs">Cada insumo bajo control</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-brand-950">Inventario</h1>
+        <p className="text-brand-950/60 mt-2 leading-relaxed text-base">
+          {canRecipes
+            ? 'Organiza tus insumos, preparaciones y productos. Revisa existencias y anticipa lo que necesitas reponer.'
+            : 'Organiza tus insumos y productos, revisa existencias y mantén al día el stock de tu local.'}
+        </p>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-4 py-3 text-sm font-medium text-brand-600"><Boxes className="h-5 w-5" />{restaurant?.name ?? 'Mi restaurante'}</span>
+      </header>
+
+      {canRecipes && <details className="group rounded-2xl border border-brand-950/10 bg-white p-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 text-sm font-semibold text-brand-950 [&::-webkit-details-marker]:hidden"><ChefHat className="h-5 w-5 text-brand-500" /><span className="flex-1">Acceso al recetario para chef<span className="mt-0.5 block text-xs font-normal text-brand-950/60">Comparte el enlace y el código para cargar recetas.</span></span><ChevronDown className="h-4 w-4 group-open:rotate-180" /></summary>
+        <div className="mt-3 max-w-xl"><ChefRecipeAccessCard /></div>
+      </details>}
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2 border-b border-brand-950/10 pb-3">
+          {[
+            { label: 'Existencias', id: 'insumos', active: ['insumos', 'stock', 'alertas', 'casa-matriz'].includes(tab) },
+            ...(canRecipes ? [{ label: 'Recetas y preparaciones', id: 'recetas', active: ['recetas', 'preparaciones'].includes(tab) }] : []),
+            ...(!limitedOperations ? [{ label: 'Movimientos', id: 'merma', active: ['merma', 'transferencias', 'entradas'].includes(tab) }] : []),
+          ].map(t => <button key={t.id} onClick={() => setTab(t.id)} className={`min-h-11 rounded-xl px-4 py-2 text-sm font-medium ${t.active ? 'bg-brand-500 text-white' : 'bg-white text-brand-950/65'}`}>{t.label}</button>)}
+        </div>
+        {['insumos', 'stock', 'alertas', 'casa-matriz'].includes(tab) && <div className="flex flex-wrap gap-2">
+          {[['all', 'Todos'], ['raw', 'Materia prima'], ['portions', 'Porciones y preparados'], ['packaging', 'Envases y empaques']].map(([id, label]) => <button key={id} onClick={() => { setTab('insumos'); setStockFilter(id); }} className={`min-h-11 rounded-xl px-3 py-2 text-sm ${tab === 'insumos' && stockFilter === id ? 'bg-brand-500/10 text-brand-600' : 'bg-white text-brand-950/60'}`}>{label}</button>)}
+          <button onClick={() => setTab('stock')} className={`min-h-11 rounded-xl px-3 text-sm ${tab === 'stock' ? 'bg-brand-500/10 text-brand-600' : 'bg-white'}`}>Productos del menú</button>
+          <button onClick={() => setTab('alertas')} className={`min-h-11 rounded-xl px-3 text-sm ${tab === 'alertas' ? 'bg-brand-500/10 text-brand-600' : 'bg-white'}`}>Alertas</button>
+        </div>}
+        {['recetas', 'preparaciones'].includes(tab) && <div className="flex flex-wrap gap-2"><button onClick={() => setTab('recetas')} className={`min-h-11 rounded-xl px-3 text-sm ${tab === 'recetas' ? 'bg-brand-500/10 text-brand-600' : 'bg-white'}`}>Recetas de platos</button><button onClick={() => setTab('preparaciones')} className={`min-h-11 rounded-xl px-3 text-sm ${tab === 'preparaciones' ? 'bg-brand-500/10 text-brand-600' : 'bg-white'}`}>Preparaciones reutilizables</button></div>}
+        {['merma', 'transferencias', 'entradas'].includes(tab) && <div className="flex flex-wrap gap-2"><button onClick={() => setTab('entradas')} className="min-h-11 rounded-xl bg-white px-3 text-sm">Entradas y compras</button><button onClick={() => setTab('merma')} className={`min-h-11 rounded-xl px-3 text-sm ${tab === 'merma' ? 'bg-brand-500/10 text-brand-600' : 'bg-white'}`}>Mermas</button><button onClick={() => setTab('transferencias')} className={`min-h-11 rounded-xl px-3 text-sm ${tab === 'transferencias' ? 'bg-brand-500/10 text-brand-600' : 'bg-white'}`}>Transferencias</button></div>}
       </div>
+      {tab === 'entradas' && <div className="rounded-2xl bg-white p-5"><h2 className="text-lg font-semibold">Entradas de inventario</h2><p className="mt-2 text-sm text-brand-950/60">Registra la factura y selecciona los insumos recibidos para reponer existencias sin duplicar la compra.</p><a href="/admin/purchases" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-brand-500 px-4 text-sm font-medium text-white">Registrar compra</a></div>}
+      {tab === 'recetas' && canRecipes && <InventoryRecipeWorkspace />}
+      {linkItem && <Dialog open onOpenChange={open => { if (!open) setLinkItem(null); }}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl"><DialogHeader><DialogTitle>Vincular insumo a receta</DialogTitle></DialogHeader><InventoryRecipeWorkspace initialItem={linkItem} /></DialogContent></Dialog>}
+
+      {loadError && <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError} <button type="button" className="underline" onClick={() => { setLoadError(null); loadItems(); loadCategories(); if (showCasaMatriz) loadCasaMatrizItems(); }}>Reintentar</button></div>}
+
+      {showCasaMatriz && (tab === 'insumos' || showingCasaMatriz) && <label className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-950/10 bg-white p-4 text-brand-950 text-sm font-medium">
+        Ubicación de materia prima
+        <select value={showingCasaMatriz ? 'casa-matriz' : 'insumos'} onChange={(event) => setTab(event.target.value)} className="rounded-xl border border-brand-950/15 bg-white px-4 py-2 text-base">
+          <option value="insumos">{restaurant?.name ?? 'Local'}</option>
+          <option value="casa-matriz">Casa Matriz</option>
+        </select>
+      </label>}
+
+      {showValuation && (
+        <InventoryValuationSummary
+          items={valuationItems}
+          currencySymbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'}
+          label={showingCasaMatriz ? 'Valor total · Casa Matriz' : 'Valor total del inventario'}
+        />
+      )}
 
       {tab === 'insumos' && (
         <InsumosTab
           locationScope="LOCAL"
-          items={items}
+          items={items?.filter(item => {
+            if (stockFilter === 'all') return true;
+            if (stockFilter === 'packaging') return !!item.packagingType;
+            if (stockFilter === 'portions') return !item.packagingType && (item.isProductStock || item.unit === 'porcion');
+            return !item.packagingType && !item.isProductStock && item.unit !== 'porcion';
+          }) ?? null}
           categories={categories}
           onChanged={loadItems}
           onCategoriesChanged={loadCategories}
           canRecipes={canRecipes}
+          onLinkRecipe={setLinkItem}
         />
       )}
       {tab === 'preparaciones' && canRecipes && <PreparacionesTab insumos={items ?? []} />}
-      {tab === 'toppings' && canRecipes && (
-        <div className="space-y-10">
-          <div>
-            <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Topping = un solo insumo</h2>
-            <InsumosTab
-              locationScope="LOCAL"
-              items={(items ?? []).filter((i) => i.isTopping)}
-              categories={categories}
-              onChanged={loadItems}
-              onCategoriesChanged={loadCategories}
-              showModifierLinkToggle={false}
-              canRecipes={canRecipes}
-              toppingsOnly
-            />
-          </div>
-          <div className="border-t border-brand-950/10 pt-8">
-            <h2 className="text-sm font-semibold text-brand-950/70 mb-1">Topping = varios insumos (preparación)</h2>
-            <p className="text-sm text-brand-950/60 font-light mb-3">
-              Ej. "Pico de gallo" = tomate + cebolla + cilantro, en las cantidades que definas. Se arma igual que una
-              Preparación normal (pestaña "Preparaciones"), solo que además aparece en el picker de Toppings al crear
-              un modificador.
-            </p>
-            <PreparacionesTab insumos={items ?? []} toppingsOnly />
-          </div>
-        </div>
-      )}
-      {tab === 'stock' && <StockTab />}
+      {tab === 'stock' && <StockTab inventoryItems={[]} onInventoryChanged={loadItems} />}
       {tab === 'merma' && <WasteSection />}
       {tab === 'alertas' && <InventoryAlertsTab />}
       {tab === 'casa-matriz' && (
         <InsumosTab
           locationScope="CASA_MATRIZ"
-          items={casaMatrizItems}
+          items={casaMatrizItems?.filter(item => {
+            if (stockFilter === 'all') return true;
+            if (stockFilter === 'packaging') return !!item.packagingType;
+            if (stockFilter === 'portions') return !item.packagingType && (item.isProductStock || item.unit === 'porcion');
+            return !item.packagingType && !item.isProductStock && item.unit !== 'porcion';
+          }) ?? null}
           categories={categories}
           onChanged={loadCasaMatrizItems}
           onCategoriesChanged={loadCategories}
@@ -207,6 +227,37 @@ export default function InventoryPage() {
         />
       )}
       {tab === 'transferencias' && <TransferenciasTab />}
+    </div>
+  );
+}
+
+/** Valor real del inventario: existencia física × costo unitario registrado.
+ * No usa mínimos, ventas ni precio de venta, para que el monto sea auditable. */
+function InventoryValuationSummary({
+  items,
+  currencySymbol,
+  label,
+}: {
+  items: InventoryItem[] | null;
+  currencySymbol: string;
+  label: string;
+}) {
+  const rows = items ?? [];
+  const total = rows.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.pricePerUnitBase) || 0), 0);
+  const withoutCost = rows.filter((item) => item.pricePerUnitBase == null || Number(item.pricePerUnitBase) <= 0).length;
+
+  return (
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="rounded-2xl bg-brand-950 p-4 text-white sm:p-5">
+        <p className="font-medium text-white/70 text-xs">{label}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{items === null ? '—' : formatBase(total, currencySymbol)}</p>
+        <p className="mt-2 text-white/70 text-xs">Existencia actual × costo por unidad</p>
+      </div>
+      {[
+        { label: 'Ítems registrados', value: rows.length, hint: 'En esta ubicación' },
+        { label: 'Necesitan reposición', value: rows.filter((item) => Number(item.quantity) <= 0 || (Number(item.minQuantity) > 0 && Number(item.quantity) <= Number(item.minQuantity))).length, hint: 'Agotados o en el mínimo registrado' },
+        { label: 'Sin costo cargado', value: withoutCost, hint: 'Completa sus costos para valorar el stock' },
+      ].map((stat) => <div key={stat.label} className="rounded-2xl border border-brand-950/10 bg-white p-5 text-brand-950"><p className="font-medium text-brand-950/60 text-xs">{stat.label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{items === null ? '—' : stat.value}</p><p className="mt-2 text-brand-950/55 text-xs">{stat.hint}</p></div>)}
     </div>
   );
 }
@@ -235,7 +286,7 @@ function stockClass(p: Product): string {
   return 'bg-emerald-100 text-emerald-700';
 }
 
-function StockTab() {
+function StockTab({ inventoryItems, onInventoryChanged }: { inventoryItems: InventoryItem[]; onInventoryChanged: () => void }) {
   const { restaurant, refresh } = useAuth();
   const [products, setProducts] = useState<Product[] | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -247,7 +298,7 @@ function StockTab() {
     setGuardandoBloqueo(true);
     setErrorBloqueo(null);
     try {
-      await api.patch('/restaurant', { blockOrdersWithoutStock: !bloquea });
+      await api.patch('/inventory/settings', { blockOrdersWithoutStock: !bloquea });
       await refresh();
     } catch (err: any) {
       setErrorBloqueo(err.response?.data?.error ?? 'No se pudo cambiar el bloqueo.');
@@ -263,14 +314,24 @@ function StockTab() {
   async function patchProduct(id: string, patch: Record<string, unknown>) {
     setSavingId(id);
     try {
-      const res = await api.patch(`/products/${id}`, patch);
+      const res = await api.patch(`/inventory/product-stock/${id}`, patch);
       setProducts((prev) => prev?.map((p) => (p.id === id ? { ...p, ...res.data.data } : p)) ?? null);
     } finally {
       setSavingId(null);
     }
   }
 
-  if (!products) return <p className="text-brand-950/50 font-light">Cargando…</p>;
+  async function patchProductStockItem(id: string, quantity: number) {
+    setSavingId(id);
+    try {
+      await api.patch(`/inventory/${id}`, { quantity: Math.max(0, quantity) });
+      onInventoryChanged();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  if (!products) return <p className="text-brand-950/50 font-light text-base">Cargando…</p>;
 
   // Agrupa por la categoría del menú del producto (Category, no InventoryCategory) — ya
   // existe en cada Product, no hace falta un concepto nuevo para esta pestaña.
@@ -288,13 +349,13 @@ function StockTab() {
           Va acá arriba porque cambia el significado de todos los números de esta pantalla. */}
       <div className="flex items-start justify-between gap-4 rounded-2xl border border-brand-950/10 bg-white p-4">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-brand-950">Bloquear cuando no queda stock</p>
-          <p className="mt-0.5 text-xs font-light text-brand-950/50">
+          <p className="font-semibold text-brand-950 text-base">Bloquear cuando no queda stock</p>
+          <p className="mt-0.5 font-light text-brand-950/50 text-xs">
             {bloquea
               ? 'Activo: si quedan 3 unidades, nadie puede comandar más de 3. Cuenta también lo ya pedido y sin servir, para que dos mesas no se lleven las mismas últimas unidades.'
               : 'Apagado: se puede seguir vendiendo aunque no quede nada, y el stock entra en negativo (−1, −2…) para que veas cuánto se vendió de más.'}
           </p>
-          {errorBloqueo && <p className="mt-1 text-xs text-red-600">{errorBloqueo}</p>}
+          {errorBloqueo && <p className="mt-1 text-red-600 text-xs">{errorBloqueo}</p>}
         </div>
         <button
           type="button"
@@ -308,15 +369,50 @@ function StockTab() {
           }`}
         >
           <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-200 ease-out-strong motion-reduce:transition-none ${
               bloquea ? 'left-[22px]' : 'left-0.5'
             }`}
           />
         </button>
       </div>
 
+      {inventoryItems.length > 0 && (
+        <div className="space-y-2">
+          <div className="px-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Porciones, preparados y sabores</h3>
+            <p className="mt-1 font-light text-brand-950/50 text-xs">
+              Este es el stock ya procesado y listo para vender. Es independiente de la materia prima en kilos o litros.
+            </p>
+          </div>
+          <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
+            {inventoryItems.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-brand-950 text-base">{item.name}</p>
+                  <p className="font-light text-brand-950/45 text-xs">Existencia lista para usar o vender</p>
+                </div>
+                <label className="flex shrink-0 items-center gap-2 text-brand-950/55 text-sm font-medium">
+                  Quedan
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    defaultValue={Number(item.quantity)}
+                    disabled={savingId === item.id}
+                    onBlur={(event) => patchProductStockItem(item.id, Number(event.target.value) || 0)}
+                    className="w-20 rounded-lg border border-brand-950/15 px-2 py-1.5 text-right text-brand-950 text-base"
+                    aria-label={`Existencia de ${item.name}`}
+                  />
+                  <span>Und</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-sm text-brand-950/60 font-light">
+        <p className="text-brand-950/60 font-light text-base">
           Activa el control de stock por producto: al llegar a 0 se marca como agotado en el menú público.
         </p>
         <AddStockDialog
@@ -338,17 +434,25 @@ function StockTab() {
         <div key={categoryName} className="space-y-2">
           <h3 className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide px-1">{categoryName}</h3>
           <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
-            {group.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
+            {group.map((p) => {
+              const linkedIds = new Set(
+                (p.modifierCategories ?? []).flatMap((category) =>
+                  category.modifiers.map((modifier) => modifier.inventoryItemId).filter((id): id is string => Boolean(id)),
+                ),
+              );
+              const optionStock = inventoryItems.filter((item) => linkedIds.has(item.id));
+              return (
+              <li key={p.id} className="px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                   {p.photoUrl ? (
                     <img src={p.photoUrl} alt="" className="h-9 w-9 rounded-lg object-cover shrink-0" />
                   ) : (
                     <div className="h-9 w-9 rounded-lg bg-brand-950/[0.06] shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
-                    <label className="flex items-center gap-1.5 text-xs text-brand-950/60 mt-0.5">
+                    <p className="font-medium text-brand-950 truncate text-base">{p.name}</p>
+                    <label className="flex items-center gap-1.5 text-brand-950/60 mt-0.5 text-sm font-medium">
                       <input
                         type="checkbox"
                         checked={p.stockControlEnabled ?? false}
@@ -362,24 +466,24 @@ function StockTab() {
                       Controlar stock
                     </label>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
                   {/* La caducidad no depende del control de stock: un producto puede
                       caducar aunque no se lleve la cuenta de cuántos quedan. */}
-                  <label className="flex flex-col items-end text-[10px] text-brand-950/45">
+                  <label className="flex flex-col items-end text-brand-950/45 text-sm font-medium">
                     Caduca
                     <input
                       type="date"
                       defaultValue={p.expiryDate ?? ''}
                       disabled={savingId === p.id}
                       onChange={(e) => patchProduct(p.id, { expiryDate: e.target.value })}
-                      className="mt-0.5 border border-brand-950/15 rounded-lg px-2 py-1 text-xs text-brand-950"
+                      className="mt-0.5 border border-brand-950/15 rounded-lg px-2 py-1 text-brand-950 text-base"
                     />
                   </label>
 
                   {p.stockControlEnabled && (
                     <>
-                      <label className="flex flex-col items-end text-[10px] text-brand-950/45">
+                      <label className="flex flex-col items-end text-brand-950/45 text-sm font-medium">
                         Quedan
                         <input
                           type="number"
@@ -388,10 +492,10 @@ function StockTab() {
                           defaultValue={p.stockQuantity ?? 0}
                           disabled={savingId === p.id}
                           onBlur={(e) => patchProduct(p.id, { stockControlEnabled: true, stockQuantity: Number(e.target.value) || 0 })}
-                          className="mt-0.5 w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                          className="mt-0.5 w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-right text-base"
                         />
                       </label>
-                      <label className="flex flex-col items-end text-[10px] text-brand-950/45">
+                      <label className="flex flex-col items-end text-brand-950/45 text-sm font-medium">
                         Mínimo
                         <input
                           type="number"
@@ -400,7 +504,7 @@ function StockTab() {
                           defaultValue={p.stockMinQuantity ?? 0}
                           disabled={savingId === p.id}
                           onBlur={(e) => patchProduct(p.id, { stockMinQuantity: Number(e.target.value) || 0 })}
-                          className="mt-0.5 w-16 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                          className="mt-0.5 w-16 border border-brand-950/15 rounded-lg px-2 py-1 text-right text-base"
                         />
                       </label>
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${stockClass(p)}`}>
@@ -408,9 +512,36 @@ function StockTab() {
                       </span>
                     </>
                   )}
+                  </div>
                 </div>
+                {optionStock.length > 0 && (
+                  <div className="mt-3 ml-12 rounded-xl bg-brand-950/[0.035] px-3 py-2">
+                    <p className="mb-1.5 font-semibold uppercase tracking-wide text-brand-950/45 text-xs">Stock por sabor o modificador</p>
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {optionStock.map((item) => (
+                        <label key={item.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-brand-950 text-sm font-medium">
+                          <span className="min-w-0 truncate">{item.name}</span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {item.pricePerUnitBase != null && <span className="text-brand-950/40">Costo {Number(item.pricePerUnitBase).toFixed(4)}</span>}
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              defaultValue={Number(item.quantity)}
+                              disabled={savingId === item.id}
+                              onBlur={(event) => patchProductStockItem(item.id, Number(event.target.value) || 0)}
+                              className="w-16 rounded-md border border-brand-950/15 px-2 py-1 text-right text-base"
+                              aria-label={`Existencia de ${item.name}`}
+                            />
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       ))}
@@ -430,6 +561,7 @@ function InsumosTab({
   onCategoriesChanged,
   showModifierLinkToggle = true,
   canRecipes = false,
+  onLinkRecipe,
   toppingsOnly = false,
 }: {
   /** "LOCAL" (Insumos de siempre) o "CASA_MATRIZ" (ventana aparte, ver InventoryPage). */
@@ -444,6 +576,7 @@ function InsumosTab({
   /** Rendimiento/factor de corrección solo tienen efecto con Recetas (Premium) — se
    * ocultan del formulario si el plan no las incluye. */
   canRecipes?: boolean;
+  onLinkRecipe?: (item: InventoryItem) => void;
   /** Pestaña "Toppings": misma tabla de insumos, filtrada a los marcados como topping, con el
    * formulario listo para crear el siguiente ya marcado (ver InventoryPage#toppings). */
   toppingsOnly?: boolean;
@@ -452,6 +585,8 @@ function InsumosTab({
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const initialForm = toppingsOnly ? { ...emptyForm, isTopping: true } : emptyForm;
   const [form, setForm] = useState(initialForm);
+  const [formOpen, setFormOpen] = useState(false);
+  const [usageItem, setUsageItem] = useState<InventoryItem | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const nombreRef = useRef<HTMLInputElement>(null);
@@ -480,7 +615,7 @@ function InsumosTab({
     setSavingLink(true);
     setLinkError(null);
     try {
-      await api.patch('/restaurant', { modifierInventoryLinkEnabled: !linkEnabled });
+      await api.patch('/inventory/settings', { modifierInventoryLinkEnabled: !linkEnabled });
       // Recarga /auth/me para que el nuevo valor llegue a todas las pantallas
       // (el editor de modificadores lo lee del mismo contexto).
       await refresh();
@@ -570,7 +705,9 @@ function InsumosTab({
       yieldPercent: item.yieldPercent ?? '100',
       correctionPercent: item.correctionPercent ?? '0',
       isTopping: !!item.isTopping,
+      isProductStock: !!item.isProductStock,
     });
+    setFormOpen(true);
   }
 
   const subUnitOptions = SUB_UNITS[form.unit] ?? [];
@@ -589,14 +726,26 @@ function InsumosTab({
    * ajustes de movimiento del sistema, y acá no es un adorno sino la señal de que pasó algo.
    */
   useEffect(() => {
-    if (!editingId) return;
-    formRef.current?.scrollIntoView({ block: 'start' });
+    if (!formOpen) return;
     nombreRef.current?.focus({ preventScroll: true });
-  }, [editingId]);
+  }, [formOpen, editingId]);
 
   function cancelEdit() {
     setEditingId(null);
     setForm(initialForm);
+    setAddingCategory(false);
+    setNewCategoryName('');
+    setError(null);
+    setFormOpen(false);
+  }
+
+  function startCreate() {
+    setEditingId(null);
+    setForm(initialForm);
+    setAddingCategory(false);
+    setNewCategoryName('');
+    setError(null);
+    setFormOpen(true);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -611,7 +760,7 @@ function InsumosTab({
         unit: form.unit,
         quantity: (Number(form.quantity) || 0) * toBase,
         minQuantity: (Number(form.minQuantity) || 0) * toBase,
-        price: form.price ? Number(form.price) : undefined,
+        unitCost: form.price ? Number(form.price) : undefined,
         priceCurrency: form.priceCurrency,
         photoUrl: form.photoUrl,
         categoryId: form.categoryId || null,
@@ -622,6 +771,7 @@ function InsumosTab({
         expiryDate: form.noPerecedero ? '' : form.expiryDate,
         locationScope,
         isTopping: form.isTopping,
+        isProductStock: form.isProductStock,
         ...(canRecipes
           ? { yieldPercent: Number(form.yieldPercent) || 100, correctionPercent: Number(form.correctionPercent) || 0 }
           : {}),
@@ -701,8 +851,18 @@ function InsumosTab({
 
   return (
     <div className="space-y-8">
+      {!toppingsOnly && (
+        <div className="rounded-2xl border border-brand-500/15 bg-brand-500/[0.05] px-4 py-3">
+          <p className="font-semibold text-brand-950 text-base">
+            {locationScope === 'CASA_MATRIZ' ? 'Existencia de Casa Matriz' : 'Existencias e insumos vinculados'}
+          </p>
+          <p className="mt-1 font-light leading-relaxed text-brand-950/55 text-xs">
+            Carga materia prima o porciones listas, añade stock y vincula cada ítem a una receta. La unidad «Porción» no convierte kilos automáticamente.
+          </p>
+        </div>
+      )}
       {toppingsOnly && (
-        <p className="text-sm text-brand-950/60 font-light -mt-2">
+        <p className="text-brand-950/60 font-light -mt-2 text-base">
           Insumos marcados como Topping: aparecen en un picker aparte al crear un modificador (Productos → Modificadores),
           para vincularlo a inventario sin buscarlo entre todos los insumos.
         </p>
@@ -714,12 +874,12 @@ function InsumosTab({
       {showModifierLinkToggle && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-brand-950">Descontar insumos por modificador</p>
-            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+            <p className="font-semibold text-brand-950 text-base">Descontar insumos por modificador</p>
+            <p className="text-brand-950/50 font-light mt-0.5 text-xs">
               Cuando está activo, cada modificador que tenga un insumo vinculado (ej. "Extra queso" → 30 gr de Queso)
               descuenta del inventario al servirse el pedido. Apagado, la configuración se conserva pero no toca el stock.
             </p>
-            {linkError && <p className="text-xs text-red-600 mt-1">{linkError}</p>}
+            {linkError && <p className="text-red-600 mt-1 text-xs">{linkError}</p>}
           </div>
           <button
             type="button"
@@ -732,7 +892,7 @@ function InsumosTab({
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-200 ease-out-strong motion-reduce:transition-none ${
                 linkEnabled ? 'left-[22px]' : 'left-0.5'
               }`}
             />
@@ -740,303 +900,445 @@ function InsumosTab({
         </div>
       )}
 
-      <form
-        ref={formRef}
-        onSubmit={onSubmit}
-        className={`rounded-2xl border bg-white shadow-sm p-6 space-y-4 transition-colors ${
-          editingId ? 'border-brand-500 ring-2 ring-brand-400/25' : 'border-brand-950/10'
-        }`}
-      >
-        {/* Sin este encabezado el formulario se ve idéntico creando y editando: la única pista
-            era que el botón del final dijera "Guardar cambios". */}
-        {editingId && (
-          <div className="flex flex-wrap items-center justify-between gap-2 -mt-1">
-            <p className="text-sm font-semibold text-brand-500">
-              Editando <span className="text-brand-950">{form.name || 'insumo'}</span>
-            </p>
-            <button type="button" onClick={cancelEdit} className="text-xs font-medium text-brand-950/50 hover:text-brand-950">
-              Cancelar y crear uno nuevo
-            </button>
-          </div>
-        )}
-        <div className="flex flex-col sm:flex-row items-start gap-4">
-          <PhotoUploadField
-            value={form.photoUrl}
-            onChange={(url) => setForm({ ...form, photoUrl: url })}
-            uploadUrl="/inventory/upload-photo"
-            label="Foto"
-            className="shrink-0"
-          />
-          <div className="w-full flex-1 min-w-0 space-y-3">
-            <div className="grid sm:grid-cols-2 gap-3">
-              <input
-                ref={nombreRef}
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Insumo (ej: Queso)"
-                required
-                className="w-full min-w-0 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              />
-              {addingCategory ? (
-                <div className="flex gap-1.5">
-                  <input
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Nueva categoría"
-                    autoFocus
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCategory())}
-                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                  />
-                  <button type="button" onClick={addCategory} className="text-xs font-medium text-brand-500 shrink-0">
-                    Crear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAddingCategory(false)}
-                    className="text-xs text-brand-950/40 shrink-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <select
-                  value={form.categoryId}
-                  onChange={(e) => {
-                    if (e.target.value === '__new__') setAddingCategory(true);
-                    else setForm({ ...form, categoryId: e.target.value });
-                  }}
-                  className="w-full min-w-0 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                >
-                  <option value="">Sin categoría</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                  <option value="__new__">+ Nueva categoría…</option>
-                </select>
-              )}
+      <Dialog open={formOpen} onOpenChange={(open) => (open ? setFormOpen(true) : cancelEdit())}>
+        <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto p-0 rounded-[28px] border border-brand-950/10 shadow-2xl">
+          {/* Header compacto */}
+          <div className="flex items-center justify-between border-b border-brand-950/10 px-6 py-4 bg-brand-950/[0.02]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 shrink-0">
+                <Package className="h-4.5 w-4.5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-semibold text-brand-950">
+                  {editingId ? 'Editar insumo' : locationScope === 'CASA_MATRIZ' ? 'Nuevo insumo · Casa Matriz' : 'Nuevo insumo'}
+                </DialogTitle>
+                <p className="text-xs text-brand-950/50 font-normal">
+                  {editingId ? `Modificando existencias y costos de "${form.name || 'insumo'}"` : 'Registra materia prima o porciones para costeo y existencias'}
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="grid sm:grid-cols-4 gap-3">
-          <select
-            value={form.unit}
-            onChange={(e) => {
-              const unit = e.target.value;
-              setForm({ ...form, unit, subUnit: (SUB_UNITS[unit] ?? [])[0]?.value ?? '' });
-            }}
-            required
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          >
-            <option value="">Unidad…</option>
-            <option value="kg">{UNIT_LABELS.kg}</option>
-            <option value="lt">{UNIT_LABELS.lt}</option>
-            <option value="ml">{UNIT_LABELS.ml}</option>
-            <option value="unidad">{UNIT_LABELS.unidad}</option>
-          </select>
-          <div className="flex gap-1.5">
-            <input
-              value={form.quantity}
-              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-              placeholder="Cantidad"
-              type="number"
-              step="0.01"
-              min="0"
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            />
-            {subUnitOptions.length > 1 && (
-              <select
-                value={form.subUnit}
-                onChange={(e) => setForm({ ...form, subUnit: e.target.value })}
-                className="shrink-0 border border-brand-950/15 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              >
-                {subUnitOptions.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
+            {editingId && (
+              <span className="rounded-full bg-brand-500/10 px-2.5 py-0.5 text-xs font-semibold text-brand-600">
+                Editando
+              </span>
             )}
           </div>
-        </div>
-        <div className="grid sm:grid-cols-4 gap-3">
-          <label className="block text-sm sm:col-span-2">
-            <span className="text-brand-950/70">
-              Stock mínimo (aviso de reabastecer)
-              {subUnitOptions.length > 1 && ` — en ${subUnitOptions.find((u) => u.value === form.subUnit)?.label ?? ''}`}
-            </span>
-            <input
-              value={form.minQuantity}
-              onChange={(e) => setForm({ ...form, minQuantity: e.target.value })}
-              placeholder="0"
-              type="number"
-              step="0.01"
-              min="0"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            />
-          </label>
-          <div className="block text-sm sm:col-span-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-brand-950/70">Fecha de caducidad</span>
-              {/* Atajo para lo que no vence (servilletas, envases, utensilios): apaga el campo
-                  en vez de obligar a inventar una fecha. No se guarda una marca aparte — un
-                  insumo "no perecedero" es sencillamente uno sin fecha. */}
+
+          <form ref={formRef} onSubmit={onSubmit} className="p-5 space-y-3.5">
+            {/* 1. Tipo de existencia en 3 opciones */}
+            <div className="grid grid-cols-3 gap-1 rounded-xl bg-brand-950/[0.04] p-1 border border-brand-950/10">
               <button
                 type="button"
-                onClick={() => setForm({ ...form, noPerecedero: !form.noPerecedero, expiryDate: '' })}
-                aria-pressed={form.noPerecedero}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                  form.noPerecedero
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-brand-950/[0.06] text-brand-950/50 hover:bg-brand-950/10'
+                onClick={() => setForm({ ...form, isProductStock: false, isPackaging: false })}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                  !form.isProductStock && !form.isPackaging
+                    ? 'bg-white text-brand-950 shadow-xs'
+                    : 'text-brand-950/60 hover:text-brand-950'
                 }`}
               >
-                No perecedero
+                <Layers className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Materia prima</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, isProductStock: true, isPackaging: false })}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                  form.isProductStock && !form.isPackaging
+                    ? 'bg-white text-brand-950 shadow-xs'
+                    : 'text-brand-950/60 hover:text-brand-950'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-brand-500 shrink-0" />
+                <span className="truncate">Porción / Listo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    isProductStock: false,
+                    isPackaging: true,
+                    unit: form.unit || 'unidad',
+                    noPerecedero: true,
+                    expiryDate: '',
+                  })
+                }
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                  form.isPackaging
+                    ? 'bg-white text-brand-950 shadow-xs'
+                    : 'text-brand-950/60 hover:text-brand-950'
+                }`}
+              >
+                <Box className="h-3.5 w-3.5 text-brand-500 shrink-0" />
+                <span className="truncate">Envase / Empaque</span>
               </button>
             </div>
-            <input
-              value={form.expiryDate}
-              onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
-              type="date"
-              disabled={form.noPerecedero}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:bg-brand-950/[0.04] disabled:text-brand-950/30"
-            />
-            <span className="mt-1 block text-[11px] font-light text-brand-950/40">
-              {form.noPerecedero
-                ? 'Este insumo no vence: no va a aparecer en los avisos de vencimiento.'
-                : 'Si la pones, el sistema te avisa en el Dashboard cuando el lote está por vencer. Si no vence, marca "No perecedero".'}
-            </span>
-          </div>
-          <label className="block text-sm">
-            <span className="text-brand-950/70">
-              Precio por Unidad
-              {form.quantity
-                ? ` (de ${form.quantity} ${subUnitOptions.find((u) => u.value === form.subUnit)?.label ?? UNIT_LABELS[form.unit] ?? ''})`
-                : ''}
-            </span>
-            <input
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, '') })}
-              placeholder="0.00"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            />
-            {editingId && (
-              <span className="block text-xs text-brand-950/40 font-light mt-1">
-                Si el proveedor cambió el precio, el costo de las recetas que usan este insumo se actualiza automáticamente.
-              </span>
-            )}
-          </label>
-          <label className="block text-sm">
-            <span className="text-brand-950/70">Moneda</span>
-            <select
-              value={form.priceCurrency}
-              onChange={(e) => setForm({ ...form, priceCurrency: e.target.value as 'BASE' | 'BS' })}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            >
-              <option value="BASE">{symbol}</option>
-              <option value="BS">Bs</option>
-            </select>
-          </label>
-        </div>
 
-        {canRecipes && (
-          <div className="grid sm:grid-cols-2 gap-3">
-            <label className="block text-sm">
-              <span className="text-brand-950/70">Rendimiento % (tras merma o limpieza)</span>
-              <input
-                value={form.yieldPercent}
-                onChange={(e) => setForm({ ...form, yieldPercent: e.target.value.replace(/[^0-9.]/g, '') })}
-                placeholder="100"
-                type="number"
-                step="1"
-                min="1"
-                max="100"
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              />
-              <span className="block text-xs text-brand-950/40 font-light mt-1">
-                Ej: 90 = de 1 {UNIT_LABELS[form.unit] ?? form.unit} comprado solo 90% sirve. Ajusta el costo real de recetas y preparaciones.
-              </span>
-            </label>
-            <label className="block text-sm">
-              <span className="text-brand-950/70">Factor de corrección % (colchón de precio)</span>
-              <input
-                value={form.correctionPercent}
-                onChange={(e) => setForm({ ...form, correctionPercent: e.target.value.replace(/[^0-9.]/g, '') })}
-                placeholder="0"
-                type="number"
-                step="1"
-                min="0"
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              />
-            </label>
-          </div>
-        )}
-
-        <div className="rounded-xl border border-brand-950/10 p-4 space-y-3">
-          <label className="flex items-center gap-2 text-sm text-brand-950/70">
-            <input
-              type="checkbox"
-              checked={form.isTopping}
-              onChange={(e) => setForm({ ...form, isTopping: e.target.checked })}
-              className="rounded border-brand-950/30"
-            />
-            Es un Topping (aparece en ese picker al crear un modificador)
-          </label>
-          <label className="flex items-center gap-2 text-sm text-brand-950/70">
-            <input
-              type="checkbox"
-              checked={form.isPackaging}
-              onChange={(e) => setForm({ ...form, isPackaging: e.target.checked })}
-              className="rounded border-brand-950/30"
-            />
-            Es un envase para delivery (envase, caja o bolsa)
-          </label>
-          {form.isPackaging && (
-            <div className="grid sm:grid-cols-2 gap-3">
-              <label className="block text-sm">
-                <span className="text-brand-950/70">Tipo</span>
-                <select
-                  value={form.packagingType}
-                  onChange={(e) => setForm({ ...form, packagingType: e.target.value as 'ENVASE' | 'CAJA' | 'BOLSA' })}
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                >
-                  <option value="ENVASE">Envase</option>
-                  <option value="CAJA">Caja</option>
-                  <option value="BOLSA">Bolsa</option>
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="text-brand-950/70">Precio de venta al cliente ({symbol})</span>
-                <input
-                  value={form.salePrice}
-                  onChange={(e) => setForm({ ...form, salePrice: e.target.value.replace(/[^0-9.]/g, '') })}
-                  placeholder="0.00"
-                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            {/* 2. Identificación: Foto + Nombre + Categoría */}
+            <div className="rounded-2xl border border-brand-950/10 bg-white p-3.5">
+              <div className="flex flex-col sm:flex-row items-start gap-3.5">
+                <PhotoUploadField
+                  value={form.photoUrl}
+                  onChange={(url) => setForm({ ...form, photoUrl: url })}
+                  uploadUrl="/inventory/upload-photo"
+                  label="Foto"
+                  className="shrink-0"
                 />
-              </label>
+                <div className="w-full flex-1 min-w-0 space-y-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                      Nombre del insumo *
+                    </label>
+                    <input
+                      ref={nombreRef}
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="Ej: Queso Gouda, Pechuga de pollo, Salsa tártara..."
+                      required
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-sm font-medium text-brand-950 placeholder:text-brand-950/30 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                      Categoría de inventario
+                    </label>
+                    {addingCategory ? (
+                      <div className="flex gap-1.5">
+                        <input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="Nombre de la nueva categoría..."
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCategory())}
+                          className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                        />
+                        <TextureButton variant="brand" size="sm" type="button" onClick={addCategory} className="!w-auto">
+                          Crear
+                        </TextureButton>
+                        <button
+                          type="button"
+                          onClick={() => setAddingCategory(false)}
+                          className="p-1.5 text-brand-950/40 hover:text-brand-950 rounded-lg hover:bg-brand-950/5"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value={form.categoryId}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') setAddingCategory(true);
+                          else setForm({ ...form, categoryId: e.target.value });
+                        }}
+                        className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-sm font-medium text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                      >
+                        <option value="">Sin categoría asignada</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                        <option value="__new__">+ Crear nueva categoría…</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-2">
-          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
-            {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar insumo'}
-          </TextureButton>
-          {editingId && (
-            <TextureButton variant="minimal" size="default" type="button" className="!w-auto" onClick={cancelEdit}>
-              Cancelar
-            </TextureButton>
-          )}
-        </div>
-      </form>
+            {/* 3. Existencias y Unidad */}
+            <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.02] p-3.5 space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-brand-950/10">
+                <Scale className="h-4 w-4 text-brand-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-brand-950/70">Unidad y Existencias</h3>
+              </div>
+              
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                    Unidad *
+                  </label>
+                  <select
+                    value={form.unit}
+                    onChange={(e) => {
+                      const unit = e.target.value;
+                      setForm({ ...form, unit, subUnit: (SUB_UNITS[unit] ?? [])[0]?.value ?? '' });
+                    }}
+                    required
+                    className="w-full rounded-xl border border-brand-950/15 bg-white px-2.5 py-2 text-sm font-medium text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  >
+                    <option value="">Elegir unidad…</option>
+                    <option value="kg">{UNIT_LABELS.kg}</option>
+                    <option value="lt">{UNIT_LABELS.lt}</option>
+                    <option value="ml">{UNIT_LABELS.ml}</option>
+                    <option value="unidad">{UNIT_LABELS.unidad}</option>
+                    <option value="porcion">Porción</option>
+                  </select>
+                </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                    Cantidad actual
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      value={form.quantity}
+                      onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                      placeholder="0.00"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-sm font-semibold text-brand-950 text-right focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                    {subUnitOptions.length > 1 ? (
+                      <select
+                        value={form.subUnit}
+                        onChange={(e) => setForm({ ...form, subUnit: e.target.value })}
+                        className="shrink-0 rounded-xl border border-brand-950/15 bg-white px-2 py-2 text-xs font-semibold text-brand-950 focus:outline-none"
+                      >
+                        {subUnitOptions.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="flex items-center justify-center px-2.5 rounded-xl border border-brand-950/10 bg-brand-950/5 text-xs font-semibold text-brand-950/60 shrink-0">
+                        {(UNIT_LABELS[form.unit] ?? form.unit) || '—'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                    Stock mínimo
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      value={form.minQuantity}
+                      onChange={(e) => setForm({ ...form, minQuantity: e.target.value })}
+                      placeholder="0.00"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2 text-sm font-semibold text-brand-950 text-right focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                    <span className="flex items-center justify-center px-2.5 rounded-xl border border-brand-950/10 bg-brand-950/5 text-xs font-semibold text-brand-950/60 shrink-0">
+                      {(subUnitOptions.find((u) => u.value === form.subUnit)?.label ?? UNIT_LABELS[form.unit] ?? form.unit) || '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Costo y Caducidad en 2 Columnas */}
+            <div className="grid sm:grid-cols-2 gap-3">
+              {/* Costo */}
+              <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.02] p-3.5 space-y-2">
+                <div className="flex items-center gap-2 pb-1 border-b border-brand-950/10">
+                  <DollarSign className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-brand-950/70">Costo Unitario</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-brand-950/60 mb-0.5">
+                      Costo por 1 {UNIT_LABELS[form.unit] ?? 'unidad'}
+                    </label>
+                    <input
+                      value={form.price}
+                      onChange={(e) => setForm({ ...form, price: e.target.value.replace(',', '.') })}
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="any"
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm font-semibold text-brand-950 text-right focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-brand-950/60 mb-0.5">
+                      Moneda
+                    </label>
+                    <select
+                      value={form.priceCurrency}
+                      onChange={(e) => setForm({ ...form, priceCurrency: e.target.value as 'BASE' | 'BS' })}
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-2 py-1.5 text-sm font-medium text-brand-950 focus:outline-none"
+                    >
+                      <option value="BASE">{symbol}</option>
+                      <option value="BS">Bs</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-brand-950/45 font-light leading-snug">
+                  Costo de 1 unidad. Actualiza automáticamente las recetas vinculadas.
+                </p>
+              </div>
+
+              {/* Caducidad */}
+              <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.02] p-3.5 space-y-2">
+                <div className="flex items-center justify-between pb-1 border-b border-brand-950/10">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-brand-600" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-brand-950/70">Caducidad</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, noPerecedero: !form.noPerecedero, expiryDate: '' })}
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+                      form.noPerecedero
+                        ? 'bg-brand-500 text-white shadow-xs'
+                        : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                    }`}
+                  >
+                    {form.noPerecedero ? '✓ No perecedero' : 'No perecedero'}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-brand-950/60 mb-0.5">
+                    Fecha de vencimiento
+                  </label>
+                  <input
+                    value={form.expiryDate}
+                    onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+                    type="date"
+                    disabled={form.noPerecedero}
+                    className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm font-medium text-brand-950 focus:outline-none disabled:bg-brand-950/[0.04] disabled:text-brand-950/30"
+                  />
+                </div>
+                <p className="text-[11px] text-brand-950/45 font-light leading-snug">
+                  {form.noPerecedero
+                    ? 'Insumo sin vencimiento. No emite alertas de caducidad.'
+                    : 'Avisa con anticipación en el Dashboard cuando el lote esté por vencer.'}
+                </p>
+              </div>
+            </div>
+
+            {/* 5. Si es Envase: Configuración directa de empaque */}
+            {form.isPackaging && (
+              <div className="rounded-2xl border border-brand-500/20 bg-brand-500/[0.03] p-3.5 space-y-2.5">
+                <div className="flex items-center gap-2 pb-1 border-b border-brand-500/15">
+                  <Box className="h-4 w-4 text-brand-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-brand-950/70">
+                    Configuración del Envase / Empaque
+                  </h3>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-brand-950/70 mb-0.5">Tipo de empaque *</label>
+                    <select
+                      value={form.packagingType}
+                      onChange={(e) => setForm({ ...form, packagingType: e.target.value as 'ENVASE' | 'CAJA' | 'BOLSA' })}
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm font-medium text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    >
+                      <option value="ENVASE">Envase (recipiente, pote, vaso)</option>
+                      <option value="CAJA">Caja (pizza, burger, combo)</option>
+                      <option value="BOLSA">Bolsa (kraft, térmica, plástico)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-brand-950/70 mb-0.5">
+                      Precio cobrado al comensal ({symbol})
+                    </label>
+                    <input
+                      value={form.salePrice}
+                      onChange={(e) => setForm({ ...form, salePrice: e.target.value.replace(/[^0-9.]/g, '') })}
+                      placeholder="0.00 (Opcional)"
+                      className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm font-medium text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                    />
+                    <span className="text-[10px] text-brand-950/45 font-light">
+                      Deja en 0 si el empaque no se cobra extra en el pedido.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 6. Si NO es Envase: Opciones avanzadas de cocina/recetas */}
+            {!form.isPackaging && (
+              <details className="group rounded-2xl border border-brand-950/10 bg-white overflow-hidden">
+                <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none select-none bg-brand-950/[0.01] hover:bg-brand-950/[0.03] transition-colors [&::-webkit-details-marker]:hidden">
+                  <span className="text-xs font-semibold text-brand-950/75">
+                    Opciones avanzadas (Mermas, Rendimiento y Toppings)
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-brand-950/40 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="p-4 border-t border-brand-950/10 space-y-3 bg-brand-950/[0.01]">
+                  {canRecipes && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                          Rendimiento % (merma de limpieza/cocción)
+                        </label>
+                        <input
+                          value={form.yieldPercent}
+                          onChange={(e) => setForm({ ...form, yieldPercent: e.target.value.replace(/[^0-9.]/g, '') })}
+                          placeholder="100"
+                          type="number"
+                          step="1"
+                          min="1"
+                          max="100"
+                          className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm focus:outline-none"
+                        />
+                        <p className="text-[11px] text-brand-950/40 mt-0.5">
+                          Ej: 90 = de 1 {UNIT_LABELS[form.unit] ?? form.unit} comprado solo 90% rinde.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-brand-950/70 mb-1">
+                          Factor de corrección % (colchón de precio)
+                        </label>
+                        <input
+                          value={form.correctionPercent}
+                          onChange={(e) => setForm({ ...form, correctionPercent: e.target.value.replace(/[^0-9.]/g, '') })}
+                          placeholder="0"
+                          type="number"
+                          step="1"
+                          min="0"
+                          className="w-full rounded-xl border border-brand-950/15 bg-white px-3 py-1.5 text-sm focus:outline-none"
+                        />
+                        <p className="text-[11px] text-brand-950/40 mt-0.5">
+                          Margen de seguridad por fluctuación de precios.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 text-xs font-medium text-brand-950/80 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.isTopping}
+                        onChange={(e) => setForm({ ...form, isTopping: e.target.checked })}
+                        className="h-4 w-4 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
+                      />
+                      Disponible como Topping en el selector de modificadores
+                    </label>
+                  </div>
+                </div>
+              </details>
+            )}
+
+            {error && <p className="text-sm font-medium text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-100">{error}</p>}
+
+            {/* Footer con botones compactos y bien alineados */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-brand-950/10">
+              <TextureButton variant="minimal" size="default" type="button" className="!w-auto" onClick={cancelEdit}>
+                Cancelar
+              </TextureButton>
+              <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto">
+                {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar insumo'}
+              </TextureButton>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-950/10 bg-white p-4 [&_button>div]:min-h-11">
+        <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-sm font-semibold text-brand-950">Insumos</h2>
           {filteredItems.length > 0 && (
-            <label className="flex items-center gap-1.5 text-xs font-medium text-brand-950/60">
+            <label className="flex items-center gap-1.5 text-brand-950/60 text-sm font-medium">
               <input
                 type="checkbox"
                 checked={selected.size > 0 && selected.size === filteredItems.length}
@@ -1058,7 +1360,7 @@ function InsumosTab({
                   if (e.target.value === '__none__') bulkMove('');
                   else if (e.target.value) bulkMove(e.target.value);
                 }}
-                className="rounded-full border border-brand-950/15 bg-white px-2.5 py-1 text-xs font-medium text-brand-950/70 disabled:opacity-50"
+                className="rounded-full border border-brand-950/15 bg-white px-2.5 py-1 font-medium text-brand-950/70 disabled:opacity-50 text-base"
               >
                 <option value="">{bulkMoving ? 'Moviendo…' : `Mover ${selected.size} a categoría…`}</option>
                 {categories.map((c) => (
@@ -1090,6 +1392,9 @@ function InsumosTab({
           </button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <TextureButton variant="brand" size="sm" className="!w-auto" onClick={startCreate}>
+            <Plus className="h-3.5 w-3.5" /> Nuevo ítem
+          </TextureButton>
           {printSent && <span className="text-xs text-emerald-600 font-medium">Enviado a la estación de impresión</span>}
           <AddStockDialog
             items={(items ?? []).map((i) => ({
@@ -1138,7 +1443,7 @@ function InsumosTab({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar insumo por nombre o categoría…"
           aria-label="Buscar insumos"
-          className="w-full rounded-xl border border-brand-950/15 bg-white py-2 pl-10 pr-10 text-sm text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          className="w-full rounded-xl border border-brand-950/15 bg-white py-2 pl-10 pr-10 text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 text-base"
         />
         {search && (
           <button
@@ -1165,7 +1470,7 @@ function InsumosTab({
 
       {importResult && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4 text-sm space-y-1">
-          <p className="text-brand-950">
+          <p className="text-brand-950 text-base">
             {importResult.created} creados · {importResult.updated} actualizados
             {importResult.errors.length > 0 && <span className="text-red-600"> · {importResult.errors.length} con error</span>}
           </p>
@@ -1183,7 +1488,7 @@ function InsumosTab({
 
       {items?.length === 0 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-          <p className="text-sm text-brand-950/40 font-light">
+          <p className="text-brand-950/40 font-light text-base">
             {toppingsOnly ? 'Sin toppings todavía — marca "Es un Topping" al crear el primero.' : 'Sin insumos todavía.'}
           </p>
         </div>
@@ -1191,27 +1496,29 @@ function InsumosTab({
 
       {!!items?.length && filteredItems.length === 0 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-          <p className="text-sm text-brand-950/40 font-light">Ningún insumo coincide con "{search}".</p>
+          <p className="text-brand-950/40 font-light text-base">Ningún insumo coincide con "{search}".</p>
         </div>
       )}
 
+      {usageItem && <IngredientUsageDialog item={usageItem} scope={locationScope} onClose={() => setUsageItem(null)} />}
       {groupByCategory(filteredItems, categories).map(([groupName, groupItems]) => (
         <div key={groupName} className="space-y-2">
           <h3 className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide px-1">{groupName}</h3>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+          <div className="grid gap-3 lg:grid-cols-2">
             {groupItems.map((item) => {
               const qty = Number(item.quantity);
               const minQty = Number(item.minQuantity);
-              const low = qty < minQty;
+              const low = minQty > 0 && qty <= minQty;
               // Barra: se llena hasta el doble del mínimo ("stock sano"); se acorta y cambia de
               // color mientras se acerca al punto de aviso, para que se note antes de llegar a cero.
-              const ratio = minQty > 0 ? Math.min(1, qty / (minQty * 2)) : 1;
+              const ratio = minQty > 0 ? Math.max(0, Math.min(1, qty / (minQty * 2))) : 1;
               const barColor = low ? 'bg-red-500' : ratio < 0.75 ? 'bg-amber-500' : 'bg-emerald-500';
               return (
-                <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                <div key={item.id} className="flex flex-wrap items-start gap-3 rounded-2xl border border-brand-950/10 bg-white p-4 sm:p-5">
                   <input
                     type="checkbox"
                     checked={selected.has(item.id)}
+                    aria-label={`Seleccionar ${item.name}`}
                     onChange={() => toggleSelected(item.id)}
                     className="h-4 w-4 shrink-0 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
                   />
@@ -1221,7 +1528,7 @@ function InsumosTab({
                     <div className="h-10 w-10 rounded-lg bg-brand-950/[0.06] shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                    <p className="font-semibold text-brand-950 flex flex-wrap items-center gap-1.5 break-words text-base">
                       {item.name}
                       {low && (
                         <span title="Por debajo del stock mínimo">
@@ -1248,8 +1555,7 @@ function InsumosTab({
                       )}
                     </p>
                     <p className={`text-xs font-light mt-0.5 ${low ? 'text-amber-600' : 'text-brand-950/40'}`}>
-                      {item.quantity} {UNIT_LABELS[item.unit] ?? item.unit} · mínimo {item.minQuantity}{' '}
-                      {UNIT_LABELS[item.unit] ?? item.unit}
+                      Existencia {formatBaseQuantity(qty, item.unit)} · mínimo {formatBaseQuantity(minQty, item.unit)}
                       {item.pricePerUnitBase && ` · costo ${symbol}${item.pricePerUnitBase}/${UNIT_LABELS[item.unit] ?? item.unit}`}
                       {canRecipes &&
                         item.pricePerUnitBase &&
@@ -1260,17 +1566,20 @@ function InsumosTab({
                     {minQty > 0 && (
                       <div className="h-1.5 w-full max-w-48 rounded-full bg-brand-950/[0.08] overflow-hidden mt-1.5">
                         <div
-                          className={`h-full rounded-full transition-all ${barColor}`}
+                          className={`h-full rounded-full transition-[width] duration-200 ease-out-strong motion-reduce:transition-none ${barColor}`}
                           style={{ width: `${ratio * 100}%` }}
                         />
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button onClick={() => startEdit(item)} className="text-xs font-medium text-brand-500 hover:underline">
+                  <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-brand-950/[0.06] pt-3">
+                    <span className={`mr-auto rounded-full px-2.5 py-1 text-xs font-medium ${qty <= 0 ? 'bg-red-50 text-red-700' : low ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{qty <= 0 ? 'Agotado' : low ? 'Por reponer' : 'En stock'}</span>
+                    {canRecipes && onLinkRecipe && <button onClick={() => onLinkRecipe(item)} className="min-h-11 rounded-xl bg-brand-500/10 px-3 text-sm font-medium text-brand-600">Vincular</button>}
+                    {canRecipes && <button onClick={() => setUsageItem(item)} className="min-h-11 rounded-xl px-3 text-xs font-medium text-brand-600">Ver recetas</button>}
+                    <button onClick={() => startEdit(item)} className="min-h-11 rounded-xl bg-brand-500/10 px-3 text-xs font-medium text-brand-600">
                       Editar
                     </button>
-                    <button onClick={() => remove(item)} className="text-xs text-red-600 hover:text-red-700">
+                    <button onClick={() => remove(item)} className="min-h-11 px-2 text-xs text-red-600 hover:text-red-700">
                       Eliminar
                     </button>
                   </div>
@@ -1360,8 +1669,8 @@ function CategoryManager({
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-brand-950">Categorías de insumos</p>
-        <p className="text-xs text-brand-950/45 font-light">
+        <p className="font-semibold text-brand-950 text-base">Categorías de insumos</p>
+        <p className="text-brand-950/45 font-light text-xs">
           Crea categorías acá y luego marca varios insumos y usa "Mover a categoría…". Al eliminar una, sus insumos quedan sin
           categoría (no se borran).
         </p>
@@ -1383,9 +1692,9 @@ function CategoryManager({
           Crear
         </TextureButton>
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-red-600 text-xs">{error}</p>}
       <div className="divide-y divide-brand-950/[0.06]">
-        {categories.length === 0 && <p className="py-2 text-xs text-brand-950/40 font-light">Todavía no hay categorías.</p>}
+        {categories.length === 0 && <p className="py-2 text-brand-950/40 font-light text-xs">Todavía no hay categorías.</p>}
         {categories.map((c) => (
           <div key={c.id} className="flex items-center gap-2 py-2">
             {editingId === c.id ? (
@@ -1545,21 +1854,21 @@ function PreparacionesTab({ insumos, toppingsOnly = false }: { insumos: Inventor
   return (
     <div className="space-y-5">
       {insumos.length === 0 && (
-        <p className="text-sm text-amber-600 bg-amber-50 rounded-xl p-3">
+        <p className="text-amber-600 bg-amber-50 rounded-xl p-3 text-base">
           Primero agrega insumos en la pestaña "Insumos (normal)": las preparaciones se arman a partir de ellos.
         </p>
       )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {rows?.length === 0 && !creating && (
-          <p className="p-5 text-sm text-brand-950/40 font-light">
+          <p className="p-5 text-brand-950/40 font-light text-base">
             {toppingsOnly ? 'Sin toppings de varios insumos todavía.' : 'Sin preparaciones todavía.'}
           </p>
         )}
         {rows?.map((r) => (
           <div key={r.id} className="flex items-center justify-between gap-3 px-5 py-4">
             <div className="min-w-0">
-              <p className="font-medium text-brand-950 truncate">
+              <p className="font-medium text-brand-950 truncate text-base">
                 {r.name}
                 {!toppingsOnly && r.isTopping && (
                   <span className="ml-2 inline-block rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold px-2 py-0.5 align-middle">
@@ -1567,7 +1876,7 @@ function PreparacionesTab({ insumos, toppingsOnly = false }: { insumos: Inventor
                   </span>
                 )}
               </p>
-              <p className="text-xs text-brand-950/40 font-light">
+              <p className="text-brand-950/40 font-light text-xs">
                 {r.ingredientCount} ingrediente(s) · Rinde {(Number(r.yieldQuantity) * 1000).toFixed(0)} {r.unit === 'kg' ? 'gr' : 'ml'} ·
                 Costo:{' '}
                 {symbol}
@@ -1589,12 +1898,12 @@ function PreparacionesTab({ insumos, toppingsOnly = false }: { insumos: Inventor
                 onChange={(e) => setNewPrep({ ...newPrep, name: e.target.value })}
                 placeholder={toppingsOnly ? 'Nombre (ej: Pico de gallo)' : 'Nombre (ej: Pasta de ajo)'}
                 autoFocus
-                className="sm:col-span-2 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                className="sm:col-span-2 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
               />
               <select
                 value={newPrep.unit}
                 onChange={(e) => setNewPrep({ ...newPrep, unit: e.target.value as 'kg' | 'lt' })}
-                className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
               >
                 <option value="kg">Kg</option>
                 <option value="lt">Lt</option>
@@ -1604,9 +1913,9 @@ function PreparacionesTab({ insumos, toppingsOnly = false }: { insumos: Inventor
               value={newPrep.yieldQuantity}
               onChange={(e) => setNewPrep({ ...newPrep, yieldQuantity: e.target.value.replace(/[^0-9.]/g, '') })}
               placeholder={`Cuánto rinde, en ${newPrep.unit === 'kg' ? 'gramos' : 'mililitros'}`}
-              className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
             />
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-red-600 text-xs">{error}</p>}
             <div className="flex gap-2">
               <TextureButton variant="brand" size="sm" className="!w-auto" onClick={createPreparation}>
                 Crear
@@ -1758,18 +2067,18 @@ function PreparationDialog({
         </DialogHeader>
         <div className="space-y-3">
           {lines?.length === 0 && !adding && (
-            <p className="text-sm text-brand-950/40 font-light">Esta preparación todavía no tiene ingredientes.</p>
+            <p className="text-brand-950/40 font-light text-base">Esta preparación todavía no tiene ingredientes.</p>
           )}
 
           <ul className="space-y-2 max-h-64 overflow-y-auto">
             {lines?.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
                 <div className="text-sm">
-                  <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                  <p className="font-medium text-brand-950 flex items-center gap-1.5 text-base">
                     {l.type === 'preparacion' && <span title="Preparación">🍯</span>}
                     {l.name}
                   </p>
-                  <p className="text-xs text-brand-950/50 font-light">
+                  <p className="text-brand-950/50 font-light text-xs">
                     {l.quantity} {UNIT_LABELS[l.unit] ?? l.unit} · $
                     {l.costBase}
                   </p>
@@ -1792,7 +2101,7 @@ function PreparationDialog({
                   const defaultSubUnit = u ? (SUB_UNITS[u] ?? [])[0]?.value ?? '' : '';
                   setNewItem({ ref: e.target.value, quantity: '', subUnit: defaultSubUnit });
                 }}
-                className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
               >
                 <option value="">Ingrediente…</option>
                 <optgroup label="Insumos">
@@ -1817,13 +2126,13 @@ function PreparationDialog({
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value.replace(/[^0-9.]/g, '') })}
                   placeholder="Cantidad usada"
-                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
                 />
                 <select
                   value={newItem.subUnit}
                   onChange={(e) => setNewItem({ ...newItem, subUnit: e.target.value })}
                   disabled={!selectedUnit}
-                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 disabled:opacity-50 text-base"
                 >
                   {subUnitOptions.map((u) => (
                     <option key={u.value} value={u.value}>
@@ -1832,8 +2141,8 @@ function PreparationDialog({
                   ))}
                 </select>
               </div>
-              <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio/rendimiento del ingrediente.</p>
-              {error && <p className="text-xs text-red-600">{error}</p>}
+              <p className="text-brand-950/40 text-xs">El costo se calcula automáticamente según el precio/rendimiento del ingrediente.</p>
+              {error && <p className="text-red-600 text-xs">{error}</p>}
               <div className="flex gap-2">
                 <TextureButton variant="brand" size="sm" className="!w-auto" onClick={addIngredient}>
                   Guardar ingrediente
@@ -1858,24 +2167,24 @@ function PreparationDialog({
               <span className="text-lg font-semibold text-brand-950">${totalCostBase}</span>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-brand-950/70 shrink-0">
+              <label className="text-brand-950/70 shrink-0 text-sm font-medium">
                 Esta preparación rinde ({unit === 'kg' ? 'gr' : 'ml'})
               </label>
               <input
                 value={yieldQuantity}
                 onChange={(e) => setYieldQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
-                className="w-24 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                className="w-24 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-base"
               />
               <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={savingYield} onClick={saveYield}>
                 Guardar
               </TextureButton>
             </div>
-            <p className="text-xs text-brand-950/40 font-light">
+            <p className="text-brand-950/40 font-light text-xs">
               Si entraron más gramos de insumos de los que rinde (merma al cocinar), el costo se reparte entre lo que realmente
               queda.
             </p>
             {!hideToppingToggle && (
-              <label className="flex items-center gap-2 text-sm text-brand-950/70 pt-1">
+              <label className="flex items-center gap-2 text-brand-950/70 pt-1 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={isTopping}
@@ -1991,11 +2300,11 @@ function TransferenciasTab() {
     }
   }
 
-  if (!locations) return <p className="text-brand-950/50 font-light">Cargando…</p>;
+  if (!locations) return <p className="text-brand-950/50 font-light text-base">Cargando…</p>;
 
   if (locations.length < 2) {
     return (
-      <p className="text-sm text-brand-950/50 font-light">
+      <p className="text-brand-950/50 font-light text-base">
         Todavía no tienes otras sedes ni Casa Matriz activada para transferir insumos. Crea una sucursal en
         Administración → Sucursales, o activa Casa Matriz, para usar esta pestaña.
       </p>
@@ -2006,7 +2315,7 @@ function TransferenciasTab() {
     <div className="space-y-8">
       <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Origen</span>
             <select
               value={fromKey}
@@ -2015,7 +2324,7 @@ function TransferenciasTab() {
                 if (e.target.value === toKey) setToKey('');
               }}
               required
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 text-base"
             >
               <option value="">Elige el origen…</option>
               {locations.map((l) => (
@@ -2025,14 +2334,14 @@ function TransferenciasTab() {
               ))}
             </select>
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Destino</span>
             <select
               value={toKey}
               onChange={(e) => setToKey(e.target.value)}
               required
               disabled={!fromKey}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50 text-base"
             >
               <option value="">Elige el destino…</option>
               {toOptions.map((l) => (
@@ -2045,14 +2354,14 @@ function TransferenciasTab() {
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Insumo</span>
             <select
               value={itemId}
               onChange={(e) => setItemId(e.target.value)}
               required
               disabled={!fromKey || fromItems.length === 0}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50 text-base"
             >
               <option value="">{fromKey && fromItems.length === 0 ? 'Sin insumos en esa sede' : 'Elige el insumo…'}</option>
               {fromItems.map((i) => (
@@ -2062,19 +2371,19 @@ function TransferenciasTab() {
               ))}
             </select>
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm font-medium">
             <span className="text-brand-950/70">Cantidad{selectedItem ? ` (${selectedItem.unit})` : ''}</span>
             <input
               value={quantity}
               onChange={(e) => setQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
               placeholder="0.00"
               disabled={!itemId}
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50 text-base"
             />
           </label>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-base">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={saving || !fromKey || !toKey || !itemId} className="!w-auto disabled:opacity-50">
           {saving ? 'Transfiriendo…' : 'Transferir'}
         </TextureButton>
@@ -2083,18 +2392,18 @@ function TransferenciasTab() {
       <div>
         <h2 className="text-sm font-semibold text-brand-950 mb-2">Historial</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-brand-950/50 font-light">Todavía no se ha hecho ninguna transferencia.</p>
+          <p className="text-brand-950/50 font-light text-base">Todavía no se ha hecho ninguna transferencia.</p>
         ) : (
           <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
             {history.map((h) => (
               <li key={h.id} className="px-4 py-3 text-sm">
-                <p className="text-brand-950">
+                <p className="text-brand-950 text-base">
                   <span className="font-medium">
                     {h.quantity} {h.unit} de {h.itemName}
                   </span>{' '}
                   — {h.fromLocationName} → {h.toLocationName}
                 </p>
-                <p className="text-xs text-brand-950/40 font-light mt-0.5">{new Date(h.createdAt).toLocaleString('es-VE')}</p>
+                <p className="text-brand-950/40 font-light mt-0.5 text-xs">{new Date(h.createdAt).toLocaleString('es-VE')}</p>
               </li>
             ))}
           </ul>
