@@ -19,6 +19,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { restaurant } from './data';
+import { useState } from 'react';
 
 type NavItem = { label: string; icon: typeof ChefHat; href?: string; badge?: number; alert?: boolean };
 
@@ -42,17 +43,23 @@ const NAV: NavItem[] = [
 ];
 
 export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <aside className="hidden overflow-y-auto border-r border-border bg-card px-4 py-6 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[264px] lg:flex-col">
+    <aside
+      data-collapsed={collapsed ? 'true' : 'false'}
+      className={`proposal-sidebar hidden overflow-y-auto border-r border-border bg-card px-4 py-6 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:flex-col ${collapsed ? 'is-collapsed lg:w-[76px] lg:px-3' : 'lg:w-[264px]'}`}
+    >
       <div className="mb-7 flex min-w-0 shrink-0 items-center gap-2">
         <a href="/propuesta/dashboard" className="flex min-w-0 flex-1 items-center gap-3 px-2">
           <img src="/logo/icono.png" alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
-          <span className="truncate text-[17px] font-semibold tracking-tight text-brand-950">{restaurant.name}</span>
+          <span className="sidebar-label truncate text-[17px] font-semibold tracking-tight text-brand-950">{restaurant.name}</span>
         </a>
         <button
           type="button"
-          aria-label="Ocultar menú lateral"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-brand-950"
+          aria-label={collapsed ? 'Mostrar menú lateral' : 'Ocultar menú lateral'}
+          onClick={() => setCollapsed((value) => !value)}
+          className="sidebar-collapse-button flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-brand-950"
         >
           <PanelLeftClose className="h-[18px] w-[18px]" />
         </button>
@@ -63,7 +70,7 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
         className="mb-4 flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-500 text-[14.5px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(5,165,245,0.45)] transition-[filter,transform] hover:brightness-95 active:scale-[0.98]"
       >
         <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
-        <kbd className="ml-1 rounded-md bg-white/25 px-1.5 py-0.5 font-sans text-[10px] font-medium">N</kbd>
+        <kbd className="sidebar-label ml-1 rounded-md bg-white/25 px-1.5 py-0.5 font-sans text-[10px] font-medium">N</kbd>
       </a>
 
       <nav aria-label="Menú del restaurante" className="flex flex-1 flex-col">
@@ -80,7 +87,7 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
                   }`}
                 >
                   <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? '' : 'opacity-80'}`} />
-                  <span className="flex-1 truncate">{item.label}</span>
+                  <span className="sidebar-label flex-1 truncate">{item.label}</span>
                   {item.badge !== undefined && (
                     <span
                       className={`min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-semibold tabular-nums ${
@@ -101,7 +108,7 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
         type="button"
         className="mt-4 flex min-h-10 shrink-0 items-center gap-3 rounded-xl border border-border px-3.5 text-[14px] font-medium text-brand-950 transition-colors hover:bg-[#f3f9fd]"
       >
-        <FileBarChart className="h-[18px] w-[18px] text-brand-500" /> Reportes con IA
+        <FileBarChart className="h-[18px] w-[18px] shrink-0 text-brand-500" /><span className="sidebar-label">Reportes con IA</span>
       </button>
 
       <div className="mt-3 flex shrink-0 items-center gap-2">
@@ -120,7 +127,7 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold text-brand-950">{restaurant.user}</p>
           <p className="truncate text-xs text-muted-foreground">
-            {restaurant.role} · {restaurant.plan}
+            <span className="sidebar-label">{restaurant.role} · {restaurant.plan}</span>
           </p>
         </div>
       </div>

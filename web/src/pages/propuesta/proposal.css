@@ -1,5 +1,33 @@
 /* Mismos tokens que .restaurant-dashboard-shell (restaurant-calm.css), acotados a las
    propuestas para que se vean igual que el Resumen real, también con el modo oscuro activo. */
+.qt-proposal:has(.proposal-sidebar.is-collapsed) > div {
+  padding-left: 76px;
+}
+
+.proposal-sidebar.is-collapsed .sidebar-label,
+.proposal-sidebar.is-collapsed .sidebar-collapse-button svg {
+  display: none;
+}
+
+.proposal-sidebar.is-collapsed .sidebar-collapse-button::before {
+  content: '›';
+  font-size: 24px;
+  line-height: 1;
+}
+
+.proposal-sidebar.is-collapsed > div:first-child,
+.proposal-sidebar.is-collapsed > a,
+.proposal-sidebar.is-collapsed nav a,
+.proposal-sidebar.is-collapsed > button,
+.proposal-sidebar.is-collapsed > div:last-child {
+  justify-content: center;
+}
+
+.proposal-sidebar.is-collapsed nav a {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .qt-proposal {
   --color-background: #fafaf9;
   --color-card: #fff;
