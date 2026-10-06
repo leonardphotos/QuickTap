@@ -1,3 +1,4 @@
+import https from 'https';
 import { Currency } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
@@ -41,7 +42,59 @@ function extractRate(payload: unknown): number | null {
   return null;
 }
 
+const BCV_HOME_URL = 'https://www.bcv.org.ve';
+
+/** Extrae la tasa en Bs de la página oficial del BCV. */
+async function fetchDirectFromBcv(currency: Currency): Promise<number | null> {
+  return new Promise((resolve) => {
+    const agent = new https.Agent({ rejectUnauthorized: false });
+    const req = https.get(
+      BCV_HOME_URL,
+      {
+        agent,
+        timeout: 10000,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      },
+      (res) => {
+        let html = '';
+        res.on('data', (chunk) => (html += chunk));
+        res.on('end', () => {
+          const targetId = currency === 'USD' ? 'dolar' : 'euro';
+          const regex = new RegExp(`id="${targetId}"[\\s\\S]*?<strong[^>]*>\\s*([0-9.,]+)\\s*<\\/strong>`, 'i');
+          const match = html.match(regex);
+          if (!match || !match[1]) return resolve(null);
+          // 873,86700000 -> 873.86700000
+          const cleaned = match[1].trim().replace(/\./g, '').replace(',', '.');
+          const rate = parseFloat(cleaned);
+          resolve(Number.isFinite(rate) && rate > 0 ? rate : null);
+        });
+      },
+    );
+
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
 async function fetchFromSource(currency: Currency): Promise<FetchResult> {
+  // 1. Intento prioritario: directamente desde el portal oficial del BCV
+  try {
+    const directRate = await fetchDirectFromBcv(currency);
+    if (directRate !== null) {
+      return { rateBs: directRate, source: 'BCV Oficial' };
+    }
+  } catch {
+    // Si falla el scraping directo del portal, continúa al fallback
+  }
+
+  // 2. Fallback: fuente espejo JSON (dolarapi u otra configurada en env)
   const url = SOURCE_URLS[currency];
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -56,7 +109,7 @@ async function fetchFromSource(currency: Currency): Promise<FetchResult> {
     if (rateBs === null) {
       throw new Error(`No se pudo interpretar la respuesta de tasa para ${currency}.`);
     }
-    return { rateBs, source: 'BCV' };
+    return { rateBs, source: 'BCV (Espejo)' };
   } finally {
     clearTimeout(timeout);
   }
