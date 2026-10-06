@@ -1,31 +1,106 @@
 /* Mismos tokens que .restaurant-dashboard-shell (restaurant-calm.css), acotados a las
    propuestas para que se vean igual que el Resumen real, también con el modo oscuro activo. */
-.qt-proposal:has(.proposal-sidebar.is-collapsed) > div {
-  padding-left: 76px;
+/* Colapso del menú lateral: una sola curva para ancho, padding y desplazamiento del contenido,
+   y las etiquetas se desvanecen en lugar de desaparecer, para que nada salte de posición. */
+@media (min-width: 1024px) {
+  .proposal-sidebar {
+    --sidebar-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    width: 264px;
+    overflow-x: hidden;
+    transition: width 280ms var(--sidebar-ease), padding 280ms var(--sidebar-ease);
+  }
+
+  .proposal-sidebar.is-collapsed {
+    width: 76px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .qt-proposal > div:not(.proposal-sidebar) {
+    transition: padding-left 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .orders-proposal > .orders-main {
+    padding-left: 264px;
+    transition: padding-left 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .orders-proposal:has(.proposal-sidebar.is-collapsed) > .orders-main {
+    padding-left: 76px;
+  }
+
+  .qt-proposal:has(.proposal-sidebar.is-collapsed) > div:not(.proposal-sidebar) {
+    padding-left: 76px;
+  }
+
+  .proposal-sidebar .sidebar-label,
+  .proposal-sidebar .sidebar-brand {
+    max-width: 200px;
+    white-space: nowrap;
+    opacity: 1;
+    transition: opacity 180ms ease 100ms, max-width 280ms var(--sidebar-ease);
+  }
+
+  .proposal-sidebar.is-collapsed .sidebar-label,
+  .proposal-sidebar.is-collapsed .sidebar-brand {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity 120ms ease, max-width 280ms var(--sidebar-ease);
+  }
+
+  .proposal-sidebar.is-collapsed .sidebar-brand {
+    flex: 0 0 0;
+    padding: 0;
+  }
+
+  .proposal-sidebar .sidebar-collapse-icon {
+    transition: transform 280ms var(--sidebar-ease);
+  }
+
+  .proposal-sidebar.is-collapsed .sidebar-collapse-icon {
+    transform: rotate(180deg);
+  }
+
+  /* Centra los iconos en 76px sin cambiar justify-content (que no se puede animar). */
+  .proposal-sidebar nav a,
+  .proposal-sidebar .sidebar-row {
+    transition: padding 280ms var(--sidebar-ease), background-color 150ms, color 150ms;
+  }
+
+  .proposal-sidebar.is-collapsed nav a,
+  .proposal-sidebar.is-collapsed .sidebar-row {
+    padding-left: 17px;
+    padding-right: 17px;
+  }
+
+  .proposal-sidebar.is-collapsed .sidebar-badge {
+    position: absolute;
+    top: 3px;
+    right: 6px;
+    min-width: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+
+  .proposal-sidebar.is-collapsed .sidebar-tools {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .proposal-sidebar.is-collapsed .sidebar-user {
+    padding: 8px;
+    gap: 0;
+  }
 }
 
-.proposal-sidebar.is-collapsed .sidebar-label,
-.proposal-sidebar.is-collapsed .sidebar-collapse-button svg {
-  display: none;
-}
-
-.proposal-sidebar.is-collapsed .sidebar-collapse-button::before {
-  content: '›';
-  font-size: 24px;
-  line-height: 1;
-}
-
-.proposal-sidebar.is-collapsed > div:first-child,
-.proposal-sidebar.is-collapsed > a,
-.proposal-sidebar.is-collapsed nav a,
-.proposal-sidebar.is-collapsed > button,
-.proposal-sidebar.is-collapsed > div:last-child {
-  justify-content: center;
-}
-
-.proposal-sidebar.is-collapsed nav a {
-  padding-left: 0;
-  padding-right: 0;
+@media (prefers-reduced-motion: reduce) {
+  .proposal-sidebar,
+  .proposal-sidebar *,
+  .qt-proposal > div {
+    transition: none !important;
+  }
 }
 
 .qt-proposal {
