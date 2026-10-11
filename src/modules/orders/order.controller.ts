@@ -1,12 +1,18 @@
 import { Request, Response } from 'express';
+import { livePageQuery, listLiveOrdersPage } from './live-orders-page.service';
+import { fiscalZService } from './fiscal-z.service';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest, forbidden } from '../../utils/http-error';
 import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
+  replaceOrderItemSchema,
   addOrderItemsBatchSchema,
+  acceptOrderSchema,
   fiscalIntentSchema,
   fiscalResultSchema,
+  fiscalZClaimSchema,
+  fiscalZResultSchema,
   printFiscalSchema,
   changeChannelSchema,
   deleteOrderSchema,
@@ -19,6 +25,7 @@ import {
   markKitchenReadySchema,
   orderHistoryQuerySchema,
   recordPaymentSchema,
+  recordRefundSchema,
   returnOrderItemSchema,
   setAwaitingPaymentSchema,
   setTipSchema,
@@ -28,6 +35,7 @@ import {
   updateStatusSchema,
 } from './order.dto';
 import { orderService } from './order.service';
+import { orderRefundService } from './order-refund.service';
 import { salesExportService } from './sales-export.service';
 
 export const orderController = {
@@ -54,7 +62,9 @@ export const orderController = {
 
   /** POST /api/v1/orders/manual — el staff (ej. Mesero) carga un pedido a mano (protegido). */
   createManual: asyncHandler(async (req: Request, res: Response) => {
-    const input = manualOrderSchema.parse(req.body);
+    const input = manualOrderSchema.parse(req.auth?.role === 'COMANDA'
+      ? { ...req.body, customerName: req.body.customerName == null || req.body.customerName === '' ? 'Autoservicio (kiosco)' : req.body.customerName }
+      : req.body);
     const order = await orderService.createManualOrder(req.restaurantId!, input, req.auth?.userId, req.auth?.role);
     res.status(201).json({ data: order });
   }),
@@ -75,6 +85,12 @@ export const orderController = {
   updateItems: asyncHandler(async (req: Request, res: Response) => {
     const input = updateOrderItemsSchema.parse(req.body);
     const order = await orderService.updateItems(req.restaurantId!, req.params.id, input.items);
+    res.json({ data: order });
+  }),
+
+  replaceItem: asyncHandler(async (req: Request, res: Response) => {
+    const input = replaceOrderItemSchema.parse(req.body);
+    const order = await orderService.replaceItem(req.restaurantId!, req.params.id, req.params.itemId, req.auth!.userId, input);
     res.json({ data: order });
   }),
 
@@ -125,10 +141,27 @@ export const orderController = {
     res.status(201).json({ data: order });
   }),
 
+  /** Devoluciones de dinero: solo Dueño, Administrador y Cajero (guard en rutas). */
+  refundLookup: asyncHandler(async (req: Request, res: Response) => {
+    const orderNumber = req.query.orderNumber ? Number(req.query.orderNumber) : undefined;
+    const orderId = typeof req.query.orderId === 'string' && req.query.orderId.trim() ? req.query.orderId.trim() : undefined;
+    if ((orderNumber === undefined || !Number.isSafeInteger(orderNumber) || orderNumber <= 0) && !orderId) {
+      throw badRequest('Indica un número o ID de comanda válido.');
+    }
+    res.json({ data: await orderRefundService.lookup(req.restaurantId!, { orderNumber, orderId }) });
+  }),
+  refunds: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await orderRefundService.list(req.restaurantId!) });
+  }),
+  createRefund: asyncHandler(async (req: Request, res: Response) => {
+    const input = recordRefundSchema.parse(req.body);
+    res.status(201).json({ data: await orderRefundService.create(req.restaurantId!, req.params.id, req.auth!.userId, input) });
+  }),
+
   /** POST /api/v1/orders/upload-payment-proof — foto del comprobante para el botón "Cobrar". */
   uploadPaymentProof: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('No se recibió ningún archivo.');
-    res.status(201).json({ data: { url: `/uploads/order-payment-proofs/${req.file.filename}` } });
+    res.status(201).json({ data: { url: `/uploads/order-payment-proofs/${req.file.filename}`,proofReview:req.proofReview } });
   }),
 
   /** PATCH /api/v1/orders/:id/customer — editar nombre/teléfono/dirección/nota (protegido). */
@@ -258,6 +291,13 @@ export const orderController = {
     res.json({ data: rows });
   }),
 
+  /** GET /api/v1/orders/reports/couriers/:courierId/deliveries — detalle de cada entrega despachada. */
+  courierDeliveriesReport: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);
+    const data = await orderService.getCourierDeliveries(req.restaurantId!, req.params.courierId, range, date);
+    res.json({ data });
+  }),
+
   /** GET /api/v1/orders/reports/payment-methods — movimiento por método de pago (solo plan Premium). */
   paymentMethodReport: asyncHandler(async (req: Request, res: Response) => {
     const { range, date, from, to } = orderHistoryQuerySchema
@@ -269,7 +309,8 @@ export const orderController = {
 
   /** POST /api/v1/orders/:id/accept — el mesero acepta un pedido en NEEDS_CONFIRMATION y lo manda a cocina. */
   accept: asyncHandler(async (req: Request, res: Response) => {
-    const order = await orderService.acceptOrder(req.restaurantId!, req.params.id, req.auth?.userId, req.auth?.role);
+    const input = acceptOrderSchema.parse(req.body);
+    const order = await orderService.acceptOrder(req.restaurantId!, req.params.id, req.auth?.userId, req.auth?.role, input.paymentMethod);
     res.json({ data: order });
   }),
 
@@ -277,6 +318,11 @@ export const orderController = {
    * `?incluirPagadas=1` añade las ya cobradas del turno: solo lo pide Comandas, que las
    * necesita para su pestaña "Pagadas". */
   liveOrders: asyncHandler(async (req: Request, res: Response) => {
+    if (req.query.paginated === '1') {
+      const data = await listLiveOrdersPage(req.restaurantId!, livePageQuery.parse(req.query), req.auth?.role === 'WAITER' ? req.auth.userId : undefined);
+      res.json({ data });
+      return;
+    }
     const incluirPagadas = req.query.incluirPagadas === '1';
     const orders = await orderService.listLiveOrders(req.restaurantId!, incluirPagadas);
     res.json({ data: orders });
@@ -287,11 +333,18 @@ export const orderController = {
     res.json({ data: await orderService.availableChannels(req.restaurantId!) });
   }),
 
-  /** DELETE /api/v1/orders/:id — "Cancelar" desde Pedidos en vivo: borra, no queda registrado.
-   * Si quien elimina es Mesero, exige el código de 6 dígitos creado en Ajustes. */
+  /** DELETE /api/v1/orders/:id — elimina la comanda y revierte su impacto administrativo,
+   * conservando únicamente la bitácora inmutable con actor, hora y motivo. */
   remove: asyncHandler(async (req: Request, res: Response) => {
-    const { pin } = deleteOrderSchema.parse(req.body ?? {});
-    const result = await orderService.deleteOrderHard(req.restaurantId!, req.params.id, req.auth!.role, pin, req.auth!.userId);
+    const { pin, reason } = deleteOrderSchema.parse(req.body ?? {});
+    const result = await orderService.deleteOrderHard(
+      req.restaurantId!,
+      req.params.id,
+      req.auth!.role,
+      reason,
+      pin,
+      req.auth!.userId,
+    );
     res.json({ data: result });
   }),
 
@@ -349,6 +402,40 @@ export const orderController = {
   fiscalResult: asyncHandler(async (req: Request, res: Response) => {
     const input = fiscalResultSchema.parse(req.body);
     const result = await orderService.registerFiscalPrint(req.restaurantId!, req.params.id, input);
+    res.json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/fiscal/z-report — solicita a la Estación de Impresión
+   * generar el cierre Z en la máquina fiscal física. */
+  requestFiscalZ: asyncHandler(async (req: Request, res: Response) => {
+    const result = await fiscalZService.request(req.restaurantId!, {
+      actorType: 'USER',
+      actorId: req.auth?.userId,
+      actorName: req.auth?.role === 'OWNER' ? 'Dueño' : 'Administrador',
+    });
+    res.json({ data: result });
+  }),
+
+  /** GET /api/v1/orders/fiscal/z-report — último resultado y si hay una solicitud
+   * todavía en curso. */
+  fiscalZStatus: asyncHandler(async (req: Request, res: Response) => {
+    const result = await fiscalZService.status(req.restaurantId!);
+    res.json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/fiscal/z-claim — concede el cierre a una sola
+   * Estación de Impresión cuando hay varias conectadas al mismo restaurante. */
+  fiscalZClaim: asyncHandler(async (req: Request, res: Response) => {
+    const { requestId } = fiscalZClaimSchema.parse(req.body);
+    const result = await fiscalZService.claim(req.restaurantId!, requestId);
+    res.json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/fiscal/z-result — callback de la Estación de Impresión.
+   * Usa el mismo tenant JWT de la estación; no depende del navegador que pidió el Z. */
+  fiscalZResult: asyncHandler(async (req: Request, res: Response) => {
+    const input = fiscalZResultSchema.parse(req.body);
+    const result = await fiscalZService.result(req.restaurantId!, input);
     res.json({ data: result });
   }),
 

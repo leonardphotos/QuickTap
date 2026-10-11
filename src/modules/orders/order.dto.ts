@@ -3,8 +3,11 @@ import { z } from 'zod';
 type OrderChannelValue = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
 
 /** Un ítem del carrito tal como lo envía el cliente/mesero. */
-export const cartItemSchema = z.object({
-  productId: z.string().min(1),
+const cartItemFields = {
+  productId: z.string().min(1).nullable().default(null),
+  // Menú interno: permite cargar un extra/modificador ya existente como una línea propia.
+  // El service solo lo acepta en consumos internos; nunca en el checkout público.
+  standaloneModifierId: z.string().min(1).optional(),
   quantity: z.coerce.number().int().positive().max(99),
   // Si el producto usa "Precio por variantes", cuál variante eligió el cliente.
   variantId: z.string().min(1).optional(),
@@ -27,10 +30,18 @@ export const cartItemSchema = z.object({
     .max(40)
     .optional(),
   note: z.string().max(200).optional(),
-});
+};
+const validateCartItem = (item: { productId: string | null; standaloneModifierId?: string }, ctx: z.RefinementCtx) => {
+  if (Boolean(item.productId) === Boolean(item.standaloneModifierId)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Elige un producto o un extra.', path: ['productId'] });
+  }
+};
+export const cartItemSchema = z.object(cartItemFields).superRefine(validateCartItem);
+const staffCartItemSchema = z.object({ ...cartItemFields, sourceRestaurantId: z.string().min(1).optional() }).superRefine(validateCartItem);
 
 /** Checkout en mesa (canal DINE_IN). Requiere el token del QR de la mesa. */
 export const dineInCheckoutSchema = z.object({
+  requestKey: z.string().min(8).max(100).optional(),
   qrToken: z.string().min(1, 'Falta el identificador de la mesa (QR).'),
   items: z.array(cartItemSchema).min(1, 'El carrito está vacío.'),
   customerName: z.string().min(1).max(120).optional(),
@@ -53,6 +64,8 @@ export const dineInCheckoutSchema = z.object({
  */
 export const manualOrderSchema = z
   .object({
+    requestKey: z.string().min(8).max(100).optional(),
+    deliveryCourierId: z.string().min(1).optional(),
     channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR', 'EXPRESS']).optional().default('DINE_IN'),
     tableId: z.string().min(1).optional(),
     // Mesa con varias cuentas abiertas: a cuál de ellas se agrega este pedido.
@@ -62,7 +75,7 @@ export const manualOrderSchema = z
     openNewAccount: z.boolean().optional(),
     // Nombre opcional de la cuenta nueva (ej. "Cuenta 2"). Solo aplica junto a openNewAccount.
     accountLabel: z.string().max(40).optional(),
-    items: z.array(cartItemSchema).min(1, 'El pedido está vacío.'),
+    items: z.array(staffCartItemSchema).min(1, 'El pedido está vacío.'),
     customerName: z.string().min(1).max(120).optional(),
     customerIdNumber: z.string().min(1).max(20).optional(),
     customerPhone: z.string().max(30).optional(),
@@ -88,6 +101,7 @@ export const manualOrderSchema = z
     // ofrece el cobro, no emite nada. Se puede cambiar después al pagar.
     wantsFiscalInvoice: z.boolean().optional(),
     // Consumo interno: lo activa exclusivamente el panel de staff.
+    sendToKitchen: z.boolean().optional(),
     isEmployeeConsumption: z.boolean().optional(),
     employeeConsumerName: z.string().min(1).max(120).optional(),
     employeeConsumerId: z.string().min(1).optional(),
@@ -106,6 +120,8 @@ export const manualOrderSchema = z
     if (data.channel === 'DELIVERY' && !data.customerAddress?.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe la dirección de entrega.', path: ['customerAddress'] });
     }
+    // FULL/SPLIT son intenciones, no cobros. El método se exige en recordPaymentSchema
+    // al registrar el pago, incluso si un cliente anterior omite sendToKitchen.
     if (data.sessionId && data.openNewAccount) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -116,6 +132,16 @@ export const manualOrderSchema = z
   });
 
 const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
+// Solo el cobro interno admite Descuento de nómina. No se agrega al esquema público de arriba:
+// un cliente de delivery/QR nunca puede declarar este método por su cuenta.
+const staffPaymentMethodSchema = z.enum([
+  'MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER', 'PAYROLL_DEDUCTION',
+]);
+
+/** Método elegido por Caja al aceptar una comanda que todavía no tenía uno. */
+export const acceptOrderSchema = z.object({
+  paymentMethod: paymentMethodSchema.optional(),
+});
 
 // Métodos que dejan rastro verificable y exigen referencia o comprobante (Punto de venta = "ticket").
 // Todos menos Efectivo Bs/$ (que no dejan rastro que verificar).
@@ -127,18 +153,23 @@ const METHODS_ALLOWING_PROOF = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 
 
 /** Checkout de delivery/pickup -> genera enlace de WhatsApp. Todo es obligatorio salvo la nota. */
 export const deliveryCheckoutSchema = z.object({
+  requestKey: z.string().min(8).max(100).optional(),
   mode: z.enum(['DELIVERY', 'PICKUP']).default('DELIVERY'),
   items: z.array(cartItemSchema).min(1, 'El carrito está vacío.'),
   customer: z.object({
     name: z.string().min(1, 'El nombre es obligatorio.').max(120),
     phone: z.string().min(7, 'Escribe un teléfono válido.').max(30),
+    idNumber: z.string().trim().max(30).optional(),
     address: z.string().max(300).optional(),
     // Enlace de Google Maps con la ubicación GPS del cliente (botón "Usar mi ubicación actual").
     locationUrl: z.string().url().max(300).optional(),
     // Coordenadas crudas del mismo botón, para calcular el costo de envío.
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
-    paymentMethod: paymentMethodSchema,
+    paymentMethod: paymentMethodSchema.optional(),
+    // Cupón del CRM elegido después de identificar al cliente. Se vuelve a validar y
+    // canjear en el servidor; el monto que mande la interfaz nunca es confiable.
+    promoCode: z.string().trim().max(40).optional(),
     note: z.string().max(300).optional(),
   }),
 });
@@ -184,8 +215,11 @@ export const RETURN_REASONS = ['CUSTOMER_RETURN', 'PREPARATION', 'DAMAGED', 'OTH
 export const returnOrderItemSchema = z.object({
   quantity: z.coerce.number().int().positive().max(99),
   reason: z.enum(RETURN_REASONS),
-  note: z.string().trim().max(300).optional(),
-});
+  note: z.string().trim().max(300).optional().default('Devuelto por el cliente'),
+}).transform((data) => ({
+  ...data,
+  note: data.note?.trim() ? data.note.trim() : 'Devuelto por el cliente',
+}));
 
 /** Agregar/editar la propina de un pedido a mano, desde Administración. */
 export const setTipSchema = z.object({
@@ -200,14 +234,20 @@ export const setAwaitingPaymentSchema = z.object({
 /** "Cancelar" (borrado duro) en Pedidos: el Mesero debe mandar el código de 6 dígitos de Ajustes. */
 export const deleteOrderSchema = z.object({
   pin: z.string().optional(),
+  reason: z.string().trim().min(3, 'Escribe el motivo de la eliminación.').max(300),
 });
 
 /** Registrar un cobro (botones "Pagar" / "Pago Fraccionado" en Pedidos). Si viene `items`, el
  * monto lo calcula el servidor a partir de esas líneas — `amountBase` se ignora en ese caso. */
 export const recordPaymentSchema = z
   .object({
+    requestKey: z.string().min(8).max(100).optional(),
     amountBase: z.coerce.number().positive().max(1000000).optional(),
-    method: paymentMethodSchema,
+    method: staffPaymentMethodSchema,
+    // Mesa y Barra identifican al cliente al cobrar, no al crear la comanda.
+    customerName: z.string().trim().max(120).optional(),
+    customerIdNumber: z.string().trim().max(30).optional(),
+    customerPhone: z.string().trim().max(30).optional(),
     // Descuento aplicado a este pago puntual, por % (0-100) o por monto fijo — el cliente manda
     // solo uno de los dos. Opcional, solo informativo: el monto real a acreditar sigue siendo
     // `amountBase` (ya viene descontado desde el cliente).
@@ -241,8 +281,16 @@ export const recordPaymentSchema = z
     // Con qué se devolvió el vuelto: mismo efectivo (default) o Pago Móvil en Bs, etc.
     changeMethod: paymentMethodSchema.optional(),
     changeReferenceNumber: z.string().max(60).optional(),
+    changeParts: z.array(z.object({
+      method: paymentMethodSchema,
+      amountBase: z.coerce.number().positive().max(1000000).multipleOf(0.01),
+      referenceNumber: z.string().trim().max(60).optional(),
+    }).strict()).min(1).max(10).optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.changeParts && (!data.amountReceived || data.changeMethod || data.changeReferenceNumber)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Indica el efectivo recibido y utiliza solo el desglose del vuelto.', path: ['changeParts'] });
+    }
     // El vuelto solo tiene sentido si el cliente pagó en efectivo (billetes) — con Pago Móvil o
     // Zelle transfiere el monto exacto, no hay "de más" que devolver.
     if (data.amountReceived != null && data.method !== 'CASH' && data.method !== 'CASH_USD') {
@@ -270,6 +318,7 @@ export const recordPaymentSchema = z
 
 /** Añadir un producto nuevo a un pedido ya creado, desde el panel de Pedidos en vivo. */
 export const addOrderItemSchema = z.object({
+  sourceRestaurantId: z.string().min(1).optional(),
   productId: z.string().min(1),
   quantity: z.coerce.number().int().positive().max(99),
   variantId: z.string().min(1).optional(),
@@ -287,6 +336,10 @@ export const addOrderItemSchema = z.object({
     .max(40)
     .optional(),
   note: z.string().max(200).optional(),
+});
+
+export const replaceOrderItemSchema = addOrderItemSchema.extend({
+  reason: z.string().trim().min(3, 'Escribe el motivo del cambio.').max(300),
 });
 
 /** Varios productos agregados de una sola vez a un pedido ya creado (ver "Enviar a cocina" en
@@ -309,9 +362,12 @@ export const printFiscalSchema = z.object({
     .trim()
     .min(1, 'La cédula o RIF es obligatorio para la factura fiscal.')
     .max(20)
-    .regex(/^([VEJGPvejgp]-?)?\d{5,10}$/, 'Cédula o RIF inválido. Ej: V-12345678 o J-407123456.')
+    // En caja es habitual teclear "J 503444991" o "V 12.345.678". Se eliminan
+    // separadores antes de validar e imprimir el formato fiscal canónico.
+    .transform((v) => v.replace(/[\s.-]/g, '').toUpperCase())
+    .pipe(z.string().regex(/^([VEJPG])?\d{5,10}$/, 'Cédula o RIF inválido. Ej: V-12345678 o J-407123456.'))
     .transform((v) => {
-      const s = v.toUpperCase().replace(/-/g, '');
+      const s = v.replace(/-/g, '');
       // Sin letra explícita se asume V (cédula de venezolano), que es el caso corriente.
       return /^\d+$/.test(s) ? `V-${s}` : `${s[0]}-${s.slice(1)}`;
     }),
@@ -328,6 +384,33 @@ export const fiscalIntentSchema = z.object({
 export const fiscalResultSchema = z.object({
   numeroFactura: z.string().trim().min(1).max(30),
   serialMaquina: z.string().trim().min(1).max(30),
+});
+
+/** Resultado que devuelve la Estación de Impresión después de que la máquina física
+ * ejecuta el cierre Z. `ok=false` también se registra: un timeout no se puede volver
+ * a intentar a ciegas porque el papel pudo haber salido. */
+export const fiscalZResultSchema = z.object({
+  requestId: z.string().uuid(),
+  ok: z.boolean(),
+  codigo: z.string().trim().max(80).optional(),
+  error: z.string().trim().max(500).optional(),
+  numeroReporte: z.string().trim().max(40).optional(),
+  serialMaquina: z.string().trim().max(80).optional(),
+  rifEmisor: z.string().trim().max(40).optional(),
+  fechaHora: z.string().trim().max(80).optional(),
+  ultimaFactura: z.string().trim().max(40).optional(),
+  ventasDelDia: z.union([z.number(), z.string()]).optional(),
+  // Snapshot crudo de la librería oficial. No se usa para recalcular ventas: el
+  // documento fiscal impreso por la máquina es la fuente legal.
+  reporte: z.record(z.string(), z.unknown()).optional(),
+});
+export type FiscalZResultInput = z.infer<typeof fiscalZResultSchema>;
+
+/** Una solicitud Z se transmite por Socket.IO a todas las estaciones abiertas.
+ * Cada estación debe reclamar el identificador antes de tocar la máquina; el
+ * servidor concede la operación a una sola para evitar dos cierres físicos. */
+export const fiscalZClaimSchema = z.object({
+  requestId: z.string().uuid(),
 });
 
 /** Editar los datos del cliente de un pedido ya creado. */
@@ -424,6 +507,26 @@ export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
 export type AddOrderItemsBatchInput = z.infer<typeof addOrderItemsBatchSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
+
+/** Registro de dinero que ya fue entregado de vuelta al cliente. */
+export const recordRefundSchema = z.object({
+  requestKey: z.string().uuid(),
+  amountBase: z.coerce.number().finite().positive().max(1000000),
+  amountBs: z.coerce.number().finite().positive().max(1000000000).optional().nullable(),
+  method: paymentMethodSchema,
+  reason: z.string().trim().max(500).optional().default('Devolución al cliente'),
+  referenceNumber: z.string().trim().max(80).optional().nullable(),
+  fiscalCreditNoteRef: z.string().trim().max(80).optional().nullable(),
+  bankAccountId: z.string().trim().max(80).optional().nullable(),
+}).transform((data) => ({
+  ...data,
+  reason: data.reason?.trim() ? data.reason.trim() : 'Devolución al cliente',
+  referenceNumber: data.referenceNumber?.trim() || undefined,
+  fiscalCreditNoteRef: data.fiscalCreditNoteRef?.trim() || undefined,
+  bankAccountId: data.bankAccountId?.trim() || undefined,
+  amountBs: data.amountBs != null && data.amountBs > 0 ? data.amountBs : undefined,
+}));
+export type RecordRefundInput = z.infer<typeof recordRefundSchema>;
 export type UpdateOrderCustomerInput = z.infer<typeof updateOrderCustomerSchema>;
 export type ChangeChannelInput = z.infer<typeof changeChannelSchema>;
 export type OrderHistoryQuery = z.infer<typeof orderHistoryQuerySchema>;
