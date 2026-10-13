@@ -1,4 +1,11 @@
+import masterOperationsRoutes from '../modules/master/master-operations.routes';
+import billingNoticeRoutes from '../modules/billing-notices/billing-notice.routes';
+import { printMonitorRoutes, masterPrintMonitorRoutes } from '../modules/print-monitor/print-monitor.routes';
+import { orderCompatibilityRoutes, customerCompatibilityRoutes, shopCompatibilityRoutes, productCompatibilityRoutes } from '../modules/route-compat/route-compat.routes';
+import connectRoutes from '../modules/connect/connect.routes';
+import publicToolsRoutes from '../modules/public-tools/public-tools.routes';
 import { Router } from 'express';
+import { assistantRoutes, masterAssistantRoutes } from '../modules/assistant/assistant.routes';
 import productRoutes from '../modules/products/product.routes';
 import menuRoutes from '../modules/menu/menu.routes';
 import orderRoutes from '../modules/orders/order.routes';
@@ -22,6 +29,7 @@ import {
 } from '../modules/plan-requests/plan-request.routes';
 import { tenantQrNfcRequestRoutes, masterQrNfcRequestRoutes } from '../modules/qr-nfc-requests/qr-nfc-request.routes';
 import masterSummaryRoutes from '../modules/master/master-summary.routes';
+import masterAdministrationRoutes from '../modules/master/master-administration.routes';
 import masterLiveRoutes from '../modules/master/master-live.routes';
 import { presenciaController } from '../modules/master/master-live.controller';
 import masterQuotesRoutes from '../modules/master/master-quotes.routes';
@@ -51,6 +59,7 @@ import {
   masterRegistrationFunnelRoutes,
 } from '../modules/registration-funnel/registration-funnel.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
+import { chefRecipeTenantRoutes, publicChefRecipeRoutes } from '../modules/chef-recipes/chef-recipes.routes';
 import movementRoutes from '../modules/movements/movement.routes';
 import paymentOrderRoutes from '../modules/payment-orders/payment-order.routes';
 import bankAccountRoutes from '../modules/bank-accounts/bank-account.routes';
@@ -62,10 +71,13 @@ import accountingRoutes from '../modules/accounting/accounting.routes';
 import wasteRoutes from '../modules/waste/waste.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
+import deliveryTrackingRoutes from '../modules/delivery-tracking/delivery-tracking.routes';
 import kitchenRoutes from '../modules/kitchens/kitchen.routes';
 import whatsappBotRoutes from '../modules/whatsapp-bot/whatsapp-bot.routes';
 import customerRoutes from '../modules/customers/customer.routes';
+import { customerController } from '../modules/customers/customer.controller';
 import promotionRoutes from '../modules/promotions/promotion.routes';
+import { promotionController } from '../modules/promotions/promotion.controller';
 import supplierRoutes from '../modules/suppliers/supplier.routes';
 import quoteRoutes from '../modules/quotes/quote.routes';
 import modifierCategoryRoutes from '../modules/modifier-categories/modifier-category.routes';
@@ -88,6 +100,7 @@ import clubTabletRoutes from '../modules/club-tablet/club-tablet.routes';
 import clubTournamentRoutes from '../modules/club-tournament/club-tournament.routes';
 import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
 import { publicBookingRateLimit } from '../middlewares/rate-limit.middleware';
+import { appointmentGoogleCallbackRoutes, publicAppointmentRoutes, tenantAppointmentRoutes } from '../modules/appointments/appointment.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -98,6 +111,8 @@ import { publicBookingRateLimit } from '../middlewares/rate-limit.middleware';
  *   /api/v1/public/checkout/*     -> público (comensal / cliente)
  */
 const router = Router();
+router.use('/connect', connectRoutes);
+router.use('/public/tools', publicToolsRoutes);
 
 // Ping de latencia (Dashboard maestro → gauge de velocidad): sin DB, sin
 // auth, la respuesta más liviana posible para medir solo el round-trip de
@@ -111,11 +126,14 @@ router.use('/auth', authRoutes);
 router.use('/master-auth', platformAuthRoutes);
 
 // --- Panel del restaurante (requieren JWT) ---
+router.use('/products', productCompatibilityRoutes);
 router.use('/products', productRoutes);
+router.use('/orders', orderCompatibilityRoutes);
 router.use('/orders', orderRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/kitchens', kitchenRoutes);
 router.use('/whatsapp-bot', whatsappBotRoutes);
+router.use('/customers', customerCompatibilityRoutes);
 router.use('/customers', customerRoutes);
 // CRM: promociones personalizadas con código canjeable.
 router.use('/promotions', promotionRoutes);
@@ -133,6 +151,8 @@ router.use('/restaurant', restaurantRoutes);
 router.use('/plan-requests', tenantPlanRequestRoutes);
 router.use('/qr-nfc-requests', tenantQrNfcRequestRoutes);
 router.use('/inventory', inventoryRoutes);
+// Enlace temporal para que el chef arme recetas desde el teléfono.
+router.use('/chef-recipes', chefRecipeTenantRoutes);
 router.use('/movements', movementRoutes);
 router.use('/payment-orders', paymentOrderRoutes);
 router.use('/bank-accounts', bankAccountRoutes);
@@ -150,9 +170,12 @@ router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/quotes', quoteRoutes);
 router.use('/reservations', tenantReservationRoutes);
+router.use('/appointments/google/callback', appointmentGoogleCallbackRoutes);
+router.use('/appointments', tenantAppointmentRoutes);
 router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
 router.use('/ai-reports', aiReportsRoutes);
+router.use('/shop', shopCompatibilityRoutes);
 router.use('/shop', shopRoutes);
 router.use('/approvals', approvalRoutes);
 // Vertical Administrativo: contabilidad multi-empresa (distinto del /accounting de restaurantes).
@@ -172,8 +195,12 @@ router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);
+router.use('/public/chef-recipes', publicChefRecipeRoutes);
 router.post('/public/checkout/dine-in', publicBookingRateLimit, orderController.checkoutDineIn);
 router.post('/public/checkout/delivery/:slug', publicBookingRateLimit, orderController.checkoutDelivery);
+// Compatibilidad con menús anteriores: sin identidad verificada no revela datos del CRM.
+router.post('/public/checkout/customer/:slug', publicBookingRateLimit, customerController.publicCheckoutProfile);
+router.post('/public/checkout/coupon/:slug', publicBookingRateLimit, promotionController.validatePublic);
 // Con límite igual que el checkout: es público, y cada llamada consulta zonas y tasa del día.
 router.get('/public/checkout/delivery/:slug/quote', publicBookingRateLimit, orderController.deliveryQuote);
 // Tasa BCV para la landing (precios de planes en $ y Bs): es un dato global, no de un restaurante.
@@ -185,6 +212,8 @@ router.use('/public/promo-codes', publicPromoCodeRoutes);
 router.use('/public/payment-methods', publicPlatformSettingsRoutes);
 router.use('/public/plans', publicPlanContentRoutes);
 router.use('/public/reservations', publicReservationRoutes);
+router.use('/public/delivery-tracking', deliveryTrackingRoutes);
+router.use('/public/appointments', publicAppointmentRoutes);
 // QuickTap Wallet: portal del cliente final (quicktap.club/wallet) — ver modules/pass.
 router.use('/public/wallet', walletRoutes);
 // Latido de presencia de las páginas públicas: alimenta el contador de "personas en la
@@ -216,12 +245,17 @@ router.use('/master/message-templates', masterMessageTemplatesRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
 router.use('/master/advisor-leads', masterAdvisorLeadRoutes);
 router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
+router.use('/master/operations', masterOperationsRoutes);
 router.use('/master/summary', masterSummaryRoutes);
+router.use('/master/administration', masterAdministrationRoutes);
 // Estadísticas en vivo de toda la plataforma (pedidos, visitantes y plata por vertical).
+router.use('/print-monitor', printMonitorRoutes);
+router.use('/master/printing', masterPrintMonitorRoutes);
 router.use('/master/live', masterLiveRoutes);
 router.use('/master/quotes', masterQuotesRoutes);
 router.use('/master/server-status', masterServerStatusRoutes);
 router.use('/master/restaurants', masterRestaurantsRoutes);
+router.use('/master/billing-notices', billingNoticeRoutes);
 router.use('/master/restaurants', masterFiscalInvoicingRoutes);
 router.use('/master/admins', masterAdminsRoutes);
 // Migración interna OlaClick → QuickTap (ver src/modules/master/master-olaclick-import.*).
@@ -238,4 +272,6 @@ router.use('/master/whatsapp-link', masterWhatsappLinkRouter);
 router.use('/public/wa-webhook', waWebhookRouter);
 router.use('/master/announcements', masterAnnouncementRoutes);
 
+router.use('/assistant', assistantRoutes);
+router.use('/master/assistant', masterAssistantRoutes);
 export default router;
